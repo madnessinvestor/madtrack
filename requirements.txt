@@ -1,1 +1,2 @@
-pyinstaller>=6.0
+flask>=3.0
+flask

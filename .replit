@@ -22,13 +22,18 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 MadTrade.py"
-
-[workflows.workflow.metadata]
-outputType = "vnc"
+args = "python3 app.py"
+waitForPort = 5000
 
 [deployment]
-deploymentTarget = "vm"
-run = ["python3", "MadTrade.py"]
+deploymentTarget = "autoscale"
+run = ["python3", "app.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
