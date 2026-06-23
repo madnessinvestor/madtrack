@@ -1,8 +1,7 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, urllib.request, urllib.error
+import json, os, urllib.request
 
 app = Flask(__name__)
-
 DATA_FILE = "assets.json"
 
 def load_assets():
@@ -15,11 +14,10 @@ def save_assets(assets):
     with open(DATA_FILE, "w") as f:
         json.dump(assets, f)
 
-def fetch_prices(symbols):
-    if not symbols:
+def fetch_prices(ids):
+    if not ids:
         return {}
-    ids = ",".join(symbols)
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true"
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(ids)}&vs_currencies=usd&include_24hr_change=true"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0"})
         with urllib.request.urlopen(req, timeout=8) as r:
@@ -38,22 +36,18 @@ def favicon():
 @app.route("/api/assets", methods=["GET"])
 def get_assets():
     assets = load_assets()
-    symbols = [a["id"] for a in assets]
-    prices = fetch_prices(symbols)
+    prices = fetch_prices([a["id"] for a in assets])
     result = []
     for a in assets:
         p = prices.get(a["id"], {})
-        price = p.get("usd", 0)
-        change = p.get("usd_24h_change", 0)
-        qty = a.get("qty", 0)
-        value = price * qty
+        price = p.get("usd", None)
+        change = p.get("usd_24h_change", None)
         result.append({
             "id": a["id"],
-            "symbol": a["symbol"].upper(),
-            "qty": qty,
+            "symbol": a.get("symbol", a["id"]).upper(),
+            "name": a.get("name", a["id"].title()),
             "price": price,
-            "change24h": round(change, 2) if change else 0,
-            "value": round(value, 2)
+            "change24h": round(change, 2) if change is not None else None
         })
     return jsonify(result)
 
@@ -62,21 +56,20 @@ def add_asset():
     data = request.json
     assets = load_assets()
     coin_id = data.get("id", "").strip().lower()
-    symbol = data.get("symbol", "").strip().lower()
-    qty = float(data.get("qty", 0))
     for a in assets:
         if a["id"] == coin_id:
-            a["qty"] = qty
-            save_assets(assets)
             return jsonify({"ok": True})
-    assets.append({"id": coin_id, "symbol": symbol, "qty": qty})
+    assets.append({
+        "id": coin_id,
+        "symbol": data.get("symbol", "").strip(),
+        "name": data.get("name", "").strip()
+    })
     save_assets(assets)
     return jsonify({"ok": True})
 
 @app.route("/api/assets/<asset_id>", methods=["DELETE"])
 def delete_asset(asset_id):
-    assets = load_assets()
-    assets = [a for a in assets if a["id"] != asset_id]
+    assets = [a for a in load_assets() if a["id"] != asset_id]
     save_assets(assets)
     return jsonify({"ok": True})
 
@@ -89,8 +82,7 @@ def search_coin():
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0"})
         with urllib.request.urlopen(req, timeout=8) as r:
-            data = json.loads(r.read().decode())
-            coins = data.get("coins", [])[:8]
+            coins = json.loads(r.read().decode()).get("coins", [])[:8]
             return jsonify([{"id": c["id"], "symbol": c["symbol"], "name": c["name"]} for c in coins])
     except Exception:
         return jsonify([])

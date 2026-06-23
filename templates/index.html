@@ -5,45 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f0f0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>MadTracker</title>
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <div class="header-top">
-        <h1>MadTracker</h1>
-        <button id="btn-add" onclick="openModal()">+ Adicionar</button>
-      </div>
-      <div id="portfolio-total">
-        <span class="label">Total Portfolio</span>
-        <span id="total-value" class="total">—</span>
-      </div>
-    </header>
+  <header>
+    <h1>MadTracker</h1>
+    <button id="btn-add" onclick="openModal()">+ Adicionar</button>
+  </header>
 
-    <main id="asset-list">
-      <div class="loading">Carregando...</div>
-    </main>
+  <main id="asset-list">
+    <div class="loading">Carregando...</div>
+  </main>
 
-    <div class="refresh-bar">
-      <span id="last-update">—</span>
-      <button onclick="loadAssets()">↻ Atualizar</button>
-    </div>
+  <div class="refresh-bar">
+    <span id="last-update">—</span>
+    <button onclick="loadAssets()">↻ Atualizar</button>
   </div>
 
-  <!-- Modal Adicionar -->
-  <div id="modal" class="modal hidden">
+  <!-- Modal -->
+  <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
     <div class="modal-box">
       <h2>Adicionar Ativo</h2>
-      <input id="search-input" type="text" placeholder="Ex: bitcoin, ethereum..." autocomplete="off" oninput="searchCoin(this.value)" />
+      <input id="search-input" type="text" placeholder="Buscar: bitcoin, ethereum..." autocomplete="off" oninput="searchCoin(this.value)" />
       <ul id="search-results"></ul>
-      <div id="selected-coin" class="hidden">
-        <p id="selected-name"></p>
-        <input id="qty-input" type="number" placeholder="Quantidade (ex: 0.5)" min="0" step="any" />
-        <button onclick="addAsset()">Salvar</button>
-      </div>
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
     </div>
   </div>
