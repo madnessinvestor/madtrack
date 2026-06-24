@@ -775,6 +775,29 @@ section.hidden { display: none; }
 .btn-portfolio-del:active { opacity: 0.7; }
 
 /* ─── Trade modal form ───────────────────────────────────────────────────────── */
+.trade-mode-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.trade-mode-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--muted2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.trade-mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .trade-form-row {
   display: flex;
   gap: 10px;

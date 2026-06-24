@@ -8,6 +8,22 @@ let tradeActiveIndex     = -1;
 let tradeSuggestions     = [];
 let tradeFetchedPrice    = null;
 let tradePendingTicker   = null;
+let tradeMode            = "unit"; // "unit" | "total"
+
+function setTradeMode(mode) {
+  tradeMode = mode;
+  document.getElementById("trade-mode-unit").classList.toggle("active",  mode === "unit");
+  document.getElementById("trade-mode-total").classList.toggle("active", mode === "total");
+  document.getElementById("trade-col-price").classList.toggle("hidden",    mode === "total");
+  document.getElementById("trade-col-totalpaid").classList.toggle("hidden", mode === "unit");
+  document.getElementById("trade-total-preview").classList.add("hidden");
+  document.getElementById("trade-derived-preview").classList.add("hidden");
+  // update totalpaid label with current currency symbol
+  const sym = typeof currSym === "function" ? currSym() : "$";
+  document.getElementById("trade-totalpaid-label").textContent =
+    t("totalpaid_label") + " (" + sym + ")";
+  updateTradePreview();
+}
 
 // ─── Tab switching ────────────────────────────────────────────────────────────
 
@@ -228,19 +244,26 @@ function openTradeModal(prefillTicker) {
   tradeFetchedPrice   = null;
   tradeActiveIndex    = -1;
   tradeSuggestions    = [];
+  tradeMode           = "unit";
 
   const tickerInput = document.getElementById("trade-ticker-input");
   tickerInput.value    = prefillTicker || "";
   tickerInput.disabled = !!prefillTicker;
   tickerInput.placeholder = t("trade_ticker_ph");
 
-  document.getElementById("trade-qty").value   = "";
-  document.getElementById("trade-price").value = "";
-  document.getElementById("trade-date").value  = nowStr();
+  document.getElementById("trade-qty").value        = "";
+  document.getElementById("trade-price").value      = "";
+  document.getElementById("trade-total-paid").value = "";
+  document.getElementById("trade-date").value       = nowStr();
   document.getElementById("trade-error").classList.add("hidden");
   document.getElementById("trade-suggestions").classList.add("hidden");
   document.getElementById("trade-price-preview").classList.add("hidden");
   document.getElementById("trade-total-preview").classList.add("hidden");
+  document.getElementById("trade-derived-preview").classList.add("hidden");
+  document.getElementById("trade-col-price").classList.remove("hidden");
+  document.getElementById("trade-col-totalpaid").classList.add("hidden");
+  document.getElementById("trade-mode-unit").classList.add("active");
+  document.getElementById("trade-mode-total").classList.remove("active");
   document.getElementById("trade-modal").classList.remove("hidden");
 
   if (prefillTicker) {
@@ -359,14 +382,30 @@ async function fetchTradePrice(sym, seq) {
 }
 
 function updateTradePreview() {
-  const qty   = parseFloat(document.getElementById("trade-qty").value);
-  const price = parseFloat(document.getElementById("trade-price").value);
-  const prev  = document.getElementById("trade-total-preview");
-  if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
-    document.getElementById("trade-total-val").textContent = formatUSD(qty * price);
-    prev.classList.remove("hidden");
+  const qty = parseFloat(document.getElementById("trade-qty").value);
+
+  if (tradeMode === "unit") {
+    const price = parseFloat(document.getElementById("trade-price").value);
+    const prev  = document.getElementById("trade-total-preview");
+    document.getElementById("trade-derived-preview").classList.add("hidden");
+    if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
+      document.getElementById("trade-total-val").textContent = formatUSD(qty * price);
+      prev.classList.remove("hidden");
+    } else {
+      prev.classList.add("hidden");
+    }
   } else {
-    prev.classList.add("hidden");
+    const totalPaid = parseFloat(document.getElementById("trade-total-paid").value);
+    document.getElementById("trade-total-preview").classList.add("hidden");
+    const derived   = document.getElementById("trade-derived-preview");
+    if (!isNaN(qty) && !isNaN(totalPaid) && qty > 0 && totalPaid > 0) {
+      const rate      = typeof getRate === "function" ? getRate() : 1;
+      const priceUsd  = (totalPaid / rate) / qty;
+      document.getElementById("trade-derived-val").textContent = formatUSD(priceUsd, true);
+      derived.classList.remove("hidden");
+    } else {
+      derived.classList.add("hidden");
+    }
   }
 }
 
@@ -374,14 +413,24 @@ async function submitTrade() {
   const errEl  = document.getElementById("trade-error");
   const ticker = (document.getElementById("trade-ticker-input").value || tradePendingTicker || "").trim().toUpperCase();
   const qty    = parseFloat(document.getElementById("trade-qty").value);
-  const price  = parseFloat(document.getElementById("trade-price").value);
   const date   = document.getElementById("trade-date").value.trim();
 
   errEl.classList.add("hidden");
 
   if (!ticker) { errEl.textContent = t("err_ticker"); errEl.classList.remove("hidden"); return; }
   if (isNaN(qty) || qty <= 0) { errEl.textContent = t("err_qty"); errEl.classList.remove("hidden"); return; }
-  if (isNaN(price) || price <= 0) { errEl.textContent = t("err_price"); errEl.classList.remove("hidden"); return; }
+
+  let price;
+  if (tradeMode === "unit") {
+    price = parseFloat(document.getElementById("trade-price").value);
+    if (isNaN(price) || price <= 0) { errEl.textContent = t("err_price"); errEl.classList.remove("hidden"); return; }
+  } else {
+    const totalPaid = parseFloat(document.getElementById("trade-total-paid").value);
+    if (isNaN(totalPaid) || totalPaid <= 0) { errEl.textContent = t("err_total"); errEl.classList.remove("hidden"); return; }
+    const rate = typeof getRate === "function" ? getRate() : 1;
+    price = (totalPaid / rate) / qty;
+    if (!isFinite(price) || price <= 0) { errEl.textContent = t("err_price"); errEl.classList.remove("hidden"); return; }
+  }
 
   const res = await fetch("/api/portfolio", {
     method: "POST",

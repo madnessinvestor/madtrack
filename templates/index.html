@@ -131,22 +131,36 @@
         <span id="trade-cur-price">—</span>
       </div>
 
+      <div class="trade-mode-toggle">
+        <button id="trade-mode-unit"  class="trade-mode-btn active" onclick="setTradeMode('unit')"  data-i18n="mode_unit">Por unidade</button>
+        <button id="trade-mode-total" class="trade-mode-btn"        onclick="setTradeMode('total')" data-i18n="mode_total">Total pago</button>
+      </div>
+
       <div class="trade-form-row">
         <div class="trade-form-col">
           <label class="trade-label" data-i18n="qty_label">Quantidade</label>
           <input id="trade-qty" type="number" step="any" min="0" placeholder="0.00"
                  class="trade-input" oninput="updateTradePreview()" />
         </div>
-        <div class="trade-form-col">
-          <label class="trade-label" data-i18n="price_label">Preço pago (USD)</label>
+        <div class="trade-form-col" id="trade-col-price">
+          <label class="trade-label" id="trade-price-label">Preço (USD)</label>
           <input id="trade-price" type="number" step="any" min="0" placeholder="0.00"
+                 class="trade-input" oninput="updateTradePreview()" />
+        </div>
+        <div class="trade-form-col hidden" id="trade-col-totalpaid">
+          <label class="trade-label" id="trade-totalpaid-label">Total pago</label>
+          <input id="trade-total-paid" type="number" step="any" min="0" placeholder="0.00"
                  class="trade-input" oninput="updateTradePreview()" />
         </div>
       </div>
 
       <div id="trade-total-preview" class="trade-total-preview hidden">
-        <span data-i18n="total_label">Total investido:</span>
+        <span id="trade-preview-label" data-i18n="total_label">Total investido:</span>
         <strong id="trade-total-val">—</strong>
+      </div>
+      <div id="trade-derived-preview" class="trade-total-preview hidden">
+        <span data-i18n="derived_price_label">Preço unitário calculado:</span>
+        <strong id="trade-derived-val">—</strong>
       </div>
 
       <div class="trade-form-col" style="margin-top:4px">

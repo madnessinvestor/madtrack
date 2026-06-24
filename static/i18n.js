@@ -24,6 +24,11 @@ const TRANSLATIONS = {
     total_label:      "Total investido:",
     date_label:       "Data (opcional)",
     confirm_trade:    "Confirmar Compra",
+    mode_unit:        "Por unidade",
+    mode_total:       "Total pago",
+    totalpaid_label:  "Total pago",
+    derived_price_label: "Preço unitário calculado:",
+    err_total:        "Total inválido.",
     // portfolio card
     p_asset:          "ATIVO",
     p_price:          "PREÇO",
@@ -93,6 +98,11 @@ const TRANSLATIONS = {
     total_label:      "Total invested:",
     date_label:       "Date (optional)",
     confirm_trade:    "Confirm Purchase",
+    mode_unit:        "Per unit",
+    mode_total:       "Total paid",
+    totalpaid_label:  "Total paid",
+    derived_price_label: "Calculated unit price:",
+    err_total:        "Invalid total.",
     // portfolio card
     p_asset:          "ASSET",
     p_price:          "PRICE",
