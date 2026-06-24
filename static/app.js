@@ -24,6 +24,8 @@ let currentSuggestions = [];
 let searchSeq          = 0;
 let cachedAssets       = [];
 
+const WHITE_BG_ICONS = new Set(["ETH", "SOL"]);
+
 // ─── Moeda ────────────────────────────────────────────────────────────────────
 
 let currentCurrency = localStorage.getItem("currency") || "USD";
@@ -265,7 +267,15 @@ function applyAvatar(wrap, sym) {
 }
 
 function tryLoadImage(img, text, src, fallbackFn) {
-  img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
+  img.onload  = () => {
+    img.classList.add("loaded");
+    text.style.display = "none";
+    const wrap = img.closest(".asset-icon");
+    if (wrap) {
+      const sym = (wrap.dataset.sym || wrap.dataset.pticker || "").toUpperCase();
+      if (WHITE_BG_ICONS.has(sym)) wrap.style.background = "#fff";
+    }
+  };
   img.onerror = () => { img.onerror = () => {}; if (fallbackFn) fallbackFn(); };
   img.src = src;
 }
