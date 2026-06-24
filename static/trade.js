@@ -295,11 +295,12 @@ function openTradeModal(prefillTicker) {
   tickerInput.placeholder = t("trade_ticker_ph");
 
   tradeLastEdited = "price";
-  document.getElementById("trade-qty").value        = "";
-  document.getElementById("trade-price").value      = "";
-  document.getElementById("trade-total-paid").value = "";
-  document.getElementById("trade-investment").value = "";
-  document.getElementById("trade-date").value       = nowStr();
+  const _v = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  _v("trade-qty", "");
+  _v("trade-price", "");
+  _v("trade-total-paid", "");
+  _v("trade-investment", "");
+  _v("trade-date", nowStr());
   document.getElementById("trade-error").classList.add("hidden");
   document.getElementById("trade-suggestions").classList.add("hidden");
   document.getElementById("trade-price-preview").classList.add("hidden");
