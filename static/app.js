@@ -209,9 +209,27 @@ function forexIconUrl(sym) {
   return cc ? `https://flagcdn.com/48x36/${cc}.png` : null;
 }
 
-function setIcon(img, text, src) {
+const AVATAR_PALETTE = [
+  '#e74c3c','#c0392b','#e67e22','#d35400','#f39c12',
+  '#27ae60','#16a085','#2980b9','#1a6fa8','#8e44ad',
+  '#6c3483','#e91e63','#00838f','#e53935','#3949ab'
+];
+
+function avatarBg(sym) {
+  let h = 0;
+  for (let i = 0; i < sym.length; i++) h = sym.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
+function applyAvatar(wrap, sym) {
+  wrap.style.background = avatarBg(sym);
+  const text = wrap.querySelector(".icon-text");
+  if (text) text.textContent = sym.slice(0, 2).toUpperCase();
+}
+
+function tryLoadImage(img, text, src, fallbackFn) {
   img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
-  img.onerror = () => {};
+  img.onerror = () => { img.onerror = () => {}; if (fallbackFn) fallbackFn(); };
   img.src = src;
 }
 
@@ -222,20 +240,22 @@ function loadIcons(symbols) {
     const img  = wrap.querySelector(".icon-img");
     const text = wrap.querySelector(".icon-text");
 
+    // Always set colored avatar immediately as guaranteed fallback
+    applyAvatar(wrap, sym);
+
     if (isForexPair(sym)) {
       const url = forexIconUrl(sym);
-      if (url) { setIcon(img, text, url); }
+      if (url) tryLoadImage(img, text, url, null);
       return;
     }
 
-    img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
-    img.onerror = () => {
+    // Try CDN → then /api/icon (CoinGecko) → avatar stays if both fail
+    tryLoadImage(img, text, CDN(sym), () => {
       fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => { img.onerror = () => {}; img.src = data.url; })
+        .then(data => tryLoadImage(img, text, data.url, null))
         .catch(() => {});
-    };
-    img.src = CDN(sym);
+    });
   });
 }
 
@@ -246,21 +266,22 @@ function loadModalIcon(sym) {
   const text = wrap.querySelector(".icon-text");
   text.style.display = "";
   img.classList.remove("loaded");
+  img.src = "";
+
+  applyAvatar(wrap, sym);
 
   if (isForexPair(sym)) {
     const url = forexIconUrl(sym);
-    if (url) { setIcon(img, text, url); }
+    if (url) tryLoadImage(img, text, url, null);
     return;
   }
 
-  img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
-  img.onerror = () => {
+  tryLoadImage(img, text, CDN(sym), () => {
     fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => { img.onerror = () => {}; img.src = data.url; })
+      .then(data => tryLoadImage(img, text, data.url, null))
       .catch(() => {});
-  };
-  img.src = CDN(sym);
+  });
 }
 
 async function deleteAsset(symbol) {

@@ -137,16 +137,17 @@ main {
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 0.7rem;
-  color: var(--accent);
+  font-size: 0.72rem;
+  color: #fff;
   flex-shrink: 0;
   overflow: hidden;
   position: relative;
+  letter-spacing: -0.5px;
 }
 .asset-icon.lg {
   width: 48px;
   height: 48px;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
 }
 .icon-img {
   position: absolute;
