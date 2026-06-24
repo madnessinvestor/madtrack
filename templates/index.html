@@ -24,13 +24,32 @@
     <button onclick="loadAssets()">↻ Atualizar</button>
   </div>
 
-  <!-- Modal -->
+  <!-- Modal busca por ticker -->
   <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
     <div class="modal-box">
-      <h2>Adicionar Ativo</h2>
-      <input id="search-input" type="text" placeholder="Buscar: bitcoin, ethereum..." autocomplete="off" oninput="searchCoin(this.value)" />
-      <ul id="search-results"></ul>
-      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <h2>Buscar Ativo</h2>
+      <div class="search-wrap">
+        <input id="ticker-input" type="text" placeholder="Digite o ticker: BTC, ETH, SOL..."
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               oninput="onTickerInput(this.value)" />
+        <span id="search-spinner" class="spinner hidden"></span>
+      </div>
+
+      <div id="price-result" class="price-result hidden">
+        <div class="pr-symbol" id="pr-symbol"></div>
+        <div class="pr-price" id="pr-price"></div>
+        <div class="pr-meta">
+          <span id="pr-change" class="pr-change"></span>
+          <span id="pr-source" class="pr-source"></span>
+        </div>
+        <button class="btn-confirm" id="btn-confirm" onclick="confirmAdd()">+ Adicionar à lista</button>
+      </div>
+
+      <div id="price-error" class="price-error hidden">
+        Ativo não encontrado em nenhuma exchange.
+      </div>
+
+      <button class="btn-cancel" onclick="closeModal()">Fechar</button>
     </div>
   </div>
 

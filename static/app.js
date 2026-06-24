@@ -1,4 +1,7 @@
 let searchTimeout = null;
+let pendingSymbol = null;
+
+// ─── Watchlist ────────────────────────────────────────────────────────────
 
 async function loadAssets() {
   const list = document.getElementById("asset-list");
@@ -8,36 +11,37 @@ async function loadAssets() {
     const res = await fetch("/api/assets");
     const assets = await res.json();
 
-    if (assets.length === 0) {
+    if (!assets.length) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-icon">📊</div>
-        <p>Nenhum ativo adicionado.<br>Clique em + Adicionar para começar.</p>
+        <p>Nenhum ativo adicionado.<br>Clique em <b>+ Adicionar</b> e digite o ticker.</p>
       </div>`;
     } else {
       list.innerHTML = assets.map(a => {
-        const hasPrice = a.price !== null;
-        const changeClass = (a.change24h || 0) >= 0 ? "up" : "down";
-        const changeSign = (a.change24h || 0) >= 0 ? "▲" : "▼";
-        const changeAbs = Math.abs(a.change24h || 0).toFixed(2);
+        const hasPrice = a.price !== null && a.price !== undefined;
+        const up = (a.change24h || 0) >= 0;
+        const changeClass = up ? "up" : "down";
+        const changeSign = up ? "▲" : "▼";
+        const changeAbs = Math.abs(a.change24h ?? 0).toFixed(2);
         return `<div class="asset-card">
           <div class="asset-left">
             <div class="asset-icon">${a.symbol.slice(0,4)}</div>
             <div>
               <div class="asset-symbol">${a.symbol}</div>
-              <div class="asset-name">${a.name}</div>
+              ${a.source ? `<div class="asset-source">${a.source}</div>` : ""}
             </div>
           </div>
           <div class="asset-right">
             <div class="asset-price">${hasPrice ? formatUSD(a.price) : "—"}</div>
             ${hasPrice ? `<div class="asset-change ${changeClass}">${changeSign} ${changeAbs}%</div>` : ""}
           </div>
-          <button class="btn-delete" onclick="deleteAsset('${a.id}')">✕</button>
+          <button class="btn-delete" onclick="deleteAsset('${a.symbol}')">✕</button>
         </div>`;
       }).join("");
     }
 
     const now = new Date();
-    lastUpdate.textContent = `Atualizado às ${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
+    lastUpdate.textContent = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
   } catch {
     list.innerHTML = `<div class="empty-state"><p>Erro ao carregar. Verifique a conexão.</p></div>`;
   }
@@ -50,53 +54,88 @@ function formatUSD(v) {
   return "$0.00";
 }
 
-async function deleteAsset(id) {
-  await fetch(`/api/assets/${id}`, { method: "DELETE" });
+async function deleteAsset(symbol) {
+  await fetch(`/api/assets/${encodeURIComponent(symbol)}`, { method: "DELETE" });
   loadAssets();
 }
 
+// ─── Modal / Search ───────────────────────────────────────────────────────
+
 function openModal() {
-  document.getElementById("search-input").value = "";
-  document.getElementById("search-results").innerHTML = "";
+  pendingSymbol = null;
+  document.getElementById("ticker-input").value = "";
+  document.getElementById("price-result").classList.add("hidden");
+  document.getElementById("price-error").classList.add("hidden");
+  document.getElementById("search-spinner").classList.add("hidden");
   document.getElementById("modal").classList.remove("hidden");
-  setTimeout(() => document.getElementById("search-input").focus(), 100);
+  setTimeout(() => document.getElementById("ticker-input").focus(), 80);
 }
 
 function closeModal() {
   document.getElementById("modal").classList.add("hidden");
 }
 
-async function searchCoin(q) {
+function onTickerInput(val) {
   clearTimeout(searchTimeout);
-  const results = document.getElementById("search-results");
-  if (!q.trim()) { results.innerHTML = ""; return; }
+  const sym = val.trim().toUpperCase();
+  const result = document.getElementById("price-result");
+  const error = document.getElementById("price-error");
+  const spinner = document.getElementById("search-spinner");
 
-  searchTimeout = setTimeout(async () => {
-    results.innerHTML = `<li class="result-loading">Buscando...</li>`;
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const coins = await res.json();
-      if (!coins.length) {
-        results.innerHTML = `<li class="result-loading">Nenhum resultado</li>`;
-        return;
-      }
-      results.innerHTML = coins.map(c =>
-        `<li onclick="addAsset('${c.id}','${c.symbol}','${c.name.replace(/'/g,"\\'")}')">
-          <span class="result-symbol">${c.symbol.toUpperCase()}</span>
-          <span class="result-name">${c.name}</span>
-        </li>`
-      ).join("");
-    } catch {
-      results.innerHTML = `<li class="result-loading">Erro na busca</li>`;
-    }
-  }, 400);
+  result.classList.add("hidden");
+  error.classList.add("hidden");
+  pendingSymbol = null;
+
+  if (sym.length < 1) { spinner.classList.add("hidden"); return; }
+
+  spinner.classList.remove("hidden");
+
+  searchTimeout = setTimeout(() => fetchTickerPrice(sym), 500);
 }
 
-async function addAsset(id, symbol, name) {
+async function fetchTickerPrice(sym) {
+  const result = document.getElementById("price-result");
+  const error = document.getElementById("price-error");
+  const spinner = document.getElementById("search-spinner");
+
+  try {
+    const res = await fetch(`/api/price?symbol=${encodeURIComponent(sym)}`);
+    spinner.classList.add("hidden");
+
+    if (!res.ok) {
+      error.classList.remove("hidden");
+      return;
+    }
+
+    const data = await res.json();
+    pendingSymbol = sym;
+
+    document.getElementById("pr-symbol").textContent = data.symbol;
+    document.getElementById("pr-price").textContent = formatUSD(data.price);
+
+    const changeEl = document.getElementById("pr-change");
+    if (data.change24h !== null && data.change24h !== undefined) {
+      const up = data.change24h >= 0;
+      changeEl.textContent = (up ? "▲ " : "▼ ") + Math.abs(data.change24h).toFixed(2) + "%";
+      changeEl.className = "pr-change " + (up ? "up" : "down");
+    } else {
+      changeEl.textContent = "";
+    }
+
+    document.getElementById("pr-source").textContent = "via " + (data.source || "—");
+    result.classList.remove("hidden");
+  } catch {
+    spinner.classList.add("hidden");
+    error.classList.remove("hidden");
+  }
+}
+
+async function confirmAdd() {
+  if (!pendingSymbol) return;
   await fetch("/api/assets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, symbol, name })
+    body: JSON.stringify({ symbol: pendingSymbol })
   });
   closeModal();
   loadAssets();
