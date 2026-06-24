@@ -1,0 +1,45 @@
+Encontrei o problema. Todas as APIs retornam 403 Forbidden neste ambiente de sandbox. Mas quando o app roda em produção (Replit, servidor próprio), elas funcionam normalmente. Vou analisar mais a fundo os problemas reais no código:Visualizou 2 arquivosVisualizou 2 arquivosAgora tenho uma análise completa. Deixa eu verificar o frontend também:Executou 2 comandos, visualizou um arquivoExecutou 2 comandos, visualizou um arquivoAgora tenho tudo que preciso para um diagnóstico completo. Vou compilar os problemas encontrados:Ver dependênciasVer dependênciasAgora tenho o diagnóstico completo. Aqui está a análise detalhada dos problemas encontrados:
+
+Diagnóstico: Por que os preços não são encontrados
+🔴 Problema Principal — Todas as APIs são de cripto, zero suporte a ações/ativos tradicionais
+O app só consulta exchanges de criptomoedas:
+APIO que buscaHyperliquidCripto perp/spotMEXC, KuCoin, Gate.io, OKX, KrakenCripto CEXCoinGecko, CoinCap, CryptoCompare, BitfinexCripto
+Se você digitar PETR4, VALE3, AAPL, ITUB4 — nenhuma dessas APIs vai encontrar. Elas não existem nesses exchanges.
+
+🟡 Problema 2 — Rate limit do CoinGecko (API gratuita)
+A API pública do CoinGecko tem limite severo de requisições. Sem uma chave de API, ela frequentemente retorna 429 Too Many Requests, fazendo o fallback falhar silenciosamente.
+
+🟡 Problema 3 — O _warmup() só é chamado no if __name__ == "__main__"
+pythonif __name__ == "__main__":
+    _warmup()          # ← só roda quando executa diretamente
+    app.run(...)
+Se o app for rodado via gunicorn ou waitress (comum no Replit), o _warmup() nunca é chamado, então o cache de símbolos para autocompletar fica vazio.
+
+🟡 Problema 4 — Símbolos com sufixo são rejeitados
+Se você digitar BTCUSDT em vez de BTC, ou ETH-USDT em vez de ETH, as funções acrescentam o sufixo novamente (ex: api_mexc adiciona USDT — fica BTCUSDTUSDT) e a busca falha.
+
+✅ Soluções recomendadas
+Para ações brasileiras (B3) e americanas, adicionar uma dessas APIs ao APIS:
+python# Ações BR via brapi.dev (gratuita)
+def api_brapi(sym):
+    d = http_get(f"https://brapi.dev/api/quote/{sym}")
+    if d and d.get("results"):
+        r = d["results"][0]
+        price = safe_float(r.get("regularMarketPrice"))
+        if price:
+            return {
+                "price": price,
+                "change24h": safe_float(r.get("regularMarketChangePercent")),
+                "high24h": safe_float(r.get("regularMarketDayHigh")),
+                "low24h": safe_float(r.get("regularMarketDayLow")),
+                "volume24h": safe_float(r.get("regularMarketVolume")),
+                "market_cap": safe_float(r.get("marketCap")),
+                "source": "brapi.dev"
+            }
+Para corrigir o warmup com gunicorn, mover a chamada para fora do if __name__:
+python# No topo, após definir o app
+_warmup()  # roda sempre, independente de como o servidor é iniciado
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
+Resumindo: o app funciona só para criptomoedas listadas em exchanges como Hyperliquid, MEXC, etc. Se você quer buscar ações (B3 ou NYSE), precisa adicionar uma API como brapi.dev (Brasil) ou Yahoo Finance (global). Quer que eu implemente isso?

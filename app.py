@@ -303,6 +303,23 @@ def api_bitfinex(sym):
                 "volume24h": None, "market_cap": None, "source": "Bitfinex"
             }
 
+def api_brapi(sym):
+    s = sym.upper()
+    d = http_get(f"https://brapi.dev/api/quote/{s}")
+    if d and d.get("results"):
+        r = d["results"][0]
+        price = safe_float(r.get("regularMarketPrice"))
+        if price:
+            return {
+                "price": price,
+                "change24h": safe_float(r.get("regularMarketChangePercent")),
+                "high24h": safe_float(r.get("regularMarketDayHigh")),
+                "low24h": safe_float(r.get("regularMarketDayLow")),
+                "volume24h": safe_float(r.get("regularMarketVolume")),
+                "market_cap": safe_float(r.get("marketCap")),
+                "source": "brapi.dev"
+            }
+
 def _fetch_icon_url(symbol):
     sym = symbol.upper()
     if sym in _icon_cache:
@@ -314,12 +331,13 @@ def _fetch_icon_url(symbol):
     _icon_cache[sym] = url
     return url
 
-# Priority order — Hyperliquid perp first, then spot, then working CEXes
+# Priority order — Hyperliquid perp first, then spot, then working CEXes, then stocks
 APIS = [
     api_hyperliquid, api_hyperliquid_spot,
     api_mexc, api_kucoin, api_gateio,
     api_okx, api_kraken, api_cryptocompare,
-    api_coincap, api_coingecko, api_bitfinex
+    api_coincap, api_coingecko, api_bitfinex,
+    api_brapi
 ]
 
 def fetch_price(symbol):
@@ -506,6 +524,7 @@ def _warmup():
 
     threading.Thread(target=run, daemon=True).start()
 
+_warmup()
+
 if __name__ == "__main__":
-    _warmup()
     app.run(host="0.0.0.0", port=5000, debug=False)
