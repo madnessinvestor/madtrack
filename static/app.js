@@ -1,34 +1,84 @@
 let searchTimeout      = null;
 let suggestTimeout     = null;
 let pendingSymbol      = null;
-let searchingFor       = null;  // símbolo sendo buscado agora
+let searchingFor       = null;
 let activeIndex        = -1;
 let currentSuggestions = [];
 let searchSeq          = 0;
+let cachedAssets       = [];
+
+// ─── Moeda ────────────────────────────────────────────────────────────────────
+
+let currentCurrency = localStorage.getItem("currency") || "USD";
+let exchangeRates   = { EUR: 0.92, BRL: 5.70 };
+
+const CURRENCY_LABELS  = { USD: "$",   EUR: "€",  BRL: "R$" };
+const CURRENCY_CYCLE   = ["USD", "EUR", "BRL"];
+const FOREX_CURRENCIES = new Set(["USD","EUR","BRL","GBP","JPY","CHF","AUD","CAD"]);
+
+function isForexPair(sym) {
+  if (!sym || sym.length !== 6) return false;
+  return FOREX_CURRENCIES.has(sym.slice(0,3)) && FOREX_CURRENCIES.has(sym.slice(3,6));
+}
+
+function getRate() {
+  if (currentCurrency === "USD") return 1;
+  return exchangeRates[currentCurrency] || 1;
+}
+
+function currSym() {
+  return CURRENCY_LABELS[currentCurrency] || "$";
+}
+
+async function fetchRates() {
+  try {
+    const res = await fetch("/api/rates");
+    if (res.ok) exchangeRates = await res.json();
+  } catch {}
+}
+
+function updateCurrencyBtn() {
+  const btn = document.getElementById("btn-currency");
+  if (btn) btn.textContent = currSym();
+}
+
+function toggleCurrency() {
+  const idx = CURRENCY_CYCLE.indexOf(currentCurrency);
+  currentCurrency = CURRENCY_CYCLE[(idx + 1) % CURRENCY_CYCLE.length];
+  localStorage.setItem("currency", currentCurrency);
+  updateCurrencyBtn();
+  rerenderAssets();
+}
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
-function formatUSD(v) {
+function formatUSD(v, skip = false) {
   if (v === null || v === undefined) return "—";
-  if (v >= 1_000_000_000) return "$" + (v / 1_000_000_000).toFixed(2) + "B";
-  if (v >= 1_000_000)     return "$" + (v / 1_000_000).toFixed(2) + "M";
-  if (v >= 1000)          return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1)             return "$" + v.toFixed(2);
-  if (v > 0)              return "$" + v.toFixed(6);
-  return "$0.00";
+  const rate = skip ? 1 : getRate();
+  const sym  = skip ? "$" : currSym();
+  v = v * rate;
+  if (v >= 1_000_000_000) return sym + (v / 1_000_000_000).toFixed(2) + "B";
+  if (v >= 1_000_000)     return sym + (v / 1_000_000).toFixed(2) + "M";
+  if (v >= 1000)          return sym + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1)             return sym + v.toFixed(2);
+  if (v > 0)              return sym + v.toFixed(6);
+  return sym + "0.00";
 }
 
-function formatPrice(v) {
+function formatPrice(v, skip = false) {
   if (v === null || v === undefined) return "—";
-  if (v >= 1000) return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1)    return "$" + v.toFixed(2);
-  if (v > 0)     return "$" + v.toFixed(6);
-  return "$0.00";
+  const rate = skip ? 1 : getRate();
+  const sym  = skip ? "$" : currSym();
+  v = v * rate;
+  if (v >= 1000) return sym + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1)    return sym + v.toFixed(2);
+  if (v > 0)     return sym + v.toFixed(6);
+  return sym + "0.00";
 }
 
 function changeHTML(change, size = "") {
   if (change === null || change === undefined) return "";
-  const up = change >= 0;
+  const up  = change >= 0;
   const cls = up ? "up" : "down";
   const sign = up ? "▲" : "▼";
   return `<span class="change ${cls} ${size}">${sign} ${Math.abs(change).toFixed(2)}%</span>`;
@@ -37,12 +87,13 @@ function changeHTML(change, size = "") {
 // ─── Watchlist ────────────────────────────────────────────────────────────────
 
 async function loadAssets() {
-  const list = document.getElementById("asset-list");
+  const list       = document.getElementById("asset-list");
   const lastUpdate = document.getElementById("last-update");
 
   try {
-    const res = await fetch("/api/assets");
+    const res    = await fetch("/api/assets");
     const assets = await res.json();
+    cachedAssets = assets;
 
     if (!assets.length) {
       list.innerHTML = `<div class="empty-state">
@@ -61,19 +112,27 @@ async function loadAssets() {
   }
 }
 
+function rerenderAssets() {
+  if (!cachedAssets.length) return;
+  const list = document.getElementById("asset-list");
+  list.innerHTML = cachedAssets.map(a => cardHTML(a)).join("");
+  loadIcons(cachedAssets.map(a => a.symbol));
+}
+
 function cardHTML(a) {
+  const skip     = isForexPair(a.symbol);
   const hasPrice = a.price !== null && a.price !== undefined;
-  const hasHigh  = a.high24h   != null;
-  const hasLow   = a.low24h    != null;
-  const hasVol   = a.volume24h != null;
+  const hasHigh  = a.high24h    != null;
+  const hasLow   = a.low24h     != null;
+  const hasVol   = a.volume24h  != null;
   const hasCap   = a.market_cap != null;
   const hasExtra = hasHigh || hasLow || hasVol || hasCap;
 
   const statsRows = [
-    hasHigh ? `<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(a.high24h)}</span></div>` : "",
-    hasLow  ? `<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(a.low24h)}</span></div>` : "",
-    hasVol  ? `<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(a.volume24h)}</span></div>` : "",
-    hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap)}</span></div>` : "",
+    hasHigh ? `<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(a.high24h, skip)}</span></div>` : "",
+    hasLow  ? `<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(a.low24h, skip)}</span></div>` : "",
+    hasVol  ? `<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(a.volume24h, skip)}</span></div>` : "",
+    hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap, skip)}</span></div>` : "",
   ].join("");
 
   return `<div class="asset-card${hasExtra ? " expandable" : ""}" onclick="toggleCard(this, event)">
@@ -89,9 +148,9 @@ function cardHTML(a) {
         </div>
       </div>
       <div class="asset-right">
-        <div class="asset-price">${hasPrice ? formatPrice(a.price) : "—"}</div>
+        <div class="asset-price">${hasPrice ? formatPrice(a.price, skip) : "—"}</div>
         ${changeHTML(a.change24h)}
-        ${hasCap ? `<div class="asset-mcap">MC ${formatUSD(a.market_cap)}</div>` : ""}
+        ${hasCap ? `<div class="asset-mcap">MC ${formatUSD(a.market_cap, skip)}</div>` : ""}
       </div>
       <span class="card-chevron${hasExtra ? "" : " hidden"}">›</span>
     </div>
@@ -187,9 +246,6 @@ function onTickerInput(val) {
   clearTimeout(suggestTimeout);
   const sym = val.trim().toUpperCase();
 
-  // Teclado mobile dispara oninput várias vezes com o mesmo valor
-  // (autocapitalização). Se já encontramos OU já estamos buscando este
-  // símbolo exato, ignora completamente — não incrementa searchSeq.
   if (sym && (sym === pendingSymbol || sym === searchingFor)) return;
 
   document.getElementById("price-result").classList.add("hidden");
@@ -206,10 +262,8 @@ function onTickerInput(val) {
 
   searchingFor = sym;
 
-  // Fetch suggestions quickly
   suggestTimeout = setTimeout(() => fetchSuggestions(sym), 150);
 
-  // Fetch price after slight delay
   document.getElementById("search-spinner").classList.remove("hidden");
   const seq = ++searchSeq;
   searchTimeout = setTimeout(() => fetchTickerPrice(sym, seq), 700);
@@ -254,7 +308,7 @@ function selectSuggestion(sym) {
 }
 
 function onTickerKey(e) {
-  const el = document.getElementById("suggestions");
+  const el    = document.getElementById("suggestions");
   const items = el.querySelectorAll(".suggestion-item");
   if (!items.length) return;
 
@@ -289,7 +343,6 @@ async function fetchTickerPrice(sym, seq) {
   try {
     const res = await fetch(`/api/price?symbol=${encodeURIComponent(sym)}`);
 
-    // Se uma busca mais recente foi iniciada, descarta este resultado
     if (seq !== searchSeq) return;
 
     spinner.classList.add("hidden");
@@ -298,8 +351,9 @@ async function fetchTickerPrice(sym, seq) {
 
     const d = await res.json();
 
-    // Descarta novamente após o parse (pode ter demorado)
     if (seq !== searchSeq) return;
+
+    const skip = isForexPair(sym);
 
     pendingSymbol = sym;
     searchingFor  = null;
@@ -307,17 +361,17 @@ async function fetchTickerPrice(sym, seq) {
     document.getElementById("pr-symbol").textContent = sym.slice(0, 4);
     const lblEl = document.getElementById("pr-symbol-label");
     if (lblEl) lblEl.textContent = d.symbol;
-    document.getElementById("pr-price").textContent  = formatPrice(d.price);
+    document.getElementById("pr-price").textContent  = formatPrice(d.price, skip);
     document.getElementById("pr-change").innerHTML   = changeHTML(d.change24h, "lg");
     document.getElementById("pr-source").textContent = "via " + (d.source || "—");
     loadModalIcon(sym);
 
     const statsEl = document.getElementById("pr-stats");
     const rows = [];
-    if (d.high24h)    rows.push(`<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(d.high24h)}</span></div>`);
-    if (d.low24h)     rows.push(`<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(d.low24h)}</span></div>`);
-    if (d.volume24h)  rows.push(`<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(d.volume24h)}</span></div>`);
-    if (d.market_cap) rows.push(`<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(d.market_cap)}</span></div>`);
+    if (d.high24h)    rows.push(`<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(d.high24h, skip)}</span></div>`);
+    if (d.low24h)     rows.push(`<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(d.low24h, skip)}</span></div>`);
+    if (d.volume24h)  rows.push(`<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(d.volume24h, skip)}</span></div>`);
+    if (d.market_cap) rows.push(`<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(d.market_cap, skip)}</span></div>`);
     statsEl.innerHTML = rows.join("");
     statsEl.style.display = rows.length ? "grid" : "none";
 
@@ -346,5 +400,7 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js").catch(() => {});
 }
 
+fetchRates();
+updateCurrencyBtn();
 loadAssets();
 setInterval(loadAssets, 60000);

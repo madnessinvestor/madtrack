@@ -320,6 +320,37 @@ def api_brapi(sym):
                 "source": "brapi.dev"
             }
 
+def api_forex(sym):
+    s = sym.upper()
+    if len(s) != 6:
+        return None
+    known = {"USD", "EUR", "BRL", "GBP", "JPY", "CHF", "AUD", "CAD"}
+    from_cur, to_cur = s[:3], s[3:]
+    if from_cur not in known or to_cur not in known:
+        return None
+    d = http_get(f"https://brapi.dev/api/quote/{s}=X")
+    if d and d.get("results"):
+        r = d["results"][0]
+        price = safe_float(r.get("regularMarketPrice"))
+        if price:
+            return {
+                "price": price,
+                "change24h": safe_float(r.get("regularMarketChangePercent")),
+                "high24h": safe_float(r.get("regularMarketDayHigh")),
+                "low24h": safe_float(r.get("regularMarketDayLow")),
+                "volume24h": None, "market_cap": None, "source": "Câmbio"
+            }
+    d = http_get(f"https://api.frankfurter.app/latest?from={from_cur}&to={to_cur}")
+    if d and d.get("rates", {}).get(to_cur):
+        price = safe_float(d["rates"][to_cur])
+        if price:
+            return {
+                "price": price, "change24h": None,
+                "high24h": None, "low24h": None,
+                "volume24h": None, "market_cap": None, "source": "Câmbio"
+            }
+    return None
+
 def _fetch_icon_url(symbol):
     sym = symbol.upper()
     if sym in _icon_cache:
@@ -331,8 +362,9 @@ def _fetch_icon_url(symbol):
     _icon_cache[sym] = url
     return url
 
-# Priority order — Hyperliquid perp first, then spot, then working CEXes, then stocks
+# Priority order — Hyperliquid perp first, then spot, then working CEXes, then stocks/forex
 APIS = [
+    api_forex,
     api_hyperliquid, api_hyperliquid_spot,
     api_mexc, api_kucoin, api_gateio,
     api_okx, api_kraken, api_cryptocompare,
@@ -455,6 +487,13 @@ def delete_asset(symbol):
     assets = [a for a in load_assets() if a.get("symbol", "").upper() != symbol.upper()]
     save_assets(assets)
     return jsonify({"ok": True})
+
+@app.route("/api/rates")
+def get_rates():
+    d = http_get("https://api.frankfurter.app/latest?from=USD&to=EUR,BRL", timeout=5)
+    if d and d.get("rates"):
+        return jsonify(d["rates"])
+    return jsonify({"EUR": 0.92, "BRL": 5.70})
 
 # ─── Background warmup ────────────────────────────────────────────────────────
 

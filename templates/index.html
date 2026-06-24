@@ -12,7 +12,10 @@
 <body>
   <header>
     <h1>MadTracker</h1>
-    <button id="btn-add" onclick="openModal()">+ Adicionar</button>
+    <div class="header-actions">
+      <button id="btn-currency" onclick="toggleCurrency()" title="Moeda">$</button>
+      <button id="btn-add" onclick="openModal()">+ Adicionar</button>
+    </div>
   </header>
 
   <main id="asset-list">
