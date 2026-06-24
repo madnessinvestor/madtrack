@@ -472,11 +472,12 @@ def get_assets():
     def fetch_one(a):
         sym = a.get("symbol", "").upper()
         r = fetch_price(sym)
+        icon_url = _icon_cache.get(sym)
         if r:
-            return {**r, "symbol": sym, "id": sym}
+            return {**r, "symbol": sym, "id": sym, "icon_url": icon_url}
         return {"symbol": sym, "id": sym, "price": None, "change24h": None,
                 "high24h": None, "low24h": None, "volume24h": None,
-                "market_cap": None, "source": None}
+                "market_cap": None, "source": None, "icon_url": icon_url}
     if not assets:
         return jsonify([])
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(assets))) as ex:

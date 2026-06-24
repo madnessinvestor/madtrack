@@ -119,7 +119,7 @@ async function loadAssets() {
       </div>`;
     } else {
       list.innerHTML = assets.map(a => cardHTML(a)).join("");
-      loadIcons(assets.map(a => a.symbol));
+      loadIcons(assets);
       initSortable();
     }
 
@@ -134,7 +134,7 @@ function rerenderAssets() {
   if (!cachedAssets.length) return;
   const list = document.getElementById("asset-list");
   list.innerHTML = cachedAssets.map(a => cardHTML(a)).join("");
-  loadIcons(cachedAssets.map(a => a.symbol));
+  loadIcons(cachedAssets);
   initSortable();
 }
 
@@ -211,8 +211,10 @@ function toggleCard(card, e) {
   card.classList.toggle("open");
 }
 
-const CDN = sym =>
+const CDN1 = sym =>
   `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${sym.toLowerCase()}.svg`;
+const CDN2 = sym =>
+  `https://cdn.jsdelivr.net/gh/ErikThiart/cryptocurrency-icons@master/icons/${sym.toLowerCase()}.png`;
 
 const FOREX_FLAG = {
   USD: 'us', EUR: 'eu', BRL: 'br', GBP: 'gb',
@@ -249,14 +251,25 @@ function tryLoadImage(img, text, src, fallbackFn) {
   img.src = src;
 }
 
-function loadIcons(symbols) {
-  symbols.forEach(sym => {
+function tryCryptoIcon(img, text, sym) {
+  tryLoadImage(img, text, CDN1(sym), () =>
+    tryLoadImage(img, text, CDN2(sym), () =>
+      fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => tryLoadImage(img, text, data.url, null))
+        .catch(() => {})
+    )
+  );
+}
+
+function loadIcons(assets) {
+  assets.forEach(a => {
+    const sym  = a.symbol || a;
     const wrap = document.querySelector(`.asset-icon[data-sym="${sym}"]`);
     if (!wrap) return;
     const img  = wrap.querySelector(".icon-img");
     const text = wrap.querySelector(".icon-text");
 
-    // Always set colored avatar immediately as guaranteed fallback
     applyAvatar(wrap, sym);
 
     if (isForexPair(sym)) {
@@ -265,13 +278,13 @@ function loadIcons(symbols) {
       return;
     }
 
-    // Try CDN → then /api/icon (CoinGecko) → avatar stays if both fail
-    tryLoadImage(img, text, CDN(sym), () => {
-      fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => tryLoadImage(img, text, data.url, null))
-        .catch(() => {});
-    });
+    // If backend already returned a cached icon URL, try it first
+    const backendUrl = a.icon_url;
+    if (backendUrl) {
+      tryLoadImage(img, text, backendUrl, () => tryCryptoIcon(img, text, sym));
+    } else {
+      tryCryptoIcon(img, text, sym);
+    }
   });
 }
 
@@ -292,12 +305,7 @@ function loadModalIcon(sym) {
     return;
   }
 
-  tryLoadImage(img, text, CDN(sym), () => {
-    fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => tryLoadImage(img, text, data.url, null))
-      .catch(() => {});
-  });
+  tryCryptoIcon(img, text, sym);
 }
 
 async function deleteAsset(symbol) {
