@@ -171,6 +171,10 @@ function toggleCard(card, e) {
 const CDN = sym =>
   `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${sym.toLowerCase()}.svg`;
 
+function iconSymbol(sym) {
+  return isForexPair(sym) ? sym.slice(0, 3) : sym;
+}
+
 function loadIcons(symbols) {
   symbols.forEach(sym => {
     const wrap = document.querySelector(`.asset-icon[data-sym="${sym}"]`);
@@ -180,6 +184,8 @@ function loadIcons(symbols) {
 
     img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
     img.onerror = () => {
+      const lookup = iconSymbol(sym);
+      if (lookup !== sym) { img.onerror = () => {}; return; }
       fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
@@ -188,7 +194,7 @@ function loadIcons(symbols) {
         })
         .catch(() => {});
     };
-    img.src = CDN(sym);
+    img.src = CDN(iconSymbol(sym));
   });
 }
 
@@ -199,12 +205,14 @@ function loadModalIcon(sym) {
   const text = wrap.querySelector(".icon-text");
   img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
   img.onerror = () => {
+    const lookup = iconSymbol(sym);
+    if (lookup !== sym) { img.onerror = () => {}; return; }
     fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => { img.onerror = () => {}; img.src = data.url; })
       .catch(() => {});
   };
-  img.src = CDN(sym);
+  img.src = CDN(iconSymbol(sym));
   text.style.display = "";
   img.classList.remove("loaded");
 }
