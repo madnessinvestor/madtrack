@@ -142,7 +142,7 @@ function portfolioCardHTML(tok) {
       <div class="asset-right">
         <div class="asset-price">${hasPrice ? formatUSD(cur_value) : "—"}</div>
         ${hasPrice
-          ? `<span class="change ${pnlCls}">${pnlSign}${formatUSD(pnl)} (${pnlSign}${Math.abs(pnl_pct).toFixed(2)}%)</span>`
+          ? `<span class="change ${pnlCls}">${pnlSign}${formatUSD(pnl)} (${pnlSign}${pnl_pct.toFixed(2)}%)</span>`
           : ""}
       </div>
       <span class="card-chevron">›</span>
@@ -347,7 +347,7 @@ async function fetchTradePrice(sym, seq) {
       const d = await res.json();
       tradeFetchedPrice  = d.price;
       tradePendingTicker = sym;
-      document.getElementById("trade-cur-price").textContent = formatUSD(d.price);
+      document.getElementById("trade-cur-price").textContent = formatUSD(d.price, true);
       document.getElementById("trade-price-preview").classList.remove("hidden");
       const priceInput = document.getElementById("trade-price");
       if (!priceInput.value) priceInput.value = d.price;
