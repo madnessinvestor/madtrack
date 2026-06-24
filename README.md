@@ -1,155 +1,329 @@
-# MadTracker
+# 📈 MadTracker
 
-A privacy-first asset tracker for cryptocurrencies, Brazilian stocks (B3), and forex pairs — built with Flask and Vanilla JavaScript as a Progressive Web App (PWA).
-
----
-
-## Features
-
-- **Multi-source price aggregation** — fetches data in parallel from 10+ exchanges (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex) and picks the best available price
-- **Brazilian & US stocks** — supports B3 tickers (PETR4, VALE3, ITUB4…) and US equities via brapi.dev
-- **Forex pairs** — track exchange rates such as USDBRL and EURBRL with country flag icons
-- **Currency toggle** — view all prices in USD ($), EUR (€), or BRL (R$) with real-time conversion; preference is saved across sessions
-- **Watchlist** — add and remove assets; list persists between sessions
-- **24h stats** — price change %, high/low, volume, and market cap per asset
-- **PWA support** — installable on mobile and desktop, works offline for the UI shell
-- **Privacy by design** — no accounts, no tracking, no external analytics
+**MadTracker** is a privacy-first asset tracker for **Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs**, built with **Flask** and **Vanilla JavaScript** as a **Progressive Web App (PWA)**.
+Track your favorite assets in a lightweight, fast, and privacy-focused application — without accounts, subscriptions, or invasive tracking.
 
 ---
 
-## Supported Asset Types
+## ✨ Features
 
-| Type | Examples |
-|---|---|
-| Crypto (perp / spot) | BTC, ETH, SOL, DOGE, XRP… |
-| Brazilian stocks (B3) | PETR4, VALE3, ITUB4, BBAS3… |
-| Forex pairs | USDBRL, EURBRL, GBPBRL… |
+### 🚀 Multi-Source Crypto Price Aggregation
+MadTracker fetches prices from multiple exchanges simultaneously and automatically selects the best available market data.
+
+Supported sources:
+
+* Hyperliquid
+* MEXC
+* KuCoin
+* Gate.io
+* OKX
+* Kraken
+* Bitfinex
+* CoinGecko
+* CoinCap
+* CryptoCompare
+
+This approach improves reliability and reduces dependency on a single provider.
 
 ---
 
-## Tech Stack
+### 📊 Stocks Support
 
-- **Backend:** Python 3.12 · Flask 3
-- **Frontend:** HTML5 · CSS3 · Vanilla JavaScript (ES6+)
-- **Data sources:** Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex, brapi.dev, Frankfurter
-- **Icons:** cryptocurrency-icons CDN (crypto) · flagcdn.com (forex)
-- **Storage:** `assets.json` (local watchlist) · `localStorage` (currency preference)
+#### 🇧🇷 Brazilian Stocks (B3)
+
+Track popular B3 tickers such as:
+
+* PETR4
+* VALE3
+* ITUB4
+* BBAS3
+* WEGE3
+* BBDC4
+
+#### 🇺🇸 US Stocks
+
+Support for US equities through market data providers.
+
+Examples:
+
+* AAPL
+* MSFT
+* NVDA
+* TSLA
+* GOOGL
 
 ---
 
-## Project Structure
+### 💱 Forex Tracking
 
-```
-├── app.py              # Flask server — price aggregation, caching, API routes
-├── assets.json         # Persisted watchlist
-├── requirements.txt    # Python dependencies
+Monitor currency pairs in real time:
+
+* USDBRL
+* EURBRL
+* GBPBRL
+* USDEUR
+* USDJPY
+
+Includes automatic country flag icons for improved visualization.
+
+---
+
+### 🌎 Multi-Currency Display
+
+View all assets in:
+
+* 🇧🇷 BRL (R$)
+* 🇺🇸 USD ($)
+* 🇪🇺 EUR (€)
+
+Features:
+
+* Real-time exchange conversion
+* Persistent preference storage
+* Instant switching without page reload
+
+---
+
+### ⭐ Watchlist
+
+Create a personalized portfolio watchlist.
+
+Features:
+
+* Add assets instantly
+* Remove assets anytime
+* Automatic persistence
+* No login required
+
+---
+
+### 📈 Market Statistics
+
+For supported assets:
+
+* Current Price
+* 24h Change (%)
+* 24h High
+* 24h Low
+* Trading Volume
+* Market Capitalization
+
+---
+
+### 📱 Progressive Web App (PWA)
+
+Install MadTracker directly on:
+
+* Android
+* iPhone
+* Windows
+* macOS
+* Linux
+
+Benefits:
+
+* Home screen installation
+* Offline UI shell
+* Fast loading
+* Native-app-like experience
+
+---
+
+### 🔒 Privacy First
+
+MadTracker is designed with privacy as a core principle.
+
+The application:
+
+✅ Does not require an account
+
+✅ Does not collect personal data
+
+✅ Does not use analytics or tracking scripts
+
+✅ Does not store private keys
+
+✅ Does not require exchange connections
+
+✅ Does not sell or share user information
+
+---
+
+## 🪙 Supported Asset Types
+
+| Type                  | Examples                 |
+| --------------------- | ------------------------ |
+| Cryptocurrencies      | BTC, ETH, SOL, XRP, DOGE |
+| Brazilian Stocks (B3) | PETR4, VALE3, ITUB4      |
+| US Stocks             | AAPL, NVDA, TSLA         |
+| Forex                 | USDBRL, EURBRL, GBPBRL   |
+
+---
+
+## 🛠 Tech Stack
+
+### Backend
+
+* Python 3.12
+* Flask 3
+
+### Frontend
+
+* HTML5
+* CSS3
+* Vanilla JavaScript (ES6+)
+
+### Market Data Providers
+
+* Hyperliquid
+* MEXC
+* KuCoin
+* Gate.io
+* OKX
+* Kraken
+* Bitfinex
+* CoinGecko
+* CoinCap
+* CryptoCompare
+* brapi.dev
+* Frankfurter
+
+### Storage
+
+* assets.json
+* Browser localStorage
+
+### Assets & Icons
+
+* cryptocurrency-icons
+* flagcdn
+
+---
+
+## 📂 Project Structure
+
+```text
+MadTracker/
+│
+├── app.py
+├── assets.json
+├── requirements.txt
+│
 ├── static/
-│   ├── app.js          # Frontend logic (search, watchlist, currency toggle)
-│   ├── style.css       # Dark-themed UI
-│   ├── sw.js           # Service worker (PWA)
-│   └── manifest.json   # PWA metadata
+│   ├── app.js
+│   ├── style.css
+│   ├── sw.js
+│   └── manifest.json
+│
 └── templates/
-    └── index.html      # Single-page interface
+    └── index.html
 ```
 
 ---
 
-## Running Locally
+## 🚀 Installation
+
+### Clone Repository
 
 ```bash
-pip install flask
+git clone https://github.com/yourusername/madtracker.git
+
+cd madtracker
+```
+
+### Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+Linux/macOS:
+
+```bash
+source venv/bin/activate
+```
+
+### Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run Application
+
+```bash
 python app.py
 ```
 
-App runs at `http://localhost:5000`.
+Open:
 
----
-
-## Privacy
-
-All data is stored locally on the user's machine. The app:
-
-- Does not require a login
-- Does not send personal information to any server
-- Does not store private keys
-- Does not require integration with any exchange account
-
----
-
----
-
-# MadTracker — Português
-
-Rastreador de ativos com foco em privacidade para criptomoedas, ações brasileiras (B3) e pares de câmbio — construído com Flask e Vanilla JavaScript como Progressive Web App (PWA).
-
----
-
-## Funcionalidades
-
-- **Agregação de preços de múltiplas fontes** — busca dados em paralelo de mais de 10 exchanges (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex) e escolhe o melhor preço disponível
-- **Ações brasileiras e americanas** — suporte a tickers da B3 (PETR4, VALE3, ITUB4…) e bolsa americana via brapi.dev
-- **Pares de câmbio** — acompanhe cotações como USDBRL e EURBRL com ícones de bandeiras dos países
-- **Alternador de moeda** — visualize todos os preços em USD ($), EUR (€) ou BRL (R$) com conversão em tempo real; preferência salva entre sessões
-- **Lista de acompanhamento** — adicione e remova ativos; lista persiste entre sessões
-- **Estatísticas 24h** — variação de preço, máxima/mínima, volume e market cap por ativo
-- **Suporte a PWA** — instalável no celular e desktop, funciona offline para a interface
-- **Privacidade por padrão** — sem contas, sem rastreamento, sem analytics externos
-
----
-
-## Tipos de Ativos Suportados
-
-| Tipo | Exemplos |
-|---|---|
-| Cripto (perp / spot) | BTC, ETH, SOL, DOGE, XRP… |
-| Ações brasileiras (B3) | PETR4, VALE3, ITUB4, BBAS3… |
-| Pares de câmbio | USDBRL, EURBRL, GBPBRL… |
-
----
-
-## Stack Tecnológica
-
-- **Backend:** Python 3.12 · Flask 3
-- **Frontend:** HTML5 · CSS3 · Vanilla JavaScript (ES6+)
-- **Fontes de dados:** Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex, brapi.dev, Frankfurter
-- **Ícones:** cryptocurrency-icons CDN (cripto) · flagcdn.com (câmbio)
-- **Armazenamento:** `assets.json` (lista local) · `localStorage` (preferência de moeda)
-
----
-
-## Estrutura do Projeto
-
-```
-├── app.py              # Servidor Flask — agregação de preços, cache, rotas da API
-├── assets.json         # Lista de acompanhamento persistida
-├── requirements.txt    # Dependências Python
-├── static/
-│   ├── app.js          # Lógica do frontend (busca, watchlist, alternador de moeda)
-│   ├── style.css       # Interface com tema escuro
-│   ├── sw.js           # Service worker (PWA)
-│   └── manifest.json   # Metadados do PWA
-└── templates/
-    └── index.html      # Interface de página única
+```text
+http://localhost:5000
 ```
 
 ---
 
-## Executar Localmente
+## 📸 Screenshots
 
-```bash
-pip install flask
-python app.py
+Add screenshots here:
+
+```markdown
+![Dashboard](screenshots/dashboard.png)
+
+![Watchlist](screenshots/watchlist.png)
+
+![Mobile](screenshots/mobile.png)
 ```
-
-App disponível em `http://localhost:5000`.
 
 ---
 
-## Privacidade
+## 🎯 Roadmap
 
-Todos os dados são armazenados localmente na máquina do usuário. O app:
+* [ ] Portfolio tracking
+* [ ] Profit/Loss calculations
+* [ ] Asset allocation charts
+* [ ] Historical price charts
+* [ ] Multiple watchlists
+* [ ] Dark/Light themes
+* [ ] Export & Import settings
+* [ ] Price alerts
+* [ ] Offline asset cache
 
-- Não exige login
+---
+
+## 🤝 Contributing
+
+Contributions, bug reports, and feature requests are welcome.
+
+Feel free to open an issue or submit a pull request.
+
+---
+
+## 📄 License
+
+This project is released under the MIT License.
+
+---
+
+## ⭐ Why MadTracker?
+
+Unlike traditional portfolio trackers, MadTracker focuses on:
+
+* Privacy
+* Simplicity
+* Speed
+* No accounts
+* No subscriptions
+* No tracking
+
+A lightweight asset tracker built for users who want complete control over their financial data.
+
 - Não envia informações pessoais para nenhum servidor
 - Não armazena chaves privadas
 - Não requer integração com conta em corretora
