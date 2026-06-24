@@ -103,6 +103,15 @@ function changeHTML(change, size = "") {
 
 // ─── Watchlist ────────────────────────────────────────────────────────────────
 
+function refreshCurrent() {
+  const tradeSection = document.getElementById("section-trade");
+  if (!tradeSection.classList.contains("hidden")) {
+    if (typeof loadPortfolio === "function") loadPortfolio();
+  } else {
+    loadAssets();
+  }
+}
+
 async function loadAssets() {
   const list       = document.getElementById("asset-list");
   const lastUpdate = document.getElementById("last-update");
@@ -115,7 +124,7 @@ async function loadAssets() {
     if (!assets.length) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-icon">📊</div>
-        <p>Nenhum ativo adicionado.<br>Clique em <b>+ Adicionar</b> e digite o ticker.</p>
+        <p>${t("empty_tracker")}</p>
       </div>`;
     } else {
       list.innerHTML = assets.map(a => cardHTML(a)).join("");
@@ -126,7 +135,7 @@ async function loadAssets() {
     const now = new Date();
     lastUpdate.textContent = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
   } catch {
-    list.innerHTML = `<div class="empty-state"><p>Erro ao carregar. Verifique a conexão.</p></div>`;
+    list.innerHTML = `<div class="empty-state"><p>${t("error_load")}</p></div>`;
   }
 }
 
@@ -172,10 +181,10 @@ function cardHTML(a) {
   const hasExtra = hasHigh || hasLow || hasVol || hasCap;
 
   const statsRows = [
-    hasHigh ? `<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(a.high24h, skip)}</span></div>` : "",
-    hasLow  ? `<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(a.low24h, skip)}</span></div>` : "",
-    hasVol  ? `<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(a.volume24h, skip)}</span></div>` : "",
-    hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap, skip)}</span></div>` : "",
+    hasHigh ? `<div class="stat"><span class="stat-label">${t("max24h")}</span><span class="stat-val">${formatPrice(a.high24h, skip)}</span></div>` : "",
+    hasLow  ? `<div class="stat"><span class="stat-label">${t("min24h")}</span><span class="stat-val">${formatPrice(a.low24h, skip)}</span></div>` : "",
+    hasVol  ? `<div class="stat"><span class="stat-label">${t("vol24h")}</span><span class="stat-val">${formatUSD(a.volume24h, skip)}</span></div>` : "",
+    hasCap  ? `<div class="stat"><span class="stat-label">${t("mcap")}</span><span class="stat-val">${formatUSD(a.market_cap, skip)}</span></div>` : "",
   ].join("");
 
   return `<div class="asset-card${hasExtra ? " expandable" : ""}" data-sym="${a.symbol}" onclick="toggleCard(this, event)">
@@ -200,7 +209,7 @@ function cardHTML(a) {
 
     <div class="card-details">
       ${statsRows}
-      <button class="btn-delete-inline" onclick="deleteAsset('${a.symbol}')">Remover</button>
+      <button class="btn-delete-inline" onclick="deleteAsset('${a.symbol}')" data-i18n="p_remove">${t("p_remove")}</button>
     </div>
   </div>`;
 }
@@ -462,15 +471,15 @@ async function fetchTickerPrice(sym, seq) {
     if (lblEl) lblEl.textContent = d.symbol;
     document.getElementById("pr-price").textContent  = formatPrice(d.price, skip);
     document.getElementById("pr-change").innerHTML   = changeHTML(d.change24h, "lg");
-    document.getElementById("pr-source").textContent = "via " + (d.source || "—");
+    document.getElementById("pr-source").textContent = t("via") + " " + (d.source || "—");
     loadModalIcon(sym);
 
     const statsEl = document.getElementById("pr-stats");
     const rows = [];
-    if (d.high24h)    rows.push(`<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(d.high24h, skip)}</span></div>`);
-    if (d.low24h)     rows.push(`<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(d.low24h, skip)}</span></div>`);
-    if (d.volume24h)  rows.push(`<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(d.volume24h, skip)}</span></div>`);
-    if (d.market_cap) rows.push(`<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(d.market_cap, skip)}</span></div>`);
+    if (d.high24h)    rows.push(`<div class="stat"><span class="stat-label">${t("max24h")}</span><span class="stat-val">${formatPrice(d.high24h, skip)}</span></div>`);
+    if (d.low24h)     rows.push(`<div class="stat"><span class="stat-label">${t("min24h")}</span><span class="stat-val">${formatPrice(d.low24h, skip)}</span></div>`);
+    if (d.volume24h)  rows.push(`<div class="stat"><span class="stat-label">${t("vol24h")}</span><span class="stat-val">${formatUSD(d.volume24h, skip)}</span></div>`);
+    if (d.market_cap) rows.push(`<div class="stat"><span class="stat-label">${t("mcap")}</span><span class="stat-val">${formatUSD(d.market_cap, skip)}</span></div>`);
     statsEl.innerHTML = rows.join("");
     statsEl.style.display = rows.length ? "grid" : "none";
 

@@ -13,23 +13,32 @@
   <header>
     <h1>MadTracker</h1>
     <div class="header-actions">
+      <button id="btn-lang" onclick="toggleLang()" title="Language">PT</button>
       <button id="btn-theme" onclick="toggleTheme()" title="Tema"></button>
       <button id="btn-currency" onclick="toggleCurrency()" title="Moeda">$</button>
-      <button id="btn-add-tracker" class="btn-add" onclick="openModal()">+ Adicionar</button>
-      <button id="btn-add-trade" class="btn-add hidden" onclick="openTradeModal()">+ Trade</button>
+      <button id="btn-add-tracker" class="btn-primary" onclick="openModal()">
+        <span class="btn-icon">+</span><span data-i18n="btn_add">Adicionar</span>
+      </button>
+      <button id="btn-add-trade" class="btn-primary hidden" onclick="openTradeModal()">
+        <span class="btn-icon">+</span><span data-i18n="btn_trade">Trade</span>
+      </button>
     </div>
   </header>
 
   <!-- Tab bar -->
   <nav class="tab-bar">
-    <button class="tab-btn active" id="tab-tracker" onclick="switchTab('tracker')">📊 Tracker</button>
-    <button class="tab-btn" id="tab-trade" onclick="switchTab('trade')">💼 Trade</button>
+    <button class="tab-btn active" id="tab-tracker" onclick="switchTab('tracker')">
+      📊 <span data-i18n="tab_tracker">Tracker</span>
+    </button>
+    <button class="tab-btn" id="tab-trade" onclick="switchTab('trade')">
+      💼 <span data-i18n="tab_trade">Trade</span>
+    </button>
   </nav>
 
   <!-- Tracker section -->
   <section id="section-tracker">
     <main id="asset-list">
-      <div class="loading">Carregando...</div>
+      <div class="loading" data-i18n="loading">Carregando...</div>
     </main>
   </section>
 
@@ -37,35 +46,35 @@
   <section id="section-trade" class="hidden">
     <div id="portfolio-summary" class="portfolio-summary hidden">
       <div class="psum-item">
-        <span class="psum-label">INVESTIDO</span>
+        <span class="psum-label" data-i18n="invested">INVESTIDO</span>
         <span class="psum-val" id="psum-invested">—</span>
       </div>
       <div class="psum-item">
-        <span class="psum-label">VALOR ATUAL</span>
+        <span class="psum-label" data-i18n="cur_value">VALOR ATUAL</span>
         <span class="psum-val" id="psum-value">—</span>
       </div>
       <div class="psum-item">
-        <span class="psum-label">LUCRO/PREJUÍZO</span>
+        <span class="psum-label" data-i18n="pnl">LUCRO/PREJUÍZO</span>
         <span class="psum-val" id="psum-pnl">—</span>
       </div>
     </div>
     <main id="portfolio-list">
-      <div class="loading">Carregando...</div>
+      <div class="loading" data-i18n="loading">Carregando...</div>
     </main>
   </section>
 
+  <!-- Single refresh bar -->
   <div class="refresh-bar">
     <span id="last-update">—</span>
-    <button id="refresh-btn-tracker" onclick="loadAssets()">↻ Atualizar</button>
-    <button id="refresh-btn-trade" class="hidden" onclick="loadPortfolio()">↻ Atualizar</button>
+    <button id="btn-refresh" onclick="refreshCurrent()">↻ <span data-i18n="btn_refresh">Atualizar</span></button>
   </div>
 
   <!-- Tracker: modal busca por ticker -->
   <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
     <div class="modal-box">
-      <h2>Buscar Ativo</h2>
+      <h2 data-i18n="modal_search_title">Buscar Ativo</h2>
       <div class="search-wrap">
-        <input id="ticker-input" type="text" placeholder="Digite o ticker: BTC, ETH, SOL..."
+        <input id="ticker-input" type="text"
                autocomplete="off" autocapitalize="characters" spellcheck="false"
                oninput="onTickerInput(this.value)" onkeydown="onTickerKey(event)" />
         <span id="search-spinner" class="spinner hidden"></span>
@@ -88,24 +97,26 @@
           <span id="pr-source" class="pr-source"></span>
         </div>
         <div id="pr-stats" class="pr-stats-grid" style="display:none"></div>
-        <button class="btn-confirm" id="btn-confirm" onclick="confirmAdd()">+ Adicionar à lista</button>
+        <button class="btn-confirm" id="btn-confirm" onclick="confirmAdd()">
+          + <span data-i18n="btn_add_list">Adicionar à lista</span>
+        </button>
       </div>
 
-      <div id="price-error" class="price-error hidden">
+      <div id="price-error" class="price-error hidden" data-i18n="not_found">
         Ativo não encontrado em nenhuma exchange.
       </div>
 
-      <button class="btn-cancel" onclick="closeModal()">Fechar</button>
+      <button class="btn-cancel" onclick="closeModal()" data-i18n="close">Fechar</button>
     </div>
   </div>
 
   <!-- Trade: modal adicionar trade -->
   <div id="trade-modal" class="modal hidden" onclick="if(event.target===this)closeTradeModal()">
     <div class="modal-box">
-      <h2>Registrar Compra</h2>
+      <h2 data-i18n="trade_modal_title">Registrar Compra</h2>
 
       <div class="search-wrap">
-        <input id="trade-ticker-input" type="text" placeholder="Ticker: BTC, ETH, SOL..."
+        <input id="trade-ticker-input" type="text"
                autocomplete="off" autocapitalize="characters" spellcheck="false"
                oninput="onTradeTickerInput(this.value)" onkeydown="onTradeTickerKey(event)" />
         <span id="trade-search-spinner" class="spinner hidden"></span>
@@ -113,39 +124,44 @@
       <div id="trade-suggestions" class="suggestions hidden"></div>
 
       <div id="trade-price-preview" class="trade-price-preview hidden">
-        <span id="trade-cur-price-label">Preço atual: </span><span id="trade-cur-price">—</span>
+        <span data-i18n="cur_price_label">Preço atual:</span>
+        <span id="trade-cur-price">—</span>
       </div>
 
       <div class="trade-form-row">
         <div class="trade-form-col">
-          <label class="trade-label">Quantidade</label>
+          <label class="trade-label" data-i18n="qty_label">Quantidade</label>
           <input id="trade-qty" type="number" step="any" min="0" placeholder="0.00"
                  class="trade-input" oninput="updateTradePreview()" />
         </div>
         <div class="trade-form-col">
-          <label class="trade-label">Preço pago (USD)</label>
+          <label class="trade-label" data-i18n="price_label">Preço pago (USD)</label>
           <input id="trade-price" type="number" step="any" min="0" placeholder="0.00"
                  class="trade-input" oninput="updateTradePreview()" />
         </div>
       </div>
 
       <div id="trade-total-preview" class="trade-total-preview hidden">
-        Total investido: <strong id="trade-total-val">—</strong>
+        <span data-i18n="total_label">Total investido:</span>
+        <strong id="trade-total-val">—</strong>
       </div>
 
       <div class="trade-form-col" style="margin-top:4px">
-        <label class="trade-label">Data (opcional)</label>
+        <label class="trade-label" data-i18n="date_label">Data (opcional)</label>
         <input id="trade-date" type="text" placeholder="2025-01-01 12:00:00" class="trade-input" />
       </div>
 
       <div id="trade-error" class="price-error hidden"></div>
 
-      <button class="btn-confirm" onclick="submitTrade()">✓ Confirmar Compra</button>
-      <button class="btn-cancel" onclick="closeTradeModal()">Fechar</button>
+      <button class="btn-confirm" onclick="submitTrade()">
+        ✓ <span data-i18n="confirm_trade">Confirmar Compra</span>
+      </button>
+      <button class="btn-cancel" onclick="closeTradeModal()" data-i18n="close">Fechar</button>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/trade.js"></script>
 </body>

@@ -63,6 +63,20 @@ h1 {
   gap: 8px;
 }
 
+#btn-lang {
+  background: var(--surface);
+  color: var(--muted2);
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: background 0.15s, color 0.15s;
+}
+#btn-lang:active { opacity: 0.75; }
+
 #btn-theme {
   background: var(--surface);
   color: var(--text);
@@ -90,17 +104,36 @@ h1 {
 }
 #btn-currency:active { opacity: 0.75; }
 
-#btn-add-tracker, #btn-add-trade, .btn-add {
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: var(--accent);
   color: #000;
   border: none;
-  padding: 7px 16px;
+  padding: 7px 15px 7px 11px;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   cursor: pointer;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0,230,118,0.18);
+  transition: opacity 0.15s, box-shadow 0.15s;
 }
-#btn-add-tracker:active, #btn-add-trade:active, .btn-add:active { opacity: 0.75; }
+.btn-primary:active { opacity: 0.78; box-shadow: none; }
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: rgba(0,0,0,0.18);
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  flex-shrink: 0;
+}
 
 /* Asset list */
 main {

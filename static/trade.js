@@ -23,9 +23,6 @@ function switchTab(tab) {
   document.getElementById("btn-add-tracker").classList.toggle("hidden", !isTracker);
   document.getElementById("btn-add-trade").classList.toggle("hidden",    isTracker);
 
-  document.getElementById("refresh-btn-tracker").classList.toggle("hidden", !isTracker);
-  document.getElementById("refresh-btn-trade").classList.toggle("hidden",    isTracker);
-
   if (!isTracker && !cachedPortfolio.length) {
     loadPortfolio();
   }
@@ -36,7 +33,7 @@ function switchTab(tab) {
 async function loadPortfolio() {
   const list = document.getElementById("portfolio-list");
   const summary = document.getElementById("portfolio-summary");
-  list.innerHTML = `<div class="loading">Carregando portfólio...</div>`;
+  list.innerHTML = `<div class="loading">${t("loading")}</div>`;
 
   try {
     const res = await fetch("/api/portfolio");
@@ -44,22 +41,22 @@ async function loadPortfolio() {
     cachedPortfolio = tokens;
     renderPortfolio(tokens);
   } catch {
-    list.innerHTML = `<div class="empty-state"><p>Erro ao carregar. Verifique a conexão.</p></div>`;
+    list.innerHTML = `<div class="empty-state"><p>${t("error_load")}</p></div>`;
   }
 }
 
-function calcToken(t) {
-  const trades = t.trades || [];
+function calcToken(t_) {
+  const trades = t_.trades || [];
   let total_qty = 0, total_invested = 0;
   for (const tr of trades) {
     total_qty      += tr.qty;
     total_invested += tr.qty * tr.price_paid;
   }
-  const avg_price    = total_qty > 0 ? total_invested / total_qty : 0;
-  const cur_price    = t.current_price || 0;
-  const cur_value    = total_qty * cur_price;
-  const pnl          = cur_value - total_invested;
-  const pnl_pct      = total_invested > 0 ? (pnl / total_invested) * 100 : 0;
+  const avg_price = total_qty > 0 ? total_invested / total_qty : 0;
+  const cur_price = t_.current_price || 0;
+  const cur_value = total_qty * cur_price;
+  const pnl       = cur_value - total_invested;
+  const pnl_pct   = total_invested > 0 ? (pnl / total_invested) * 100 : 0;
   return { total_qty, total_invested, avg_price, cur_value, pnl, pnl_pct };
 }
 
@@ -67,18 +64,24 @@ function renderPortfolio(tokens) {
   const list    = document.getElementById("portfolio-list");
   const summary = document.getElementById("portfolio-summary");
 
+  // Update summary labels (language may have changed)
+  const sumLabels = document.querySelectorAll(".psum-label");
+  if (sumLabels[0]) sumLabels[0].textContent = t("invested");
+  if (sumLabels[1]) sumLabels[1].textContent = t("cur_value");
+  if (sumLabels[2]) sumLabels[2].textContent = t("pnl");
+
   if (!tokens.length) {
     summary.classList.add("hidden");
     list.innerHTML = `<div class="empty-state">
       <div class="empty-icon">💼</div>
-      <p>Nenhum ativo no portfólio.<br>Clique em <b>+ Trade</b> para registrar uma compra.</p>
+      <p>${t("empty_trade")}</p>
     </div>`;
     return;
   }
 
   let tot_inv = 0, tot_val = 0, tot_pnl = 0;
-  for (const t of tokens) {
-    const c = calcToken(t);
+  for (const tok of tokens) {
+    const c = calcToken(tok);
     tot_inv += c.total_invested;
     tot_val += c.cur_value;
     tot_pnl += c.pnl;
@@ -90,23 +93,23 @@ function renderPortfolio(tokens) {
   document.getElementById("psum-invested").textContent = formatUSD(tot_inv);
   document.getElementById("psum-value").textContent    = formatUSD(tot_val);
   const pnlEl = document.getElementById("psum-pnl");
-  pnlEl.textContent  = `${pnlSign}${formatUSD(tot_pnl)} (${pnlSign}${tot_pnl_pct.toFixed(2)}%)`;
-  pnlEl.style.color  = pnlColor;
+  pnlEl.textContent = `${pnlSign}${formatUSD(tot_pnl)} (${pnlSign}${tot_pnl_pct.toFixed(2)}%)`;
+  pnlEl.style.color = pnlColor;
   summary.classList.remove("hidden");
 
-  list.innerHTML = tokens.map(t => portfolioCardHTML(t)).join("");
+  list.innerHTML = tokens.map(tok => portfolioCardHTML(tok)).join("");
   loadPortfolioIcons(tokens);
 }
 
-function portfolioCardHTML(t) {
-  const { total_qty, total_invested, avg_price, cur_value, pnl, pnl_pct } = calcToken(t);
-  const sym      = t.ticker;
-  const hasPrice = t.current_price != null;
+function portfolioCardHTML(tok) {
+  const { total_qty, total_invested, avg_price, cur_value, pnl, pnl_pct } = calcToken(tok);
+  const sym      = tok.ticker;
+  const hasPrice = tok.current_price != null;
   const pnlSign  = pnl >= 0 ? "+" : "";
   const pnlCls   = pnl >= 0 ? "up" : "down";
   const pnlArrow = pnl >= 0 ? "▲" : "▼";
 
-  const tradesHTML = (t.trades || []).map((tr, idx) => `
+  const tradesHTML = (tok.trades || []).map((tr, idx) => `
     <div class="trade-row">
       <div class="trade-row-left">
         <span class="trade-row-date">${tr.date || "—"}</span>
@@ -127,7 +130,7 @@ function portfolioCardHTML(t) {
         </div>
         <div class="asset-name-wrap">
           <div class="asset-symbol">${sym}</div>
-          <div class="asset-source">${hasPrice ? formatUSD(t.current_price) : "—"}</div>
+          <div class="asset-source">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
         </div>
       </div>
       <div class="asset-right">
@@ -138,19 +141,19 @@ function portfolioCardHTML(t) {
     </div>
 
     <div class="card-details portfolio-details">
-      <div class="stat"><span class="stat-label">INVESTIDO</span><span class="stat-val">${formatUSD(total_invested)}</span></div>
-      <div class="stat"><span class="stat-label">QUANTIDADE</span><span class="stat-val">${fmtQty(total_qty)}</span></div>
-      <div class="stat"><span class="stat-label">PREÇO MÉDIO</span><span class="stat-val">${formatUSD(avg_price)}</span></div>
-      <div class="stat"><span class="stat-label">P&amp;L</span><span class="stat-val pnl-val ${pnlCls}">${pnlSign}${formatUSD(pnl)}</span></div>
+      <div class="stat"><span class="stat-label">${t("p_invested")}</span><span class="stat-val">${formatUSD(total_invested)}</span></div>
+      <div class="stat"><span class="stat-label">${t("p_qty")}</span><span class="stat-val">${fmtQty(total_qty)}</span></div>
+      <div class="stat"><span class="stat-label">${t("p_avg")}</span><span class="stat-val">${formatUSD(avg_price)}</span></div>
+      <div class="stat"><span class="stat-label">${t("p_pnl")}</span><span class="stat-val pnl-val ${pnlCls}">${pnlSign}${formatUSD(pnl)}</span></div>
 
       <div class="trade-history-wrap">
-        <div class="trade-history-title">Histórico de Compras</div>
-        ${tradesHTML || `<div class="trade-empty">Nenhuma compra registrada.</div>`}
+        <div class="trade-history-title">${t("p_history")}</div>
+        ${tradesHTML || `<div class="trade-empty">${t("p_no_trades")}</div>`}
       </div>
 
       <div class="portfolio-actions">
-        <button class="btn-portfolio-add" onclick="openTradeModalFor('${sym}',event)">+ Compra</button>
-        <button class="btn-portfolio-del" onclick="deletePortfolioToken('${sym}',event)">Remover ativo</button>
+        <button class="btn-portfolio-add" onclick="openTradeModalFor('${sym}',event)">${t("p_add_trade")}</button>
+        <button class="btn-portfolio-del" onclick="deletePortfolioToken('${sym}',event)">${t("p_remove")}</button>
       </div>
     </div>
   </div>`;
@@ -169,15 +172,15 @@ function togglePortfolioCard(card, e) {
 }
 
 function loadPortfolioIcons(tokens) {
-  tokens.forEach(t => {
-    const sym  = t.ticker;
+  tokens.forEach(tok => {
+    const sym  = tok.ticker;
     const wrap = document.querySelector(`.portfolio-icon[data-pticker="${sym}"]`);
     if (!wrap) return;
     const img  = wrap.querySelector(".icon-img");
     const text = wrap.querySelector(".icon-text");
     applyAvatar(wrap, sym);
-    if (t.icon_url) {
-      tryLoadImage(img, text, t.icon_url, () => tryCryptoIcon(img, text, sym));
+    if (tok.icon_url) {
+      tryLoadImage(img, text, tok.icon_url, () => tryCryptoIcon(img, text, sym));
     } else {
       tryCryptoIcon(img, text, sym);
     }
@@ -188,14 +191,14 @@ function loadPortfolioIcons(tokens) {
 
 async function deletePortfolioToken(ticker, e) {
   e.stopPropagation();
-  if (!confirm(`Remover ${ticker} do portfólio?`)) return;
+  if (!confirm(t("confirm_remove_token", ticker))) return;
   await fetch(`/api/portfolio/${encodeURIComponent(ticker)}`, { method: "DELETE" });
   loadPortfolio();
 }
 
 async function deletePortfolioTrade(ticker, idx, e) {
   e.stopPropagation();
-  if (!confirm("Remover esta compra?")) return;
+  if (!confirm(t("confirm_remove_trade"))) return;
   await fetch(`/api/portfolio/${encodeURIComponent(ticker)}/trade/${idx}`, { method: "DELETE" });
   loadPortfolio();
 }
@@ -208,8 +211,11 @@ function openTradeModal(prefillTicker) {
   tradeActiveIndex    = -1;
   tradeSuggestions    = [];
 
-  document.getElementById("trade-ticker-input").value = prefillTicker || "";
-  document.getElementById("trade-ticker-input").disabled = !!prefillTicker;
+  const tickerInput = document.getElementById("trade-ticker-input");
+  tickerInput.value    = prefillTicker || "";
+  tickerInput.disabled = !!prefillTicker;
+  tickerInput.placeholder = t("trade_ticker_ph");
+
   document.getElementById("trade-qty").value   = "";
   document.getElementById("trade-price").value = "";
   document.getElementById("trade-date").value  = nowStr();
@@ -223,7 +229,7 @@ function openTradeModal(prefillTicker) {
     tradePendingTicker = prefillTicker.toUpperCase();
     fetchTradePrice(tradePendingTicker);
   } else {
-    setTimeout(() => document.getElementById("trade-ticker-input").focus(), 80);
+    setTimeout(() => tickerInput.focus(), 80);
   }
 }
 
@@ -355,9 +361,9 @@ async function submitTrade() {
 
   errEl.classList.add("hidden");
 
-  if (!ticker) { errEl.textContent = "Informe o ticker."; errEl.classList.remove("hidden"); return; }
-  if (isNaN(qty) || qty <= 0) { errEl.textContent = "Quantidade inválida."; errEl.classList.remove("hidden"); return; }
-  if (isNaN(price) || price <= 0) { errEl.textContent = "Preço inválido."; errEl.classList.remove("hidden"); return; }
+  if (!ticker) { errEl.textContent = t("err_ticker"); errEl.classList.remove("hidden"); return; }
+  if (isNaN(qty) || qty <= 0) { errEl.textContent = t("err_qty"); errEl.classList.remove("hidden"); return; }
+  if (isNaN(price) || price <= 0) { errEl.textContent = t("err_price"); errEl.classList.remove("hidden"); return; }
 
   const res = await fetch("/api/portfolio", {
     method: "POST",
@@ -369,7 +375,7 @@ async function submitTrade() {
     closeTradeModal();
     loadPortfolio();
   } else {
-    errEl.textContent = data.error || "Erro ao salvar.";
+    errEl.textContent = data.error || t("err_save");
     errEl.classList.remove("hidden");
   }
 }
