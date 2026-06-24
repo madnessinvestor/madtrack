@@ -665,6 +665,18 @@ section.hidden { display: none; }
   text-align: left;
   font-weight: 700;
 }
+.ptcol-asset-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ptcol-asset-price {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0;
+}
 .ptcol-perf {
   flex: 1.8;
   display: flex;

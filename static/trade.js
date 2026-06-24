@@ -142,7 +142,10 @@ function portfolioCardHTML(tok) {
           <img class="icon-img" alt="" />
           <span class="icon-text">${sym.slice(0,4)}</span>
         </div>
-        <span class="asset-symbol">${sym}</span>
+        <div class="ptcol-asset-info">
+          <span class="asset-symbol">${sym}</span>
+          <span class="ptcol-asset-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</span>
+        </div>
       </div>
       <div class="ptcol ptcol-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
       <div class="ptcol ptcol-invested">${formatUSD(total_invested)}</div>
