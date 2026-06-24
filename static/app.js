@@ -176,7 +176,6 @@ function cardHTML(a) {
       <div class="asset-right">
         <div class="asset-price">${hasPrice ? formatPrice(a.price, skip) : "—"}</div>
         ${changeHTML(a.change24h)}
-        ${hasCap ? `<div class="asset-mcap">MC ${formatUSD(a.market_cap, skip)}</div>` : ""}
       </div>
       <span class="card-chevron${hasExtra ? "" : " hidden"}">›</span>
       <span class="drag-handle" title="Reordenar">⠿</span>

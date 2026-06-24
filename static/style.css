@@ -79,10 +79,10 @@ h1 {
 /* Asset list */
 main {
   flex: 1;
-  padding: 10px 12px 82px;
+  padding: 8px 12px 82px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .loading {
@@ -105,31 +105,31 @@ main {
 .asset-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 13px 14px 12px;
+  border-radius: 10px;
+  padding: 8px 12px;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 
 .card-top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .asset-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   flex: 1;
 }
 
 .asset-icon {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -137,7 +137,7 @@ main {
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   color: #fff;
   flex-shrink: 0;
   overflow: hidden;
@@ -161,9 +161,9 @@ main {
 }
 .icon-img.loaded { opacity: 1; }
 
-.asset-symbol { font-weight: 700; font-size: 0.95rem; }
-.asset-source { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
-.asset-mcap   { font-size: 0.65rem; color: var(--muted); margin-top: 3px; }
+.asset-symbol { font-weight: 700; font-size: 0.85rem; }
+.asset-source { font-size: 0.62rem; color: var(--muted); margin-top: 1px; }
+.asset-mcap   { font-size: 0.62rem; color: var(--muted); margin-top: 1px; }
 
 .asset-right {
   display: flex;
@@ -172,16 +172,16 @@ main {
   justify-content: center;
   flex-shrink: 0;
 }
-.asset-price { font-weight: 700; font-size: 1rem; letter-spacing: -0.3px; }
+.asset-price { font-weight: 700; font-size: 0.9rem; letter-spacing: -0.3px; }
 
 /* Chevron */
 .card-chevron {
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  width: 16px;
   flex-shrink: 0;
   transition: transform 0.25s ease;
   user-select: none;
@@ -193,8 +193,8 @@ main {
 .drag-handle {
   cursor: grab;
   color: var(--muted);
-  font-size: 1.05rem;
-  padding: 6px 0 6px 4px;
+  font-size: 0.9rem;
+  padding: 4px 0 4px 2px;
   touch-action: none;
   user-select: none;
   flex-shrink: 0;
@@ -217,13 +217,15 @@ main {
   overflow: hidden;
   max-height: 0;
   opacity: 0;
+  margin-top: 0;
   padding-top: 0;
-  transition: max-height 0.3s ease, opacity 0.25s ease, padding-top 0.3s ease;
+  transition: max-height 0.3s ease, opacity 0.25s ease, padding-top 0.3s ease, margin-top 0.3s ease;
 }
 .asset-card.open .card-details {
   max-height: 240px;
   opacity: 1;
-  padding-top: 10px;
+  margin-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 
@@ -278,9 +280,9 @@ main {
 
 /* Change badge */
 .change {
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  margin-top: 3px;
+  margin-top: 1px;
   display: block;
 }
 .change.lg { font-size: 0.9rem; }
