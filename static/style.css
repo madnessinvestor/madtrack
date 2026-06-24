@@ -96,7 +96,6 @@ main {
 .card-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
 }
 
@@ -105,6 +104,7 @@ main {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1;
 }
 
 .asset-icon {
@@ -143,7 +143,13 @@ main {
 .asset-symbol { font-weight: 700; font-size: 0.95rem; }
 .asset-source { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
 
-.asset-right { text-align: right; flex-shrink: 0; }
+.asset-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+}
 .asset-price { font-weight: 700; font-size: 1rem; letter-spacing: -0.3px; }
 
 /* Chevron */
