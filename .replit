@@ -27,7 +27,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages python3 app.py"
+args = "python3 app.py"
 waitForPort = 5000
 
 [deployment]
