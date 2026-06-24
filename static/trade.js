@@ -98,7 +98,6 @@ function renderPortfolio(tokens) {
 
   const header = `<div class="ptable-header">
     <div class="ptcol ptcol-asset">${t("p_asset")}</div>
-    <div class="ptcol ptcol-price">${t("p_price")}</div>
     <div class="ptcol ptcol-invested">${t("p_invested")}</div>
     <div class="ptcol ptcol-value">${t("cur_value")}</div>
     <div class="ptcol ptcol-perf">${t("p_performance")}</div>
@@ -147,7 +146,6 @@ function portfolioCardHTML(tok) {
           <span class="ptcol-asset-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</span>
         </div>
       </div>
-      <div class="ptcol ptcol-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
       <div class="ptcol ptcol-invested">${formatUSD(total_invested)}</div>
       <div class="ptcol ptcol-value">${hasPrice ? formatUSD(cur_value) : "—"}</div>
       <div class="ptcol ptcol-perf">
