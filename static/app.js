@@ -74,12 +74,17 @@ function formatUSD(v, skip = false) {
   const rate = skip ? 1 : getRate();
   const sym  = skip ? "$" : currSym();
   v = v * rate;
-  if (v >= 1_000_000_000) return sym + (v / 1_000_000_000).toFixed(2) + "B";
-  if (v >= 1_000_000)     return sym + (v / 1_000_000).toFixed(2) + "M";
-  if (v >= 1000)          return sym + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1)             return sym + v.toFixed(2);
-  if (v > 0)              return sym + v.toFixed(6);
-  return sym + "0.00";
+  const neg = v < 0;
+  const abs = Math.abs(v);
+  const sign = neg ? "-" : "";
+  let fmt;
+  if (abs >= 1_000_000_000) fmt = sym + (abs / 1_000_000_000).toFixed(2) + "B";
+  else if (abs >= 1_000_000) fmt = sym + (abs / 1_000_000).toFixed(2) + "M";
+  else if (abs >= 1000)      fmt = sym + abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  else if (abs >= 1)         fmt = sym + abs.toFixed(2);
+  else if (abs > 0)          fmt = sym + abs.toFixed(6);
+  else                       fmt = sym + "0.00";
+  return sign + fmt;
 }
 
 function formatPrice(v, skip = false) {
@@ -87,10 +92,15 @@ function formatPrice(v, skip = false) {
   const rate = skip ? 1 : getRate();
   const sym  = skip ? "$" : currSym();
   v = v * rate;
-  if (v >= 1000) return sym + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1)    return sym + v.toFixed(2);
-  if (v > 0)     return sym + v.toFixed(6);
-  return sym + "0.00";
+  const neg = v < 0;
+  const abs = Math.abs(v);
+  const sign = neg ? "-" : "";
+  let fmt;
+  if (abs >= 1000) fmt = sym + abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  else if (abs >= 1) fmt = sym + abs.toFixed(2);
+  else if (abs > 0)  fmt = sym + abs.toFixed(6);
+  else               fmt = sym + "0.00";
+  return sign + fmt;
 }
 
 function changeHTML(change, size = "") {
