@@ -35,11 +35,8 @@ async function submitAlert() {
   const errEl   = document.getElementById("alert-error");
 
   errEl.classList.add("hidden");
-  if (!ticker)           { errEl.textContent = t("alert_err_ticker"); errEl.classList.remove("hidden"); return; }
-  if (!target || target <= 0) { errEl.textContent = t("alert_err_price"); errEl.classList.remove("hidden"); return; }
-
-  const granted = await requestNotifPermission();
-  if (!granted) { errEl.textContent = t("alert_err_perm"); errEl.classList.remove("hidden"); return; }
+  if (!ticker)                { errEl.textContent = t("alert_err_ticker"); errEl.classList.remove("hidden"); return; }
+  if (!target || target <= 0) { errEl.textContent = t("alert_err_price");  errEl.classList.remove("hidden"); return; }
 
   await fetch("/api/alerts", {
     method: "POST",
@@ -50,6 +47,16 @@ async function submitAlert() {
   document.getElementById("alert-ticker").value = "";
   document.getElementById("alert-target").value = "";
   await loadAlerts();
+
+  // Ask permission non-blocking — show soft warning if denied
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission().then(r => {
+      if (r === "denied") {
+        errEl.textContent = t("alert_err_perm");
+        errEl.classList.remove("hidden");
+      }
+    });
+  }
 }
 
 // ─── Delete / Reset ───────────────────────────────────────────────────────────
