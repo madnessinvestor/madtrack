@@ -46,6 +46,7 @@ async function loadAssets() {
       </div>`;
     } else {
       list.innerHTML = assets.map(a => cardHTML(a)).join("");
+      loadIcons(assets.map(a => a.symbol));
     }
 
     const now = new Date();
@@ -67,7 +68,10 @@ function cardHTML(a) {
 
     <div class="card-top">
       <div class="asset-left">
-        <div class="asset-icon">${a.symbol.slice(0,4)}</div>
+        <div class="asset-icon" data-sym="${a.symbol}">
+          <img class="icon-img" alt="" />
+          <span class="icon-text">${a.symbol.slice(0,4)}</span>
+        </div>
         <div>
           <div class="asset-symbol">${a.symbol}</div>
           ${a.source ? `<div class="asset-source">${a.source}</div>` : ""}
@@ -87,6 +91,50 @@ function cardHTML(a) {
       ${hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap)}</span></div>` : ""}
     </div>` : ""}
   </div>`;
+}
+
+// CDN covers ~500 popular coins instantly, backend fallback for the rest
+const CDN = sym =>
+  `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${sym.toLowerCase()}.svg`;
+
+function loadIcons(symbols) {
+  symbols.forEach(sym => {
+    const wrap = document.querySelector(`.asset-icon[data-sym="${sym}"]`);
+    if (!wrap) return;
+    const img  = wrap.querySelector(".icon-img");
+    const text = wrap.querySelector(".icon-text");
+
+    img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
+    img.onerror = () => {
+      // CDN miss → try backend (CoinGecko cache)
+      fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => {
+          img.onerror = () => {};
+          img.src = data.url;
+        })
+        .catch(() => {});
+    };
+    img.src = CDN(sym);
+  });
+}
+
+// Also add icon in modal preview
+function loadModalIcon(sym) {
+  const wrap = document.getElementById("pr-icon");
+  if (!wrap) return;
+  const img  = wrap.querySelector(".icon-img");
+  const text = wrap.querySelector(".icon-text");
+  img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
+  img.onerror = () => {
+    fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => { img.onerror = () => {}; img.src = data.url; })
+      .catch(() => {});
+  };
+  img.src = CDN(sym);
+  text.style.display = "";
+  img.classList.remove("loaded");
 }
 
 async function deleteAsset(symbol) {
@@ -139,10 +187,14 @@ async function fetchTickerPrice(sym) {
     const d = await res.json();
     pendingSymbol = sym;
 
-    document.getElementById("pr-symbol").textContent = d.symbol;
+    // icon text fallback (first 4 chars) + label
+    document.getElementById("pr-symbol").textContent = sym.slice(0, 4);
+    const lblEl = document.getElementById("pr-symbol-label");
+    if (lblEl) lblEl.textContent = d.symbol;
     document.getElementById("pr-price").textContent  = formatPrice(d.price);
     document.getElementById("pr-change").innerHTML   = changeHTML(d.change24h, "lg");
     document.getElementById("pr-source").textContent = "via " + (d.source || "—");
+    loadModalIcon(sym);
 
     // Extra stats
     const statsEl = document.getElementById("pr-stats");

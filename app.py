@@ -3,6 +3,7 @@ import json, os, urllib.request, concurrent.futures
 
 app = Flask(__name__)
 DATA_FILE = "assets.json"
+_icon_cache = {}  # symbol -> url | None
 
 def load_assets():
     if os.path.exists(DATA_FILE):
@@ -228,11 +229,12 @@ def api_coincap(sym):
                         "source": "CoinCap"
                     }
 
-def api_coingecko(sym):
+def _coingecko_coin_data(sym):
+    """Return (coin_id, coin_data_dict) from CoinGecko, or (None, None)."""
     s = sym.lower()
     search = http_get(f"https://api.coingecko.com/api/v3/search?query={s}")
     if not search or not search.get("coins"):
-        return None
+        return None, None
     coin_id = None
     for c in search["coins"]:
         if c.get("symbol", "").lower() == s:
@@ -241,10 +243,18 @@ def api_coingecko(sym):
     if not coin_id:
         coin_id = search["coins"][0]["id"]
     d = http_get(f"https://api.coingecko.com/api/v3/coins/{coin_id}?localization=false&tickers=false&community_data=false&developer_data=false")
+    return coin_id, d
+
+def api_coingecko(sym):
+    coin_id, d = _coingecko_coin_data(sym)
     if d and d.get("market_data"):
         md = d["market_data"]
         price = safe_float(md.get("current_price", {}).get("usd"))
         if price:
+            # Cache icon while we have the data
+            img = d.get("image", {}).get("small") or d.get("image", {}).get("large")
+            if img:
+                _icon_cache[sym.upper()] = img
             return {
                 "price": price,
                 "change24h": round(float(md.get("price_change_percentage_24h") or 0), 2),
@@ -254,6 +264,18 @@ def api_coingecko(sym):
                 "market_cap": safe_float(md.get("market_cap", {}).get("usd")),
                 "source": "CoinGecko"
             }
+
+def _fetch_icon_url(symbol):
+    """Lookup icon via CoinGecko and cache it."""
+    sym = symbol.upper()
+    if sym in _icon_cache:
+        return _icon_cache[sym]
+    _, d = _coingecko_coin_data(sym)
+    url = None
+    if d:
+        url = d.get("image", {}).get("small") or d.get("image", {}).get("large")
+    _icon_cache[sym] = url
+    return url
 
 APIS = [
     api_hyperliquid, api_binance, api_okx, api_bybit, api_kucoin,
@@ -287,6 +309,16 @@ def index():
 @app.route("/favicon.ico")
 def favicon():
     return send_file("static/icons/icon-192.png", mimetype="image/png")
+
+@app.route("/api/icon")
+def get_icon():
+    sym = request.args.get("symbol", "").strip().upper()
+    if not sym:
+        return jsonify({"error": "no symbol"}), 400
+    url = _fetch_icon_url(sym)
+    if url:
+        return jsonify({"url": url})
+    return jsonify({"error": "not found"}), 404
 
 @app.route("/api/price")
 def get_price():
