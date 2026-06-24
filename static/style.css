@@ -142,6 +142,7 @@ main {
 
 .asset-symbol { font-weight: 700; font-size: 0.95rem; }
 .asset-source { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+.asset-mcap   { font-size: 0.65rem; color: var(--muted); margin-top: 3px; }
 
 .asset-right {
   display: flex;

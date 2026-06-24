@@ -1,9 +1,21 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, urllib.request, concurrent.futures
+import json, os, urllib.request, concurrent.futures, time
 
 app = Flask(__name__)
 DATA_FILE = "assets.json"
-_icon_cache = {}  # symbol -> url | None
+_icon_cache = {}          # symbol -> url | None
+_mcap_cache = {}          # symbol -> (value, timestamp)
+MCAP_TTL    = 600         # seconds — reuse cached market cap for 10 min
+
+def _mcap_get(sym):
+    entry = _mcap_cache.get(sym.upper())
+    if entry and time.time() - entry[1] < MCAP_TTL:
+        return entry[0]
+    return None
+
+def _mcap_set(sym, val):
+    if val is not None:
+        _mcap_cache[sym.upper()] = (val, time.time())
 
 def load_assets():
     if os.path.exists(DATA_FILE):
@@ -317,6 +329,12 @@ def fetch_price(symbol):
         if all(primary.get(f) is not None for f in fill):
             break
 
+    # Persist market cap when found; fall back to cache when missing
+    if primary.get("market_cap") is not None:
+        _mcap_set(symbol, primary["market_cap"])
+    else:
+        primary["market_cap"] = _mcap_get(symbol)
+
     return primary
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -385,5 +403,35 @@ def delete_asset(symbol):
     save_assets(assets)
     return jsonify({"ok": True})
 
+_coinlore_cache = {}  # symbol.upper() -> market_cap (populated by warmup)
+
+def _warmup_mcap():
+    """Background: fetch market cap for ~500 top coins from CoinLore and cache them."""
+    import threading, time as _t
+    def run():
+        _t.sleep(2)
+        try:
+            # Fetch first 5 pages (500 coins) in parallel
+            pages = range(0, 500, 100)
+            def fetch_page(start):
+                return http_get(
+                    f"https://api.coinlore.net/api/tickers/?start={start}&limit=100",
+                    timeout=10
+                )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+                results = list(ex.map(fetch_page, pages))
+            for page in results:
+                if page and page.get("data"):
+                    for coin in page["data"]:
+                        sym = (coin.get("symbol") or "").upper()
+                        cap = safe_float(coin.get("market_cap_usd"))
+                        if sym and cap:
+                            _coinlore_cache[sym] = cap
+                            _mcap_set(sym, cap)
+        except Exception:
+            pass
+    threading.Thread(target=run, daemon=True).start()
+
 if __name__ == "__main__":
+    _warmup_mcap()
     app.run(host="0.0.0.0", port=5000, debug=False)
