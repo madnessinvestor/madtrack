@@ -1,5 +1,8 @@
-let searchTimeout = null;
-let pendingSymbol = null;
+let searchTimeout   = null;
+let suggestTimeout  = null;
+let pendingSymbol   = null;
+let activeIndex     = -1;
+let currentSuggestions = [];
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
@@ -104,7 +107,6 @@ function toggleCard(card, e) {
   card.classList.toggle("open");
 }
 
-// CDN covers ~500 popular coins instantly, backend fallback for the rest
 const CDN = sym =>
   `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${sym.toLowerCase()}.svg`;
 
@@ -117,7 +119,6 @@ function loadIcons(symbols) {
 
     img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
     img.onerror = () => {
-      // CDN miss → try backend (CoinGecko cache)
       fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
@@ -130,7 +131,6 @@ function loadIcons(symbols) {
   });
 }
 
-// Also add icon in modal preview
 function loadModalIcon(sym) {
   const wrap = document.getElementById("pr-icon");
   if (!wrap) return;
@@ -157,37 +157,118 @@ async function deleteAsset(symbol) {
 
 function openModal() {
   pendingSymbol = null;
+  activeIndex = -1;
+  currentSuggestions = [];
   document.getElementById("ticker-input").value = "";
   document.getElementById("price-result").classList.add("hidden");
   document.getElementById("price-error").classList.add("hidden");
   document.getElementById("search-spinner").classList.add("hidden");
+  document.getElementById("suggestions").classList.add("hidden");
+  document.getElementById("suggestions").innerHTML = "";
   document.getElementById("modal").classList.remove("hidden");
   setTimeout(() => document.getElementById("ticker-input").focus(), 80);
 }
 
 function closeModal() {
   document.getElementById("modal").classList.add("hidden");
+  hideSuggestions();
+}
+
+function hideSuggestions() {
+  document.getElementById("suggestions").classList.add("hidden");
+  activeIndex = -1;
 }
 
 function onTickerInput(val) {
   clearTimeout(searchTimeout);
+  clearTimeout(suggestTimeout);
   const sym = val.trim().toUpperCase();
   document.getElementById("price-result").classList.add("hidden");
   document.getElementById("price-error").classList.add("hidden");
   pendingSymbol = null;
+  activeIndex = -1;
 
   if (!sym) {
     document.getElementById("search-spinner").classList.add("hidden");
+    hideSuggestions();
     return;
   }
+
+  // Fetch suggestions quickly
+  suggestTimeout = setTimeout(() => fetchSuggestions(sym), 150);
+
+  // Fetch price after slight delay
   document.getElementById("search-spinner").classList.remove("hidden");
-  searchTimeout = setTimeout(() => fetchTickerPrice(sym), 500);
+  searchTimeout = setTimeout(() => fetchTickerPrice(sym), 700);
+}
+
+async function fetchSuggestions(sym) {
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(sym)}`);
+    if (!res.ok) return;
+    const items = await res.json();
+    currentSuggestions = items;
+    renderSuggestions(items);
+  } catch { /* silent */ }
+}
+
+function renderSuggestions(items) {
+  const el = document.getElementById("suggestions");
+  if (!items.length) {
+    el.classList.add("hidden");
+    return;
+  }
+  el.innerHTML = items.map((item, i) =>
+    `<div class="suggestion-item" data-i="${i}" onclick="selectSuggestion('${item.symbol}')">
+      <span class="suggestion-sym">${item.symbol}</span>
+      <span class="suggestion-ex">${item.exchange || ""}</span>
+    </div>`
+  ).join("");
+  el.classList.remove("hidden");
+}
+
+function selectSuggestion(sym) {
+  const input = document.getElementById("ticker-input");
+  input.value = sym;
+  hideSuggestions();
+  clearTimeout(searchTimeout);
+  clearTimeout(suggestTimeout);
+  document.getElementById("search-spinner").classList.remove("hidden");
+  fetchTickerPrice(sym);
+}
+
+function onTickerKey(e) {
+  const el = document.getElementById("suggestions");
+  const items = el.querySelectorAll(".suggestion-item");
+  if (!items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    activeIndex = Math.min(activeIndex + 1, items.length - 1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    activeIndex = Math.max(activeIndex - 1, -1);
+  } else if (e.key === "Enter" && activeIndex >= 0) {
+    e.preventDefault();
+    const sym = currentSuggestions[activeIndex]?.symbol;
+    if (sym) selectSuggestion(sym);
+    return;
+  } else if (e.key === "Escape") {
+    hideSuggestions();
+    return;
+  } else {
+    return;
+  }
+
+  items.forEach((item, i) => item.classList.toggle("active", i === activeIndex));
 }
 
 async function fetchTickerPrice(sym) {
   const resultEl = document.getElementById("price-result");
   const errorEl  = document.getElementById("price-error");
   const spinner  = document.getElementById("search-spinner");
+
+  hideSuggestions();
 
   try {
     const res = await fetch(`/api/price?symbol=${encodeURIComponent(sym)}`);
@@ -198,7 +279,6 @@ async function fetchTickerPrice(sym) {
     const d = await res.json();
     pendingSymbol = sym;
 
-    // icon text fallback (first 4 chars) + label
     document.getElementById("pr-symbol").textContent = sym.slice(0, 4);
     const lblEl = document.getElementById("pr-symbol-label");
     if (lblEl) lblEl.textContent = d.symbol;
@@ -207,7 +287,6 @@ async function fetchTickerPrice(sym) {
     document.getElementById("pr-source").textContent = "via " + (d.source || "—");
     loadModalIcon(sym);
 
-    // Extra stats
     const statsEl = document.getElementById("pr-stats");
     const rows = [];
     if (d.high24h)    rows.push(`<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(d.high24h)}</span></div>`);

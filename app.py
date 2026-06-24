@@ -1,11 +1,15 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, urllib.request, concurrent.futures, time
+import json, os, urllib.request, concurrent.futures, time, threading
 
 app = Flask(__name__)
 DATA_FILE = "assets.json"
-_icon_cache = {}          # symbol -> url | None
-_mcap_cache = {}          # symbol -> (value, timestamp)
-MCAP_TTL    = 600         # seconds — reuse cached market cap for 10 min
+_icon_cache  = {}
+_mcap_cache  = {}
+MCAP_TTL     = 600
+
+# Symbol autocomplete cache: list of {symbol, name, exchange}
+_search_cache = []
+_search_lock  = threading.Lock()
 
 def _mcap_get(sym):
     entry = _mcap_cache.get(sym.upper())
@@ -37,7 +41,7 @@ def http_get(url, timeout=5):
     except Exception:
         return None
 
-def http_post(url, data, timeout=5):
+def http_post(url, data, timeout=8):
     try:
         body = json.dumps(data).encode()
         req = urllib.request.Request(url, data=body, headers={
@@ -60,15 +64,20 @@ def safe_float(v):
 
 def api_hyperliquid(sym):
     sym = sym.upper()
-    mids = http_post("https://api.hyperliquid.xyz/info", {"type": "allMids"})
+    # Fetch all mids and meta in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+        f_mids = ex.submit(http_post, "https://api.hyperliquid.xyz/info", {"type": "allMids"})
+        f_meta = ex.submit(http_post, "https://api.hyperliquid.xyz/info", {"type": "metaAndAssetCtxs"})
+        mids = f_mids.result()
+        meta = f_meta.result()
+
     if not mids or sym not in mids:
         return None
-    price = float(mids[sym])
-    change = None
-    volume = None
-    high = None
-    low = None
-    meta = http_post("https://api.hyperliquid.xyz/info", {"type": "metaAndAssetCtxs"})
+    price = safe_float(mids[sym])
+    if not price:
+        return None
+
+    change = volume = high = low = None
     if meta and len(meta) >= 2:
         for i, asset in enumerate(meta[0].get("universe", [])):
             if asset.get("name") == sym and i < len(meta[1]):
@@ -77,13 +86,63 @@ def api_hyperliquid(sym):
                 if prev:
                     change = round((price - prev) / prev * 100, 2)
                 volume = safe_float(ctx.get("dayNtlVlm"))
+                high   = safe_float(ctx.get("dayHigh")) if ctx.get("dayHigh") else None
+                low    = safe_float(ctx.get("dayLow"))  if ctx.get("dayLow")  else None
                 break
+
     return {"price": price, "change24h": change, "high24h": high, "low24h": low,
             "volume24h": volume, "market_cap": None, "source": "Hyperliquid"}
 
-def api_binance(sym):
+def api_hyperliquid_spot(sym):
+    """Try to get price from Hyperliquid spot markets."""
+    sym = sym.upper()
+    meta = http_post("https://api.hyperliquid.xyz/info", {"type": "spotMeta"})
+    if not meta:
+        return None
+    tokens = meta.get("tokens", [])
+    # Find the token index
+    token_idx = None
+    for t in tokens:
+        if t.get("name", "").upper() == sym:
+            token_idx = t.get("index")
+            break
+    if token_idx is None:
+        return None
+
+    # Find canonical spot pair for this token
+    universe = meta.get("universe", [])
+    pair_idx = None
+    for pair in universe:
+        toks = pair.get("tokens", [])
+        if len(toks) >= 1 and toks[0] == token_idx and pair.get("isCanonical"):
+            pair_idx = pair.get("index")
+            break
+    if pair_idx is None:
+        return None
+
+    ctx_data = http_post("https://api.hyperliquid.xyz/info", {"type": "spotMetaAndAssetCtxs"})
+    if not ctx_data or len(ctx_data) < 2:
+        return None
+
+    ctxs = ctx_data[1]
+    if pair_idx >= len(ctxs):
+        return None
+    ctx = ctxs[pair_idx]
+    price = safe_float(ctx.get("midPx") or ctx.get("markPx"))
+    if not price:
+        return None
+    prev = safe_float(ctx.get("prevDayPx"))
+    change = round((price - prev) / prev * 100, 2) if prev else None
+    return {
+        "price": price, "change24h": change,
+        "high24h": None, "low24h": None,
+        "volume24h": safe_float(ctx.get("dayNtlVlm")),
+        "market_cap": None, "source": "Hyperliquid Spot"
+    }
+
+def api_mexc(sym):
     s = sym.upper() + "USDT"
-    d = http_get(f"https://api.binance.com/api/v3/ticker/24hr?symbol={s}")
+    d = http_get(f"https://api.mexc.com/api/v3/ticker/24hr?symbol={s}")
     if d and safe_float(d.get("lastPrice")):
         return {
             "price": float(d["lastPrice"]),
@@ -91,42 +150,8 @@ def api_binance(sym):
             "high24h": safe_float(d.get("highPrice")),
             "low24h": safe_float(d.get("lowPrice")),
             "volume24h": safe_float(d.get("quoteVolume")),
-            "market_cap": None,
-            "source": "Binance"
+            "market_cap": None, "source": "MEXC"
         }
-
-def api_okx(sym):
-    s = sym.upper() + "-USDT"
-    d = http_get(f"https://www.okx.com/api/v5/market/ticker?instId={s}")
-    if d and d.get("data"):
-        row = d["data"][0]
-        price = safe_float(row.get("last"))
-        open24 = safe_float(row.get("open24h"))
-        change = round((price - open24) / open24 * 100, 2) if price and open24 else None
-        if price:
-            return {
-                "price": price, "change24h": change,
-                "high24h": safe_float(row.get("high24h")),
-                "low24h": safe_float(row.get("low24h")),
-                "volume24h": safe_float(row.get("volCcy24h")),
-                "market_cap": None, "source": "OKX"
-            }
-
-def api_bybit(sym):
-    s = sym.upper() + "USDT"
-    d = http_get(f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={s}")
-    if d and d.get("result", {}).get("list"):
-        row = d["result"]["list"][0]
-        price = safe_float(row.get("lastPrice"))
-        if price:
-            return {
-                "price": price,
-                "change24h": round(float(row.get("price24hPcnt", 0)) * 100, 2),
-                "high24h": safe_float(row.get("highPrice24h")),
-                "low24h": safe_float(row.get("lowPrice24h")),
-                "volume24h": safe_float(row.get("turnover24h")),
-                "market_cap": None, "source": "Bybit"
-            }
 
 def api_kucoin(sym):
     s = sym.upper() + "-USDT"
@@ -158,6 +183,23 @@ def api_gateio(sym):
                 "low24h": safe_float(row.get("low_24h")),
                 "volume24h": safe_float(row.get("quote_volume")),
                 "market_cap": None, "source": "Gate.io"
+            }
+
+def api_okx(sym):
+    s = sym.upper() + "-USDT"
+    d = http_get(f"https://www.okx.com/api/v5/market/ticker?instId={s}")
+    if d and d.get("data"):
+        row = d["data"][0]
+        price = safe_float(row.get("last"))
+        open24 = safe_float(row.get("open24h"))
+        change = round((price - open24) / open24 * 100, 2) if price and open24 else None
+        if price:
+            return {
+                "price": price, "change24h": change,
+                "high24h": safe_float(row.get("high24h")),
+                "low24h": safe_float(row.get("low24h")),
+                "volume24h": safe_float(row.get("volCcy24h")),
+                "market_cap": None, "source": "OKX"
             }
 
 def api_kraken(sym):
@@ -195,35 +237,6 @@ def api_cryptocompare(sym):
                 "source": "CryptoCompare"
             }
 
-def api_mexc(sym):
-    s = sym.upper() + "USDT"
-    d = http_get(f"https://api.mexc.com/api/v3/ticker/24hr?symbol={s}")
-    if d and safe_float(d.get("lastPrice")):
-        return {
-            "price": float(d["lastPrice"]),
-            "change24h": round(float(d.get("priceChangePercent", 0)), 2),
-            "high24h": safe_float(d.get("highPrice")),
-            "low24h": safe_float(d.get("lowPrice")),
-            "volume24h": safe_float(d.get("quoteVolume")),
-            "market_cap": None, "source": "MEXC"
-        }
-
-def api_bitfinex(sym):
-    s = sym.upper()
-    ticker = f"t{s}USD"
-    d = http_get(f"https://api-pub.bitfinex.com/v2/ticker/{ticker}")
-    # [BID,BID_SIZE,ASK,ASK_SIZE,DAILY_CHG,DAILY_CHG_REL,LAST,VOL,HIGH,LOW]
-    if d and isinstance(d, list) and len(d) >= 10:
-        price = safe_float(d[6])
-        if price:
-            return {
-                "price": price,
-                "change24h": round(float(d[5]) * 100, 2),
-                "high24h": safe_float(d[8]),
-                "low24h": safe_float(d[9]),
-                "volume24h": None, "market_cap": None, "source": "Bitfinex"
-            }
-
 def api_coincap(sym):
     s = sym.lower()
     d = http_get(f"https://api.coincap.io/v2/assets?search={s}&limit=5")
@@ -242,7 +255,6 @@ def api_coincap(sym):
                     }
 
 def _coingecko_coin_data(sym):
-    """Return (coin_id, coin_data_dict) from CoinGecko, or (None, None)."""
     s = sym.lower()
     search = http_get(f"https://api.coingecko.com/api/v3/search?query={s}")
     if not search or not search.get("coins"):
@@ -263,7 +275,6 @@ def api_coingecko(sym):
         md = d["market_data"]
         price = safe_float(md.get("current_price", {}).get("usd"))
         if price:
-            # Cache icon while we have the data
             img = d.get("image", {}).get("small") or d.get("image", {}).get("large")
             if img:
                 _icon_cache[sym.upper()] = img
@@ -277,8 +288,22 @@ def api_coingecko(sym):
                 "source": "CoinGecko"
             }
 
+def api_bitfinex(sym):
+    s = sym.upper()
+    ticker = f"t{s}USD"
+    d = http_get(f"https://api-pub.bitfinex.com/v2/ticker/{ticker}")
+    if d and isinstance(d, list) and len(d) >= 10:
+        price = safe_float(d[6])
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(d[5]) * 100, 2),
+                "high24h": safe_float(d[8]),
+                "low24h": safe_float(d[9]),
+                "volume24h": None, "market_cap": None, "source": "Bitfinex"
+            }
+
 def _fetch_icon_url(symbol):
-    """Lookup icon via CoinGecko and cache it."""
     sym = symbol.upper()
     if sym in _icon_cache:
         return _icon_cache[sym]
@@ -289,10 +314,12 @@ def _fetch_icon_url(symbol):
     _icon_cache[sym] = url
     return url
 
+# Priority order — Hyperliquid perp first, then spot, then working CEXes
 APIS = [
-    api_hyperliquid, api_binance, api_okx, api_bybit, api_kucoin,
-    api_gateio, api_kraken, api_cryptocompare, api_mexc, api_bitfinex,
-    api_coincap, api_coingecko
+    api_hyperliquid, api_hyperliquid_spot,
+    api_mexc, api_kucoin, api_gateio,
+    api_okx, api_kraken, api_cryptocompare,
+    api_coincap, api_coingecko, api_bitfinex
 ]
 
 def fetch_price(symbol):
@@ -308,7 +335,6 @@ def fetch_price(symbol):
             except Exception:
                 pass
 
-    # Pick primary result by priority order
     primary = None
     for fn in APIS:
         if fn in results:
@@ -317,7 +343,6 @@ def fetch_price(symbol):
     if not primary:
         return None
 
-    # Fill missing fields from other successful sources (priority order)
     fill = ["change24h", "high24h", "low24h", "volume24h", "market_cap"]
     for fn in APIS:
         if fn not in results:
@@ -329,7 +354,6 @@ def fetch_price(symbol):
         if all(primary.get(f) is not None for f in fill):
             break
 
-    # Persist market cap when found; fall back to cache when missing
     if primary.get("market_cap") is not None:
         _mcap_set(symbol, primary["market_cap"])
     else:
@@ -346,6 +370,17 @@ def index():
 @app.route("/favicon.ico")
 def favicon():
     return send_file("static/icons/icon-192.png", mimetype="image/png")
+
+@app.route("/api/search")
+def search_symbols():
+    q = request.args.get("q", "").strip().upper()
+    if not q or len(q) < 1:
+        return jsonify([])
+    with _search_lock:
+        cache = list(_search_cache)
+    matches = [s for s in cache if q in s["symbol"].upper()]
+    matches.sort(key=lambda s: (not s["symbol"].upper().startswith(q), s["symbol"]))
+    return jsonify(matches[:15])
 
 @app.route("/api/icon")
 def get_icon():
@@ -403,21 +438,59 @@ def delete_asset(symbol):
     save_assets(assets)
     return jsonify({"ok": True})
 
-_coinlore_cache = {}  # symbol.upper() -> market_cap (populated by warmup)
+# ─── Background warmup ────────────────────────────────────────────────────────
 
-def _warmup_mcap():
-    """Background: fetch market cap for ~500 top coins from CoinLore and cache them."""
-    import threading, time as _t
+_coinlore_cache = {}
+
+def _warmup():
+    """Background: warm up symbol list and market caps."""
     def run():
-        _t.sleep(2)
+        time.sleep(1)
+        _load_symbols()
+        _load_mcaps()
+
+    def _load_symbols():
         try:
-            # Fetch first 5 pages (500 coins) in parallel
+            seen = set()
+            entries = []
+
+            # Hyperliquid perps
+            meta = http_post("https://api.hyperliquid.xyz/info",
+                             {"type": "metaAndAssetCtxs"}, timeout=10)
+            if meta and len(meta) >= 1:
+                for asset in meta[0].get("universe", []):
+                    name = asset.get("name", "")
+                    if name and not name.startswith("@") and not name.startswith("#"):
+                        sym = name.upper()
+                        if sym not in seen:
+                            seen.add(sym)
+                            entries.append({"symbol": sym, "exchange": "Hyperliquid"})
+
+            # Hyperliquid spot
+            spot = http_post("https://api.hyperliquid.xyz/info",
+                             {"type": "spotMeta"}, timeout=10)
+            if spot:
+                for t in spot.get("tokens", []):
+                    name = t.get("name", "")
+                    if name and not name.startswith("@") and not name.startswith("#"):
+                        sym = name.upper()
+                        if sym not in seen:
+                            seen.add(sym)
+                            entries.append({"symbol": sym, "exchange": "Hyperliquid Spot"})
+
+            with _search_lock:
+                _search_cache.clear()
+                _search_cache.extend(entries)
+        except Exception:
+            pass
+
+    def _load_mcaps():
+        try:
             pages = range(0, 500, 100)
             def fetch_page(start):
                 return http_get(
                     f"https://api.coinlore.net/api/tickers/?start={start}&limit=100",
-                    timeout=10
-                )
+                    timeout=10)
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
                 results = list(ex.map(fetch_page, pages))
             for page in results:
@@ -430,8 +503,9 @@ def _warmup_mcap():
                             _mcap_set(sym, cap)
         except Exception:
             pass
+
     threading.Thread(target=run, daemon=True).start()
 
 if __name__ == "__main__":
-    _warmup_mcap()
+    _warmup()
     app.run(host="0.0.0.0", port=5000, debug=False)

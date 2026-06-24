@@ -31,9 +31,10 @@
       <div class="search-wrap">
         <input id="ticker-input" type="text" placeholder="Digite o ticker: BTC, ETH, SOL..."
                autocomplete="off" autocapitalize="characters" spellcheck="false"
-               oninput="onTickerInput(this.value)" />
+               oninput="onTickerInput(this.value)" onkeydown="onTickerKey(event)" />
         <span id="search-spinner" class="spinner hidden"></span>
       </div>
+      <div id="suggestions" class="suggestions hidden"></div>
 
       <div id="price-result" class="price-result hidden">
         <div class="pr-header">

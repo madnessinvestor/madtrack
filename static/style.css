@@ -421,6 +421,36 @@ main {
   width: 100%;
 }
 
+/* Suggestions dropdown */
+.suggestions {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+  margin-top: -4px;
+}
+.suggestions.hidden { display: none; }
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover, .suggestion-item.active { background: var(--surface); }
+.suggestion-sym {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+.suggestion-ex {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
 @media (min-width: 480px) {
   body { border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
 }
