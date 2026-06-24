@@ -365,13 +365,21 @@ def api_forex(sym):
     return None
 
 def _fetch_icon_url(symbol):
+    """Fetch icon URL using a single CoinGecko search call (faster, less rate-limit pressure)."""
     sym = symbol.upper()
     if sym in _icon_cache:
         return _icon_cache[sym]
-    _, d = _coingecko_coin_data(sym)
+    s = sym.lower()
+    search = http_get(f"https://api.coingecko.com/api/v3/search?query={s}", timeout=8)
     url = None
-    if d:
-        url = d.get("image", {}).get("small") or d.get("image", {}).get("large")
+    if search and search.get("coins"):
+        # Prefer exact symbol match, then fall back to first result
+        for c in search["coins"]:
+            if c.get("symbol", "").lower() == s:
+                url = c.get("large") or c.get("thumb")
+                break
+        if not url:
+            url = search["coins"][0].get("large") or search["coins"][0].get("thumb")
     _icon_cache[sym] = url
     return url
 
@@ -522,8 +530,25 @@ def get_rates():
 _coinlore_cache = {}
 
 def _warmup():
-    """Background: warm up symbol list and market caps."""
-    def run():
+    """Background: warm up symbol list, market caps, and icons for tracked assets."""
+
+    def _load_icons():
+        """Pre-fetch icons for all currently tracked assets sequentially to avoid rate-limits."""
+        try:
+            assets = load_assets()
+            syms = [a.get("symbol", "").upper() for a in assets if a.get("symbol")]
+            to_fetch = [s for s in syms if len(s) != 6 and s not in _icon_cache]
+            for sym in to_fetch:
+                _fetch_icon_url(sym)
+                time.sleep(0.3)   # gentle pacing — avoids CoinGecko rate-limit
+        except Exception:
+            pass
+
+    def run_icons():
+        time.sleep(0.5)   # start icon fetch almost immediately
+        _load_icons()
+
+    def run_heavy():
         time.sleep(1)
         _load_symbols()
         _load_mcaps()
@@ -583,7 +608,8 @@ def _warmup():
         except Exception:
             pass
 
-    threading.Thread(target=run, daemon=True).start()
+    threading.Thread(target=run_icons, daemon=True).start()
+    threading.Thread(target=run_heavy, daemon=True).start()
 
 _warmup()
 
