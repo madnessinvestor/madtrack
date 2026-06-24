@@ -1,5 +1,5 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, urllib.request, concurrent.futures, time, threading, time as _time
+import json, os, uuid, urllib.request, concurrent.futures, time, threading, time as _time
 
 app = Flask(__name__)
 DATA_FILE = "assets.json"
@@ -697,6 +697,71 @@ def _warmup():
 
     threading.Thread(target=run_icons, daemon=True).start()
     threading.Thread(target=run_heavy, daemon=True).start()
+
+ALERTS_FILE = "alerts.json"
+
+def load_alerts():
+    if os.path.exists(ALERTS_FILE):
+        try:
+            return json.load(open(ALERTS_FILE))
+        except Exception:
+            return []
+    return []
+
+def save_alerts(alerts):
+    with open(ALERTS_FILE, "w") as f:
+        json.dump(alerts, f)
+
+@app.route("/api/alerts", methods=["GET"])
+def get_alerts():
+    return jsonify(load_alerts())
+
+@app.route("/api/alerts", methods=["POST"])
+def create_alert():
+    data = request.get_json() or {}
+    ticker = (data.get("ticker") or "").upper().strip()
+    try:
+        target = float(data.get("target", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid target"}), 400
+    direction = data.get("direction", "above")
+    if not ticker or target <= 0 or direction not in ("above", "below"):
+        return jsonify({"error": "invalid data"}), 400
+    alerts = load_alerts()
+    alerts.append({
+        "id": str(uuid.uuid4())[:8],
+        "ticker": ticker,
+        "target": target,
+        "direction": direction,
+        "triggered": False,
+    })
+    save_alerts(alerts)
+    return jsonify({"ok": True})
+
+@app.route("/api/alerts/<alert_id>", methods=["DELETE"])
+def delete_alert(alert_id):
+    save_alerts([a for a in load_alerts() if a["id"] != alert_id])
+    return jsonify({"ok": True})
+
+@app.route("/api/alerts/<alert_id>/trigger", methods=["POST"])
+def trigger_alert_route(alert_id):
+    alerts = load_alerts()
+    for a in alerts:
+        if a["id"] == alert_id:
+            a["triggered"] = True
+            break
+    save_alerts(alerts)
+    return jsonify({"ok": True})
+
+@app.route("/api/alerts/<alert_id>/reset", methods=["POST"])
+def reset_alert(alert_id):
+    alerts = load_alerts()
+    for a in alerts:
+        if a["id"] == alert_id:
+            a["triggered"] = False
+            break
+    save_alerts(alerts)
+    return jsonify({"ok": True})
 
 _warmup()
 

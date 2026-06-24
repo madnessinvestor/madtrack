@@ -56,6 +56,19 @@ const TRANSLATIONS = {
     min24h:   "MÍN 24H",
     vol24h:   "VOLUME 24H",
     mcap:     "MARKET CAP",
+    // alerts
+    alert_title:        "🔔 Alertas de Preço",
+    alert_add_btn:      "Criar Alerta",
+    alert_above:        "Acima de",
+    alert_below:        "Abaixo de",
+    alert_empty:        "Nenhum alerta configurado.",
+    alert_active_label: "Ativo",
+    alert_triggered:    "Disparado",
+    alert_reset:        "Reativar",
+    alert_delete:       "Remover",
+    alert_err_ticker:   "Informe o ticker.",
+    alert_err_price:    "Preço inválido.",
+    alert_err_perm:     "Permissão de notificação negada. Ative nas configurações do navegador.",
   },
   en: {
     btn_add:          "Add",
@@ -112,6 +125,19 @@ const TRANSLATIONS = {
     min24h:   "MIN 24H",
     vol24h:   "VOLUME 24H",
     mcap:     "MARKET CAP",
+    // alerts
+    alert_title:        "🔔 Price Alerts",
+    alert_add_btn:      "Create Alert",
+    alert_above:        "Above",
+    alert_below:        "Below",
+    alert_empty:        "No alerts configured.",
+    alert_active_label: "Active",
+    alert_triggered:    "Triggered",
+    alert_reset:        "Re-activate",
+    alert_delete:       "Remove",
+    alert_err_ticker:   "Enter the ticker.",
+    alert_err_price:    "Invalid price.",
+    alert_err_perm:     "Notification permission denied. Enable it in browser settings.",
   }
 };
 

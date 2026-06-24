@@ -16,6 +16,9 @@
       <button id="btn-lang" onclick="toggleLang()" title="Language">PT</button>
       <button id="btn-theme" onclick="toggleTheme()" title="Tema"></button>
       <button id="btn-currency" onclick="toggleCurrency()" title="Moeda">$</button>
+      <button id="btn-alerts" class="btn-bell" onclick="openAlertsModal()" title="Alertas">
+        🔔<span id="alert-badge" class="alert-badge hidden">0</span>
+      </button>
       <button id="btn-add-tracker" class="btn-primary" onclick="openModal()">
         <span class="btn-icon">+</span><span data-i18n="btn_add">Adicionar</span>
       </button>
@@ -160,9 +163,40 @@
     </div>
   </div>
 
+  <!-- Alerts modal -->
+  <div id="alerts-modal" class="modal hidden" onclick="if(event.target===this)closeAlertsModal()">
+    <div class="modal-box">
+      <h2 data-i18n="alert_title">🔔 Alertas de Preço</h2>
+
+      <div class="alert-form">
+        <div class="alert-form-row">
+          <input id="alert-ticker" type="text" list="alert-tickers-list"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 class="trade-input" placeholder="BTC, ETH, SOL…" style="flex:1" />
+          <datalist id="alert-tickers-list"></datalist>
+          <select id="alert-direction" class="trade-input alert-select">
+            <option value="above" data-i18n="alert_above">Acima de</option>
+            <option value="below" data-i18n="alert_below">Abaixo de</option>
+          </select>
+          <input id="alert-target" type="number" step="any" min="0"
+                 class="trade-input" placeholder="0.00" style="flex:1" />
+        </div>
+        <div id="alert-error" class="price-error hidden"></div>
+        <button class="btn-confirm" onclick="submitAlert()">
+          + <span data-i18n="alert_add_btn">Criar Alerta</span>
+        </button>
+      </div>
+
+      <div id="alerts-list" class="alerts-list"></div>
+
+      <button class="btn-cancel" onclick="closeAlertsModal()" data-i18n="close">Fechar</button>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/trade.js"></script>
+  <script src="/static/alerts.js"></script>
 </body>
 </html>
