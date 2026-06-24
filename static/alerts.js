@@ -104,6 +104,29 @@ async function checkAlerts() {
   }
 }
 
+// ─── Alert sound ──────────────────────────────────────────────────────────────
+
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [880, 1108, 1318, 1760];
+    notes.forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t0 = ctx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.35, t0 + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+      osc.start(t0);
+      osc.stop(t0 + 0.22);
+    });
+  } catch(e) {}
+}
+
 // ─── Fire alert ───────────────────────────────────────────────────────────────
 
 async function fireAlert(alert, price) {
@@ -111,6 +134,7 @@ async function fireAlert(alert, price) {
   alert.triggered = true;
   renderAlertsList();
   updateBellBadge();
+  playAlertSound();
 
   const arrow = alert.direction === "above" ? "🔺" : "🔻";
   const title = `MadTracker ${arrow} ${alert.ticker}`;
