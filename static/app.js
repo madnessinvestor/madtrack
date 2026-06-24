@@ -72,15 +72,13 @@ function cardHTML(a) {
   ].join("");
 
   return `<div class="asset-card${hasExtra ? " expandable" : ""}" onclick="toggleCard(this, event)">
-    <button class="btn-delete" onclick="deleteAsset('${a.symbol}')">✕</button>
-
     <div class="card-top">
       <div class="asset-left">
         <div class="asset-icon" data-sym="${a.symbol}">
           <img class="icon-img" alt="" />
           <span class="icon-text">${a.symbol.slice(0,4)}</span>
         </div>
-        <div>
+        <div class="asset-name-wrap">
           <div class="asset-symbol">${a.symbol}</div>
           <div class="asset-source">${a.source || ""}</div>
         </div>
@@ -89,15 +87,18 @@ function cardHTML(a) {
         <div class="asset-price">${hasPrice ? formatPrice(a.price) : "—"}</div>
         ${changeHTML(a.change24h)}
       </div>
-      ${hasExtra ? `<span class="card-chevron">›</span>` : ""}
+      <span class="card-chevron${hasExtra ? "" : " hidden"}">›</span>
     </div>
 
-    ${hasExtra ? `<div class="card-details">${statsRows}</div>` : ""}
+    <div class="card-details">
+      ${statsRows}
+      <button class="btn-delete-inline" onclick="deleteAsset('${a.symbol}')">Remover</button>
+    </div>
   </div>`;
 }
 
 function toggleCard(card, e) {
-  if (e.target.classList.contains("btn-delete")) return;
+  if (e.target.classList.contains("btn-delete-inline")) return;
   if (!card.classList.contains("expandable")) return;
   card.classList.toggle("open");
 }

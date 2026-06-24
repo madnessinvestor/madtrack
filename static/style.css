@@ -148,15 +148,17 @@ main {
 
 /* Chevron */
 .card-chevron {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   color: var(--muted);
-  margin-left: 4px;
-  display: inline-block;
-  transition: transform 0.25s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
   flex-shrink: 0;
-  line-height: 1;
-  align-self: center;
+  transition: transform 0.25s ease;
+  user-select: none;
 }
+.card-chevron.hidden { visibility: hidden; }
 .asset-card.open .card-chevron { transform: rotate(90deg); }
 
 /* Expandable cursor */
@@ -168,8 +170,6 @@ main {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 6px;
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
   overflow: hidden;
   max-height: 0;
   opacity: 0;
@@ -177,9 +177,30 @@ main {
   transition: max-height 0.3s ease, opacity 0.25s ease, padding-top 0.3s ease;
 }
 .asset-card.open .card-details {
-  max-height: 200px;
+  max-height: 240px;
   opacity: 1;
   padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* Inline remove button inside expanded card */
+.btn-delete-inline {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  background: none;
+  border: 1px solid #2e2e2e;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-delete-inline:active {
+  border-color: var(--red);
+  color: var(--red);
 }
 
 /* Stats grid */
@@ -222,19 +243,6 @@ main {
 .change.up   { color: var(--accent); }
 .change.down { color: var(--red); }
 
-.btn-delete {
-  position: absolute;
-  top: 5px;
-  right: 7px;
-  background: none;
-  border: none;
-  color: #2e2e2e;
-  font-size: 0.7rem;
-  cursor: pointer;
-  padding: 3px 4px;
-  line-height: 1;
-}
-.btn-delete:active { color: var(--red); }
 
 /* Refresh bar */
 .refresh-bar {
