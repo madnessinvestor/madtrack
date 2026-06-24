@@ -109,14 +109,27 @@ def api_hyperliquid_spot(sym):
     if token_idx is None:
         return None
 
-    # Find canonical spot pair for this token
+    # Find spot pair for this token (prefer canonical, then /USDC, then any)
     universe = meta.get("universe", [])
+    usdc_idx = next((t["index"] for t in tokens if t.get("name") == "USDC"), 0)
     pair_idx = None
     for pair in universe:
         toks = pair.get("tokens", [])
         if len(toks) >= 1 and toks[0] == token_idx and pair.get("isCanonical"):
             pair_idx = pair.get("index")
             break
+    if pair_idx is None:
+        for pair in universe:
+            toks = pair.get("tokens", [])
+            if len(toks) >= 2 and toks[0] == token_idx and toks[1] == usdc_idx:
+                pair_idx = pair.get("index")
+                break
+    if pair_idx is None:
+        for pair in universe:
+            toks = pair.get("tokens", [])
+            if len(toks) >= 1 and toks[0] == token_idx:
+                pair_idx = pair.get("index")
+                break
     if pair_idx is None:
         return None
 
