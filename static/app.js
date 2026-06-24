@@ -58,12 +58,20 @@ async function loadAssets() {
 
 function cardHTML(a) {
   const hasPrice = a.price !== null && a.price !== undefined;
-  const hasHigh  = a.high24h !== null && a.high24h !== undefined;
-  const hasLow   = a.low24h  !== null && a.low24h  !== undefined;
-  const hasVol   = a.volume24h !== null && a.volume24h !== undefined;
-  const hasCap   = a.market_cap !== null && a.market_cap !== undefined;
+  const hasHigh  = a.high24h   != null;
+  const hasLow   = a.low24h    != null;
+  const hasVol   = a.volume24h != null;
+  const hasCap   = a.market_cap != null;
+  const hasExtra = hasHigh || hasLow || hasVol || hasCap;
 
-  return `<div class="asset-card">
+  const statsRows = [
+    hasHigh ? `<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(a.high24h)}</span></div>` : "",
+    hasLow  ? `<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(a.low24h)}</span></div>` : "",
+    hasVol  ? `<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(a.volume24h)}</span></div>` : "",
+    hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap)}</span></div>` : "",
+  ].join("");
+
+  return `<div class="asset-card${hasExtra ? " expandable" : ""}" onclick="toggleCard(this, event)">
     <button class="btn-delete" onclick="deleteAsset('${a.symbol}')">✕</button>
 
     <div class="card-top">
@@ -74,23 +82,24 @@ function cardHTML(a) {
         </div>
         <div>
           <div class="asset-symbol">${a.symbol}</div>
-          ${a.source ? `<div class="asset-source">${a.source}</div>` : ""}
+          <div class="asset-source">${a.source || ""}</div>
         </div>
       </div>
       <div class="asset-right">
         <div class="asset-price">${hasPrice ? formatPrice(a.price) : "—"}</div>
         ${changeHTML(a.change24h)}
       </div>
+      ${hasExtra ? `<span class="card-chevron">›</span>` : ""}
     </div>
 
-    ${(hasHigh || hasLow || hasVol || hasCap) ? `
-    <div class="card-stats">
-      ${hasHigh ? `<div class="stat"><span class="stat-label">MÁX 24H</span><span class="stat-val">${formatPrice(a.high24h)}</span></div>` : ""}
-      ${hasLow  ? `<div class="stat"><span class="stat-label">MÍN 24H</span><span class="stat-val">${formatPrice(a.low24h)}</span></div>` : ""}
-      ${hasVol  ? `<div class="stat"><span class="stat-label">VOLUME 24H</span><span class="stat-val">${formatUSD(a.volume24h)}</span></div>` : ""}
-      ${hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap)}</span></div>` : ""}
-    </div>` : ""}
+    ${hasExtra ? `<div class="card-details">${statsRows}</div>` : ""}
   </div>`;
+}
+
+function toggleCard(card, e) {
+  if (e.target.classList.contains("btn-delete")) return;
+  if (!card.classList.contains("expandable")) return;
+  card.classList.toggle("open");
 }
 
 // CDN covers ~500 popular coins instantly, backend fallback for the rest

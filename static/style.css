@@ -146,6 +146,42 @@ main {
 .asset-right { text-align: right; flex-shrink: 0; }
 .asset-price { font-weight: 700; font-size: 1rem; letter-spacing: -0.3px; }
 
+/* Chevron */
+.card-chevron {
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin-left: 4px;
+  display: inline-block;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+  line-height: 1;
+  align-self: center;
+}
+.asset-card.open .card-chevron { transform: rotate(90deg); }
+
+/* Expandable cursor */
+.asset-card.expandable { cursor: pointer; }
+.asset-card.expandable:active { opacity: 0.85; }
+
+/* Collapsible details */
+.card-details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  transition: max-height 0.3s ease, opacity 0.25s ease, padding-top 0.3s ease;
+}
+.asset-card.open .card-details {
+  max-height: 200px;
+  opacity: 1;
+  padding-top: 10px;
+}
+
 /* Stats grid */
 .card-stats {
   display: grid;
