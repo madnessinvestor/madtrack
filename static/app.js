@@ -3,6 +3,7 @@ let suggestTimeout  = null;
 let pendingSymbol   = null;
 let activeIndex     = -1;
 let currentSuggestions = [];
+let searchSeq       = 0;  // incrementa a cada busca — cancela resultados antigos
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
@@ -183,6 +184,11 @@ function onTickerInput(val) {
   clearTimeout(searchTimeout);
   clearTimeout(suggestTimeout);
   const sym = val.trim().toUpperCase();
+
+  // Teclado mobile dispara oninput várias vezes com o mesmo valor
+  // (autocapitalização, autocorreção). Se já encontramos este símbolo, ignora.
+  if (sym && sym === pendingSymbol) return;
+
   document.getElementById("price-result").classList.add("hidden");
   document.getElementById("price-error").classList.add("hidden");
   pendingSymbol = null;
@@ -199,7 +205,8 @@ function onTickerInput(val) {
 
   // Fetch price after slight delay
   document.getElementById("search-spinner").classList.remove("hidden");
-  searchTimeout = setTimeout(() => fetchTickerPrice(sym), 700);
+  const seq = ++searchSeq;
+  searchTimeout = setTimeout(() => fetchTickerPrice(sym, seq), 700);
 }
 
 async function fetchSuggestions(sym) {
@@ -234,7 +241,8 @@ function selectSuggestion(sym) {
   clearTimeout(searchTimeout);
   clearTimeout(suggestTimeout);
   document.getElementById("search-spinner").classList.remove("hidden");
-  fetchTickerPrice(sym);
+  const seq = ++searchSeq;
+  fetchTickerPrice(sym, seq);
 }
 
 function onTickerKey(e) {
@@ -263,7 +271,7 @@ function onTickerKey(e) {
   items.forEach((item, i) => item.classList.toggle("active", i === activeIndex));
 }
 
-async function fetchTickerPrice(sym) {
+async function fetchTickerPrice(sym, seq) {
   const resultEl = document.getElementById("price-result");
   const errorEl  = document.getElementById("price-error");
   const spinner  = document.getElementById("search-spinner");
@@ -272,11 +280,19 @@ async function fetchTickerPrice(sym) {
 
   try {
     const res = await fetch(`/api/price?symbol=${encodeURIComponent(sym)}`);
+
+    // Se uma busca mais recente foi iniciada, descarta este resultado
+    if (seq !== searchSeq) return;
+
     spinner.classList.add("hidden");
 
     if (!res.ok) { errorEl.classList.remove("hidden"); return; }
 
     const d = await res.json();
+
+    // Descarta novamente após o parse (pode ter demorado)
+    if (seq !== searchSeq) return;
+
     pendingSymbol = sym;
 
     document.getElementById("pr-symbol").textContent = sym.slice(0, 4);
@@ -298,6 +314,7 @@ async function fetchTickerPrice(sym) {
 
     resultEl.classList.remove("hidden");
   } catch {
+    if (seq !== searchSeq) return;
     spinner.classList.add("hidden");
     errorEl.classList.remove("hidden");
   }
