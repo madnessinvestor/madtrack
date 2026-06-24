@@ -1,185 +1,155 @@
-🚀 MadTrade
+# MadTracker
 
-MadTrade é um gerenciador de portfólio de criptomoedas desenvolvido em Python com Tkinter, focado em simplicidade, desempenho e visual moderno para acompanhamento de investimentos.
+A privacy-first asset tracker for cryptocurrencies, Brazilian stocks (B3), and forex pairs — built with Flask and Vanilla JavaScript as a Progressive Web App (PWA).
 
-O aplicativo permite registrar compras de ativos, acompanhar o valor atual do portfólio em tempo real, analisar lucro/prejuízo e visualizar o histórico completo das operações.
+---
 
-✨ Funcionalidades
+## Features
 
-📊 Dashboard do Portfólio
-Total investido
-Valor atual da carteira
-Lucro / prejuízo total
-Retorno percentual (ROI)
+- **Multi-source price aggregation** — fetches data in parallel from 10+ exchanges (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex) and picks the best available price
+- **Brazilian & US stocks** — supports B3 tickers (PETR4, VALE3, ITUB4…) and US equities via brapi.dev
+- **Forex pairs** — track exchange rates such as USDBRL and EURBRL with country flag icons
+- **Currency toggle** — view all prices in USD ($), EUR (€), or BRL (R$) with real-time conversion; preference is saved across sessions
+- **Watchlist** — add and remove assets; list persists between sessions
+- **24h stats** — price change %, high/low, volume, and market cap per asset
+- **PWA support** — installable on mobile and desktop, works offline for the UI shell
+- **Privacy by design** — no accounts, no tracking, no external analytics
 
-💰 Gestão de Ativos
-Adicionar novos ativos
-Editar posições
-Remover ativos
-Atualização automática de preços
+---
 
-📈 Métricas por Ativo
-Quantidade total
-Preço médio
-Valor investido
-Valor atual
-Lucro / prejuízo
-Percentual de retorno
-Break-even
+## Supported Asset Types
 
-📝 Histórico de Trades
-Registro de compras
-Data e hora das operações
-Quantidade adquirida
-Valor investido
-Visualização expandida por ativo
+| Type | Examples |
+|---|---|
+| Crypto (perp / spot) | BTC, ETH, SOL, DOGE, XRP… |
+| Brazilian stocks (B3) | PETR4, VALE3, ITUB4, BBAS3… |
+| Forex pairs | USDBRL, EURBRL, GBPBRL… |
 
-🎨 Interface
-Tema Dark
-Tema Light
-Ajuste de tamanho de fonte
-Interface responsiva
-Suporte a Português (PT-BR) e Inglês (EN-US)
+---
 
-💾 Persistência de Dados
-Salvamento local em JSON
-Carregamento automático ao iniciar
-Exportação de dados
+## Tech Stack
 
-📸 Screenshots
+- **Backend:** Python 3.12 · Flask 3
+- **Frontend:** HTML5 · CSS3 · Vanilla JavaScript (ES6+)
+- **Data sources:** Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex, brapi.dev, Frankfurter
+- **Icons:** cryptocurrency-icons CDN (crypto) · flagcdn.com (forex)
+- **Storage:** `assets.json` (local watchlist) · `localStorage` (currency preference)
 
-Dashboard
-TOTAL INVESTED
-$208,000
-CURRENT VALUE
-$67,376
-PERFORMANCE
--$140,623 (-67%)
-Ativos
-BTC
-Preço Atual: $61,558
-P/L
--$66,441 (-51.91%)
-Histórico
-BUY 0.50 BTC
-Investido:
-$30,000
+---
 
-Data:
-07/06/2026 17:03
-🛠 Tecnologias Utilizadas
-Python 3
-Tkinter
-JSON
-urllib
-Threading
-PyInstaller
+## Project Structure
 
-📦 Instalação
-Windows (Recomendado)
-💡 Basta executar o arquivo build.bat.
-O script realiza automaticamente:
+```
+├── app.py              # Flask server — price aggregation, caching, API routes
+├── assets.json         # Persisted watchlist
+├── requirements.txt    # Python dependencies
+├── static/
+│   ├── app.js          # Frontend logic (search, watchlist, currency toggle)
+│   ├── style.css       # Dark-themed UI
+│   ├── sw.js           # Service worker (PWA)
+│   └── manifest.json   # PWA metadata
+└── templates/
+    └── index.html      # Single-page interface
+```
 
-Criação do ambiente virtual (.venv)
-Instalação das dependências
-Compilação do executável com PyInstaller
-Passos
-Clone ou baixe o projeto:
-git clone https://github.com/seuusuario/MadTrade.git
-Entre na pasta do projeto.
-Execute:
-build.bat
-Aguarde a conclusão do processo.
+---
 
-O executável será gerado em:
+## Running Locally
 
-dist/
-▶️ Executar pelo Código-Fonte
+```bash
+pip install flask
+python app.py
+```
 
-Caso queira executar diretamente pelo Python:
+App runs at `http://localhost:5000`.
 
-python MadTrade.py
-🔨 Compilação Manual
+---
 
-Caso não queira utilizar o build.bat:
+## Privacy
 
-pyinstaller --onefile --windowed --icon=madicon.ico MadTrade.py
+All data is stored locally on the user's machine. The app:
 
-Ou:
+- Does not require a login
+- Does not send personal information to any server
+- Does not store private keys
+- Does not require integration with any exchange account
 
-pyinstaller ^
---onefile ^
---windowed ^
---icon=madicon.ico ^
---add-data "madicon.ico;." ^
-MadTrade.py
-📁 Estrutura do Projeto
-MadTrade/
-│
-├── MadTrade.py
-├── portfolio_data.json
-├── madicon.ico
-├── build.bat
-├── README.md
-│
-├── assets/
-│   ├── icons/
-│   └── screenshots/
-│
-├── dist/
-└── .venv/
-🎯 Objetivo do Projeto
+---
 
-O MadTrade foi criado para fornecer uma forma rápida e intuitiva de acompanhar investimentos em criptomoedas sem depender de exchanges ou plataformas externas.
+---
 
-A proposta é oferecer:
+# MadTracker — Português
 
-Controle total dos dados
-Armazenamento local
-Interface leve
-Atualização rápida
-Visual focado em traders e investidores
-🔒 Privacidade
+Rastreador de ativos com foco em privacidade para criptomoedas, ações brasileiras (B3) e pares de câmbio — construído com Flask e Vanilla JavaScript como Progressive Web App (PWA).
 
-Todos os dados são armazenados localmente no computador do usuário.
+---
 
-O aplicativo:
+## Funcionalidades
 
-Não exige login
-Não envia informações pessoais
-Não armazena chaves privadas
-Não requer integração obrigatória com corretoras
+- **Agregação de preços de múltiplas fontes** — busca dados em paralelo de mais de 10 exchanges (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex) e escolhe o melhor preço disponível
+- **Ações brasileiras e americanas** — suporte a tickers da B3 (PETR4, VALE3, ITUB4…) e bolsa americana via brapi.dev
+- **Pares de câmbio** — acompanhe cotações como USDBRL e EURBRL com ícones de bandeiras dos países
+- **Alternador de moeda** — visualize todos os preços em USD ($), EUR (€) ou BRL (R$) com conversão em tempo real; preferência salva entre sessões
+- **Lista de acompanhamento** — adicione e remova ativos; lista persiste entre sessões
+- **Estatísticas 24h** — variação de preço, máxima/mínima, volume e market cap por ativo
+- **Suporte a PWA** — instalável no celular e desktop, funciona offline para a interface
+- **Privacidade por padrão** — sem contas, sem rastreamento, sem analytics externos
 
-O controle dos dados permanece totalmente com o usuário.
+---
 
-🚧 Roadmap
- Integração com Binance
- Integração com Bybit
- Alertas de preço
- Gráfico de evolução do portfólio
- Múltiplas carteiras
- Backup em nuvem
- Modo compacto para telas pequenas
- Estatísticas avançadas
- Importação automática de operações
- Dashboard responsivo para diferentes resoluções
- 
-🤝 Contribuições
-Sugestões, correções e melhorias são sempre bem-vindas.
-Faça um Fork do projeto
-Crie uma Branch:
-git checkout -b minha-feature
-Faça suas alterações
-Envie um Pull Request
+## Tipos de Ativos Suportados
 
-📄 Licença
-Este projeto está licenciado sob a Licença MIT.
+| Tipo | Exemplos |
+|---|---|
+| Cripto (perp / spot) | BTC, ETH, SOL, DOGE, XRP… |
+| Ações brasileiras (B3) | PETR4, VALE3, ITUB4, BBAS3… |
+| Pares de câmbio | USDBRL, EURBRL, GBPBRL… |
 
-Sinta-se livre para utilizar, modificar e distribuir.
+---
 
-👨‍💻 Autor
-Mad
+## Stack Tecnológica
 
-Desenvolvido para acompanhamento pessoal de investimentos em criptomoedas, com foco em simplicidade, desempenho e controle total dos dados.
+- **Backend:** Python 3.12 · Flask 3
+- **Frontend:** HTML5 · CSS3 · Vanilla JavaScript (ES6+)
+- **Fontes de dados:** Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, CryptoCompare, CoinCap, CoinGecko, Bitfinex, brapi.dev, Frankfurter
+- **Ícones:** cryptocurrency-icons CDN (cripto) · flagcdn.com (câmbio)
+- **Armazenamento:** `assets.json` (lista local) · `localStorage` (preferência de moeda)
 
-⭐ Se o projeto foi útil para você, considere deixar uma estrela no GitHub.
+---
+
+## Estrutura do Projeto
+
+```
+├── app.py              # Servidor Flask — agregação de preços, cache, rotas da API
+├── assets.json         # Lista de acompanhamento persistida
+├── requirements.txt    # Dependências Python
+├── static/
+│   ├── app.js          # Lógica do frontend (busca, watchlist, alternador de moeda)
+│   ├── style.css       # Interface com tema escuro
+│   ├── sw.js           # Service worker (PWA)
+│   └── manifest.json   # Metadados do PWA
+└── templates/
+    └── index.html      # Interface de página única
+```
+
+---
+
+## Executar Localmente
+
+```bash
+pip install flask
+python app.py
+```
+
+App disponível em `http://localhost:5000`.
+
+---
+
+## Privacidade
+
+Todos os dados são armazenados localmente na máquina do usuário. O app:
+
+- Não exige login
+- Não envia informações pessoais para nenhum servidor
+- Não armazena chaves privadas
+- Não requer integração com conta em corretora
