@@ -13,6 +13,18 @@
   --radius: 14px;
 }
 
+[data-theme="light"] {
+  --bg: #f4f4f4;
+  --surface: #ffffff;
+  --surface2: #ececec;
+  --border: #dedede;
+  --accent: #00a854;
+  --red: #e03030;
+  --text: #111111;
+  --muted: #aaa;
+  --muted2: #777;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -50,8 +62,21 @@ h1 {
   gap: 8px;
 }
 
+#btn-theme {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s;
+}
+#btn-theme:active { opacity: 0.75; }
+
 #btn-currency {
-  background: var(--card);
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
   padding: 7px 14px;

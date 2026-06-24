@@ -1,3 +1,20 @@
+// ─── Tema ─────────────────────────────────────────────────────────────────────
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const btn = document.getElementById("btn-theme");
+  if (btn) btn.textContent = theme === "light" ? "🌙" : "☀️";
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = current === "dark" ? "light" : "dark";
+  localStorage.setItem("theme", next);
+  applyTheme(next);
+}
+
+applyTheme(localStorage.getItem("theme") || "dark");
+
 let searchTimeout      = null;
 let suggestTimeout     = null;
 let pendingSymbol      = null;
