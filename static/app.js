@@ -171,8 +171,21 @@ function toggleCard(card, e) {
 const CDN = sym =>
   `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${sym.toLowerCase()}.svg`;
 
-function iconSymbol(sym) {
-  return isForexPair(sym) ? sym.slice(0, 3) : sym;
+const FOREX_FLAG = {
+  USD: 'us', EUR: 'eu', BRL: 'br', GBP: 'gb',
+  JPY: 'jp', CHF: 'ch', AUD: 'au', CAD: 'ca'
+};
+
+function forexIconUrl(sym) {
+  const base = sym.slice(0, 3).toUpperCase();
+  const cc   = FOREX_FLAG[base];
+  return cc ? `https://flagcdn.com/48x36/${cc}.png` : null;
+}
+
+function setIcon(img, text, src) {
+  img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
+  img.onerror = () => {};
+  img.src = src;
 }
 
 function loadIcons(symbols) {
@@ -182,19 +195,20 @@ function loadIcons(symbols) {
     const img  = wrap.querySelector(".icon-img");
     const text = wrap.querySelector(".icon-text");
 
+    if (isForexPair(sym)) {
+      const url = forexIconUrl(sym);
+      if (url) { setIcon(img, text, url); }
+      return;
+    }
+
     img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
     img.onerror = () => {
-      const lookup = iconSymbol(sym);
-      if (lookup !== sym) { img.onerror = () => {}; return; }
       fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => {
-          img.onerror = () => {};
-          img.src = data.url;
-        })
+        .then(data => { img.onerror = () => {}; img.src = data.url; })
         .catch(() => {});
     };
-    img.src = CDN(iconSymbol(sym));
+    img.src = CDN(sym);
   });
 }
 
@@ -203,18 +217,23 @@ function loadModalIcon(sym) {
   if (!wrap) return;
   const img  = wrap.querySelector(".icon-img");
   const text = wrap.querySelector(".icon-text");
+  text.style.display = "";
+  img.classList.remove("loaded");
+
+  if (isForexPair(sym)) {
+    const url = forexIconUrl(sym);
+    if (url) { setIcon(img, text, url); }
+    return;
+  }
+
   img.onload  = () => { img.classList.add("loaded"); text.style.display = "none"; };
   img.onerror = () => {
-    const lookup = iconSymbol(sym);
-    if (lookup !== sym) { img.onerror = () => {}; return; }
     fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => { img.onerror = () => {}; img.src = data.url; })
       .catch(() => {});
   };
-  img.src = CDN(iconSymbol(sym));
-  text.style.display = "";
-  img.classList.remove("loaded");
+  img.src = CDN(sym);
 }
 
 async function deleteAsset(symbol) {
