@@ -645,13 +645,13 @@ section.hidden { display: none; }
 .ptrow {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
+  padding: 14px 14px;
   gap: 4px;
 }
 
 .ptcol {
   flex: 1;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
   color: var(--text);
   text-align: right;
@@ -664,7 +664,7 @@ section.hidden { display: none; }
   flex: 1.5;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   text-align: left;
   font-weight: 700;
   overflow: visible;
@@ -672,28 +672,41 @@ section.hidden { display: none; }
 .ptcol-asset-info {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
   min-width: 0;
 }
 .ptcol-asset-price {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0;
 }
 .ptcol-perf {
-  flex: 2.2;
+  flex: 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  white-space: nowrap;
+  gap: 8px;
   overflow: visible;
 }
-.ptcol-perf .change {
-  font-size: 0.78rem;
+.ptperf-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.ptperf-val {
+  font-size: 0.84rem;
+  font-weight: 700;
   white-space: nowrap;
 }
+.ptperf-pct {
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ptperf-val.up, .ptperf-pct.up   { color: var(--accent); }
+.ptperf-val.down, .ptperf-pct.down { color: var(--red); }
 
 /* ─── Portfolio card details (expanded) ──────────────────────────────────────── */
 .portfolio-details {

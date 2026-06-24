@@ -150,8 +150,11 @@ function portfolioCardHTML(tok) {
       <div class="ptcol ptcol-value">${hasPrice ? formatUSD(cur_value) : "—"}</div>
       <div class="ptcol ptcol-perf">
         ${hasPrice
-          ? `<span class="change ${pnlCls}">${pnlSign}${formatUSD(pnl)} (${pnlSign}${Math.abs(pnl_pct).toFixed(2)}%) ${pnlArrow}</span>`
-          : "<span>—</span>"}
+          ? `<div class="ptperf-wrap">
+               <span class="ptperf-val ${pnlCls}">${pnlSign}${formatUSD(pnl)}</span>
+               <span class="ptperf-pct ${pnlCls}">${pnlSign}${Math.abs(pnl_pct).toFixed(2)}% ${pnlArrow}</span>
+             </div>`
+          : "<span class='ptperf-val'>—</span>"}
         <span class="card-chevron">›</span>
       </div>
     </div>
