@@ -70,15 +70,6 @@ function renderPortfolio(tokens) {
   if (sumLabels[1]) sumLabels[1].textContent = t("cur_value");
   if (sumLabels[2]) sumLabels[2].textContent = t("pnl");
 
-  if (!tokens.length) {
-    summary.classList.add("hidden");
-    list.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">💼</div>
-      <p>${t("empty_trade")}</p>
-    </div>`;
-    return;
-  }
-
   let tot_inv = 0, tot_val = 0, tot_pnl = 0;
   for (const tok of tokens) {
     const c = calcToken(tok);
@@ -87,7 +78,7 @@ function renderPortfolio(tokens) {
     tot_pnl += c.pnl;
   }
   const tot_pnl_pct = tot_inv > 0 ? (tot_pnl / tot_inv) * 100 : 0;
-  const pnlSign = tot_pnl >= 0 ? "+" : "";
+  const pnlSign  = tot_pnl >= 0 ? "+" : "";
   const pnlColor = tot_pnl >= 0 ? "var(--accent)" : "var(--red)";
 
   document.getElementById("psum-invested").textContent = formatUSD(tot_inv);
@@ -96,6 +87,14 @@ function renderPortfolio(tokens) {
   pnlEl.textContent = `${pnlSign}${formatUSD(tot_pnl)} (${pnlSign}${tot_pnl_pct.toFixed(2)}%)`;
   pnlEl.style.color = pnlColor;
   summary.classList.remove("hidden");
+
+  if (!tokens.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">💼</div>
+      <p>${t("empty_trade")}</p>
+    </div>`;
+    return;
+  }
 
   list.innerHTML = tokens.map(tok => portfolioCardHTML(tok)).join("");
   loadPortfolioIcons(tokens);
