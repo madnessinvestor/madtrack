@@ -96,7 +96,15 @@ function renderPortfolio(tokens) {
     return;
   }
 
-  list.innerHTML = tokens.map(tok => portfolioCardHTML(tok)).join("");
+  const header = `<div class="ptable-header">
+    <div class="ptcol ptcol-asset">${t("p_asset")}</div>
+    <div class="ptcol ptcol-price">${t("p_price")}</div>
+    <div class="ptcol ptcol-invested">${t("p_invested")}</div>
+    <div class="ptcol ptcol-value">${t("cur_value")}</div>
+    <div class="ptcol ptcol-perf">${t("p_performance")}</div>
+  </div>`;
+
+  list.innerHTML = header + tokens.map(tok => portfolioCardHTML(tok)).join("");
   loadPortfolioIcons(tokens);
 }
 
@@ -107,6 +115,13 @@ function portfolioCardHTML(tok) {
   const pnlSign  = pnl >= 0 ? "+" : "";
   const pnlCls   = pnl >= 0 ? "up" : "down";
   const pnlArrow = pnl >= 0 ? "▲" : "▼";
+
+  const be_dist     = hasPrice && avg_price > 0 ? ((tok.current_price / avg_price) - 1) * 100 : null;
+  const beCls       = be_dist === null ? "" : (be_dist >= 0 ? "up" : "down");
+  const beSign      = be_dist !== null && be_dist >= 0 ? "+" : "";
+  const beDistHTML  = be_dist !== null
+    ? `<span class="pdetail-val ${beCls}">${beSign}${be_dist.toFixed(2)}%</span>`
+    : `<span class="pdetail-val">—</span>`;
 
   const tradesHTML = (tok.trades || []).map((tr, idx) => `
     <div class="trade-row">
@@ -121,29 +136,40 @@ function portfolioCardHTML(tok) {
     </div>`).join("");
 
   return `<div class="asset-card expandable portfolio-card" data-pticker="${sym}" onclick="togglePortfolioCard(this,event)">
-    <div class="card-top">
-      <div class="asset-left">
+    <div class="ptrow">
+      <div class="ptcol ptcol-asset">
         <div class="asset-icon portfolio-icon" data-pticker="${sym}">
           <img class="icon-img" alt="" />
           <span class="icon-text">${sym.slice(0,4)}</span>
         </div>
-        <div class="asset-name-wrap">
-          <div class="asset-symbol">${sym}</div>
-          <div class="asset-source">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
-        </div>
+        <span class="asset-symbol">${sym}</span>
       </div>
-      <div class="asset-right">
-        <div class="asset-price">${hasPrice ? formatUSD(cur_value) : "—"}</div>
-        ${hasPrice ? `<span class="change ${pnlCls}">${pnlArrow} ${Math.abs(pnl_pct).toFixed(2)}%</span>` : ""}
+      <div class="ptcol ptcol-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
+      <div class="ptcol ptcol-invested">${formatUSD(total_invested)}</div>
+      <div class="ptcol ptcol-value">${hasPrice ? formatUSD(cur_value) : "—"}</div>
+      <div class="ptcol ptcol-perf">
+        ${hasPrice
+          ? `<span class="change ${pnlCls}">${pnlSign}${formatUSD(pnl)} (${pnlSign}${Math.abs(pnl_pct).toFixed(2)}%) ${pnlArrow}</span>`
+          : "<span>—</span>"}
+        <span class="card-chevron">›</span>
       </div>
-      <span class="card-chevron">›</span>
     </div>
 
     <div class="card-details portfolio-details">
-      <div class="stat"><span class="stat-label">${t("p_invested")}</span><span class="stat-val">${formatUSD(total_invested)}</span></div>
-      <div class="stat"><span class="stat-label">${t("p_qty")}</span><span class="stat-val">${fmtQty(total_qty)}</span></div>
-      <div class="stat"><span class="stat-label">${t("p_avg")}</span><span class="stat-val">${formatUSD(avg_price)}</span></div>
-      <div class="stat"><span class="stat-label">${t("p_pnl")}</span><span class="stat-val pnl-val ${pnlCls}">${pnlSign}${formatUSD(pnl)}</span></div>
+      <div class="pdetail-stats">
+        <div class="pdetail-item">
+          <span class="pdetail-label">${t("p_breakeven")}</span>
+          ${beDistHTML}
+        </div>
+        <div class="pdetail-item">
+          <span class="pdetail-label">${t("p_qty")}</span>
+          <span class="pdetail-val">${fmtQty(total_qty)}</span>
+        </div>
+        <div class="pdetail-item">
+          <span class="pdetail-label">${t("p_avg")}</span>
+          <span class="pdetail-val">${formatUSD(avg_price)}</span>
+        </div>
+      </div>
 
       <div class="trade-history-wrap">
         <div class="trade-history-title">${t("p_history")}</div>

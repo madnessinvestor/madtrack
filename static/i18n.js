@@ -25,6 +25,10 @@ const TRANSLATIONS = {
     date_label:       "Data (opcional)",
     confirm_trade:    "Confirmar Compra",
     // portfolio card
+    p_asset:          "ATIVO",
+    p_price:          "PREÇO",
+    p_performance:    "PERFORMANCE",
+    p_breakeven:      "DIST. BREAK-EVEN",
     p_invested:       "INVESTIDO",
     p_qty:            "QUANTIDADE",
     p_avg:            "PREÇO MÉDIO",
@@ -77,6 +81,10 @@ const TRANSLATIONS = {
     date_label:       "Date (optional)",
     confirm_trade:    "Confirm Purchase",
     // portfolio card
+    p_asset:          "ASSET",
+    p_price:          "PRICE",
+    p_performance:    "PERFORMANCE",
+    p_breakeven:      "BREAK-EVEN DIST",
     p_invested:       "INVESTED",
     p_qty:            "QUANTITY",
     p_avg:            "AVG PRICE",
