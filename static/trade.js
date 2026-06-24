@@ -9,19 +9,62 @@ let tradeSuggestions     = [];
 let tradeFetchedPrice    = null;
 let tradePendingTicker   = null;
 let tradeMode            = "unit"; // "unit" | "total"
+let tradeLastEdited      = "price"; // "price" | "investment" — for bidirectional sync
 
 function setTradeMode(mode) {
   tradeMode = mode;
+  tradeLastEdited = "price";
   document.getElementById("trade-mode-unit").classList.toggle("active",  mode === "unit");
   document.getElementById("trade-mode-total").classList.toggle("active", mode === "total");
   document.getElementById("trade-col-price").classList.toggle("hidden",    mode === "total");
   document.getElementById("trade-col-totalpaid").classList.toggle("hidden", mode === "unit");
+  document.getElementById("trade-row-investment").classList.toggle("hidden", mode === "total");
   document.getElementById("trade-total-preview").classList.add("hidden");
   document.getElementById("trade-derived-preview").classList.add("hidden");
-  // update totalpaid label with current currency symbol
   const sym = typeof currSym === "function" ? currSym() : "$";
   document.getElementById("trade-totalpaid-label").textContent =
     t("totalpaid_label") + " (" + sym + ")";
+  updateTradePreview();
+}
+
+function onTradeQtyInput() {
+  if (tradeMode !== "unit") { updateTradePreview(); return; }
+  const qty   = parseFloat(document.getElementById("trade-qty").value);
+  if (tradeLastEdited === "investment") {
+    const inv = parseFloat(document.getElementById("trade-investment").value);
+    if (!isNaN(qty) && !isNaN(inv) && qty > 0 && inv > 0) {
+      document.getElementById("trade-price").value = (inv / qty).toPrecision(8).replace(/\.?0+$/, "");
+    }
+  } else {
+    const price = parseFloat(document.getElementById("trade-price").value);
+    if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
+      document.getElementById("trade-investment").value = (qty * price).toFixed(2);
+    }
+  }
+  updateTradePreview();
+}
+
+function onTradePriceInput() {
+  tradeLastEdited = "price";
+  const qty   = parseFloat(document.getElementById("trade-qty").value);
+  const price = parseFloat(document.getElementById("trade-price").value);
+  if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
+    document.getElementById("trade-investment").value = (qty * price).toFixed(2);
+  } else {
+    document.getElementById("trade-investment").value = "";
+  }
+  updateTradePreview();
+}
+
+function onTradeInvestmentInput() {
+  tradeLastEdited = "investment";
+  const qty = parseFloat(document.getElementById("trade-qty").value);
+  const inv = parseFloat(document.getElementById("trade-investment").value);
+  if (!isNaN(qty) && !isNaN(inv) && qty > 0 && inv > 0) {
+    document.getElementById("trade-price").value = (inv / qty).toPrecision(8).replace(/\.?0+$/, "");
+  } else {
+    document.getElementById("trade-price").value = "";
+  }
   updateTradePreview();
 }
 
@@ -251,9 +294,11 @@ function openTradeModal(prefillTicker) {
   tickerInput.disabled = !!prefillTicker;
   tickerInput.placeholder = t("trade_ticker_ph");
 
+  tradeLastEdited = "price";
   document.getElementById("trade-qty").value        = "";
   document.getElementById("trade-price").value      = "";
   document.getElementById("trade-total-paid").value = "";
+  document.getElementById("trade-investment").value = "";
   document.getElementById("trade-date").value       = nowStr();
   document.getElementById("trade-error").classList.add("hidden");
   document.getElementById("trade-suggestions").classList.add("hidden");
@@ -262,6 +307,7 @@ function openTradeModal(prefillTicker) {
   document.getElementById("trade-derived-preview").classList.add("hidden");
   document.getElementById("trade-col-price").classList.remove("hidden");
   document.getElementById("trade-col-totalpaid").classList.add("hidden");
+  document.getElementById("trade-row-investment").classList.remove("hidden");
   document.getElementById("trade-mode-unit").classList.add("active");
   document.getElementById("trade-mode-total").classList.remove("active");
   document.getElementById("trade-modal").classList.remove("hidden");
@@ -386,13 +432,24 @@ function updateTradePreview() {
 
   if (tradeMode === "unit") {
     const price = parseFloat(document.getElementById("trade-price").value);
-    const prev  = document.getElementById("trade-total-preview");
-    document.getElementById("trade-derived-preview").classList.add("hidden");
-    if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
-      document.getElementById("trade-total-val").textContent = formatUSD(qty * price);
-      prev.classList.remove("hidden");
+    const inv   = parseFloat(document.getElementById("trade-investment").value);
+    const totalPrev   = document.getElementById("trade-total-preview");
+    const derivedPrev = document.getElementById("trade-derived-preview");
+
+    if (tradeLastEdited === "investment" && !isNaN(qty) && !isNaN(inv) && qty > 0 && inv > 0) {
+      // show "Preço por token" derived from investment
+      const pricePerToken = inv / qty;
+      document.getElementById("trade-derived-val").textContent = formatUSD(pricePerToken, true);
+      derivedPrev.classList.remove("hidden");
+      totalPrev.classList.add("hidden");
+    } else if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
+      // show "Total investido" derived from price
+      document.getElementById("trade-total-val").textContent = formatUSD(qty * price, true);
+      totalPrev.classList.remove("hidden");
+      derivedPrev.classList.add("hidden");
     } else {
-      prev.classList.add("hidden");
+      totalPrev.classList.add("hidden");
+      derivedPrev.classList.add("hidden");
     }
   } else {
     const totalPaid = parseFloat(document.getElementById("trade-total-paid").value);

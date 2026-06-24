@@ -140,12 +140,12 @@
         <div class="trade-form-col">
           <label class="trade-label" data-i18n="qty_label">Quantidade</label>
           <input id="trade-qty" type="number" step="any" min="0" placeholder="0.00"
-                 class="trade-input" oninput="updateTradePreview()" />
+                 class="trade-input" oninput="onTradeQtyInput()" />
         </div>
         <div class="trade-form-col" id="trade-col-price">
           <label class="trade-label" id="trade-price-label">Preço (USD)</label>
           <input id="trade-price" type="number" step="any" min="0" placeholder="0.00"
-                 class="trade-input" oninput="updateTradePreview()" />
+                 class="trade-input" oninput="onTradePriceInput()" />
         </div>
         <div class="trade-form-col hidden" id="trade-col-totalpaid">
           <label class="trade-label" id="trade-totalpaid-label">Total pago</label>
@@ -154,12 +154,21 @@
         </div>
       </div>
 
+      <!-- Investment row — only in unit mode -->
+      <div class="trade-form-row" id="trade-row-investment">
+        <div class="trade-form-col">
+          <label class="trade-label" data-i18n="investment_label">Investimento (USD)</label>
+          <input id="trade-investment" type="number" step="any" min="0" placeholder="0.00"
+                 class="trade-input" oninput="onTradeInvestmentInput()" />
+        </div>
+      </div>
+
       <div id="trade-total-preview" class="trade-total-preview hidden">
         <span id="trade-preview-label" data-i18n="total_label">Total investido:</span>
         <strong id="trade-total-val">—</strong>
       </div>
       <div id="trade-derived-preview" class="trade-total-preview hidden">
-        <span data-i18n="derived_price_label">Preço unitário calculado:</span>
+        <span data-i18n="derived_price_label">Preço por token:</span>
         <strong id="trade-derived-val">—</strong>
       </div>
 

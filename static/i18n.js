@@ -27,7 +27,8 @@ const TRANSLATIONS = {
     mode_unit:        "Por unidade",
     mode_total:       "Total pago",
     totalpaid_label:  "Total pago",
-    derived_price_label: "Preço unitário calculado:",
+    derived_price_label: "Preço por token:",
+    investment_label: "Investimento (USD)",
     err_total:        "Total inválido.",
     // portfolio card
     p_asset:          "ATIVO",
@@ -101,7 +102,8 @@ const TRANSLATIONS = {
     mode_unit:        "Per unit",
     mode_total:       "Total paid",
     totalpaid_label:  "Total paid",
-    derived_price_label: "Calculated unit price:",
+    derived_price_label: "Price per token:",
+    investment_label: "Investment (USD)",
     err_total:        "Invalid total.",
     // portfolio card
     p_asset:          "ASSET",
