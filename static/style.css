@@ -614,25 +614,8 @@ section.hidden { display: none; }
   letter-spacing: -0.3px;
 }
 
-/* ─── Portfolio table header ─────────────────────────────────────────────────── */
-.ptable-header {
-  display: flex;
-  align-items: center;
-  padding: 5px 14px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-.ptable-header .ptcol {
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-
-/* ─── Portfolio table row (collapsed card) ───────────────────────────────────── */
+/* ─── Portfolio card (wallet style) ─────────────────────────────────────────── */
 .portfolio-card {
-  padding: 0 !important;
   border-radius: 0 !important;
   border-left: none !important;
   border-right: none !important;
@@ -641,72 +624,6 @@ section.hidden { display: none; }
   box-shadow: none !important;
 }
 .portfolio-card:last-child { border-bottom: none !important; }
-
-.ptrow {
-  display: flex;
-  align-items: center;
-  padding: 14px 14px;
-  gap: 4px;
-}
-
-.ptcol {
-  flex: 1;
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: right;
-  white-space: nowrap;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ptcol-asset {
-  flex: 1.5;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-  font-weight: 700;
-  overflow: visible;
-}
-.ptcol-asset-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.ptcol-asset-price {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0;
-}
-.ptcol-perf {
-  flex: 2;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  overflow: visible;
-}
-.ptperf-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-.ptperf-val {
-  font-size: 0.84rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.ptperf-pct {
-  font-size: 0.7rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.ptperf-val.up, .ptperf-pct.up   { color: var(--accent); }
-.ptperf-val.down, .ptperf-pct.down { color: var(--red); }
 
 /* ─── Portfolio card details (expanded) ──────────────────────────────────────── */
 .portfolio-details {

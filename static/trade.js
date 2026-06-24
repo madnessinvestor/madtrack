@@ -96,14 +96,7 @@ function renderPortfolio(tokens) {
     return;
   }
 
-  const header = `<div class="ptable-header">
-    <div class="ptcol ptcol-asset">${t("p_asset")}</div>
-    <div class="ptcol ptcol-invested">${t("p_invested")}</div>
-    <div class="ptcol ptcol-value">${t("cur_value")}</div>
-    <div class="ptcol ptcol-perf">${t("p_performance")}</div>
-  </div>`;
-
-  list.innerHTML = header + tokens.map(tok => portfolioCardHTML(tok)).join("");
+  list.innerHTML = tokens.map(tok => portfolioCardHTML(tok)).join("");
   loadPortfolioIcons(tokens);
 }
 
@@ -135,28 +128,24 @@ function portfolioCardHTML(tok) {
     </div>`).join("");
 
   return `<div class="asset-card expandable portfolio-card" data-pticker="${sym}" onclick="togglePortfolioCard(this,event)">
-    <div class="ptrow">
-      <div class="ptcol ptcol-asset">
+    <div class="card-top">
+      <div class="asset-left">
         <div class="asset-icon portfolio-icon" data-pticker="${sym}">
           <img class="icon-img" alt="" />
           <span class="icon-text">${sym.slice(0,4)}</span>
         </div>
-        <div class="ptcol-asset-info">
-          <span class="asset-symbol">${sym}</span>
-          <span class="ptcol-asset-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</span>
+        <div class="asset-name-wrap">
+          <div class="asset-symbol">${sym}</div>
+          <div class="asset-source">${fmtQty(total_qty)} ${sym}</div>
         </div>
       </div>
-      <div class="ptcol ptcol-invested">${formatUSD(total_invested)}</div>
-      <div class="ptcol ptcol-value">${hasPrice ? formatUSD(cur_value) : "—"}</div>
-      <div class="ptcol ptcol-perf">
+      <div class="asset-right">
+        <div class="asset-price">${hasPrice ? formatUSD(cur_value) : "—"}</div>
         ${hasPrice
-          ? `<div class="ptperf-wrap">
-               <span class="ptperf-val ${pnlCls}">${pnlSign}${formatUSD(pnl)}</span>
-               <span class="ptperf-pct ${pnlCls}">${pnlSign}${Math.abs(pnl_pct).toFixed(2)}% ${pnlArrow}</span>
-             </div>`
-          : "<span class='ptperf-val'>—</span>"}
-        <span class="card-chevron">›</span>
+          ? `<span class="change ${pnlCls}">${pnlSign}${formatUSD(pnl)} (${pnlSign}${Math.abs(pnl_pct).toFixed(2)}%)</span>`
+          : ""}
       </div>
+      <span class="card-chevron">›</span>
     </div>
 
     <div class="card-details portfolio-details">
