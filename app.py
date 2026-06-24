@@ -488,6 +488,14 @@ def delete_asset(symbol):
     save_assets(assets)
     return jsonify({"ok": True})
 
+@app.route("/api/assets/order", methods=["PUT"])
+def reorder_assets():
+    symbols = request.json.get("symbols", [])
+    current = {a["symbol"].upper(): a for a in load_assets()}
+    ordered = [current[s.upper()] for s in symbols if s.upper() in current]
+    save_assets(ordered)
+    return jsonify({"ok": True})
+
 @app.route("/api/rates")
 def get_rates():
     d = http_get("https://api.frankfurter.app/latest?from=USD&to=EUR,BRL", timeout=5)

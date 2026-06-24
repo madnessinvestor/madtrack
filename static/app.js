@@ -103,6 +103,7 @@ async function loadAssets() {
     } else {
       list.innerHTML = assets.map(a => cardHTML(a)).join("");
       loadIcons(assets.map(a => a.symbol));
+      initSortable();
     }
 
     const now = new Date();
@@ -117,6 +118,31 @@ function rerenderAssets() {
   const list = document.getElementById("asset-list");
   list.innerHTML = cachedAssets.map(a => cardHTML(a)).join("");
   loadIcons(cachedAssets.map(a => a.symbol));
+  initSortable();
+}
+
+let _sortable = null;
+function initSortable() {
+  const list = document.getElementById("asset-list");
+  if (_sortable) { _sortable.destroy(); _sortable = null; }
+  if (typeof Sortable === "undefined") return;
+  _sortable = new Sortable(list, {
+    handle: ".drag-handle",
+    animation: 150,
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    onEnd: async () => {
+      const cards   = list.querySelectorAll(".asset-card[data-sym]");
+      const symbols = [...cards].map(c => c.dataset.sym);
+      const symMap  = Object.fromEntries(cachedAssets.map(a => [a.symbol, a]));
+      cachedAssets  = symbols.map(s => symMap[s]).filter(Boolean);
+      await fetch("/api/assets/order", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbols })
+      });
+    }
+  });
 }
 
 function cardHTML(a) {
@@ -135,7 +161,7 @@ function cardHTML(a) {
     hasCap  ? `<div class="stat"><span class="stat-label">MARKET CAP</span><span class="stat-val">${formatUSD(a.market_cap, skip)}</span></div>` : "",
   ].join("");
 
-  return `<div class="asset-card${hasExtra ? " expandable" : ""}" onclick="toggleCard(this, event)">
+  return `<div class="asset-card${hasExtra ? " expandable" : ""}" data-sym="${a.symbol}" onclick="toggleCard(this, event)">
     <div class="card-top">
       <div class="asset-left">
         <div class="asset-icon" data-sym="${a.symbol}">
@@ -153,6 +179,7 @@ function cardHTML(a) {
         ${hasCap ? `<div class="asset-mcap">MC ${formatUSD(a.market_cap, skip)}</div>` : ""}
       </div>
       <span class="card-chevron${hasExtra ? "" : " hidden"}">›</span>
+      <span class="drag-handle" title="Reordenar">⠿</span>
     </div>
 
     <div class="card-details">

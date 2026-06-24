@@ -188,6 +188,22 @@ main {
 .card-chevron.hidden { visibility: hidden; }
 .asset-card.open .card-chevron { transform: rotate(90deg); }
 
+/* Drag handle */
+.drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 1.05rem;
+  padding: 6px 0 6px 4px;
+  touch-action: none;
+  user-select: none;
+  flex-shrink: 0;
+  opacity: 0.45;
+  line-height: 1;
+}
+.drag-handle:active { cursor: grabbing; opacity: 0.8; }
+.sortable-ghost  { opacity: 0.35; }
+.sortable-chosen { background: var(--surface2) !important; box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+
 /* Expandable cursor */
 .asset-card.expandable { cursor: pointer; }
 .asset-card.expandable:active { opacity: 0.85; }
