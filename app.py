@@ -295,10 +295,29 @@ def fetch_price(symbol):
                     results[fn] = r
             except Exception:
                 pass
+
+    # Pick primary result by priority order
+    primary = None
     for fn in APIS:
         if fn in results:
-            return results[fn]
-    return None
+            primary = dict(results[fn])
+            break
+    if not primary:
+        return None
+
+    # Fill missing fields from other successful sources (priority order)
+    fill = ["change24h", "high24h", "low24h", "volume24h", "market_cap"]
+    for fn in APIS:
+        if fn not in results:
+            continue
+        r = results[fn]
+        for field in fill:
+            if primary.get(field) is None and r.get(field) is not None:
+                primary[field] = r[field]
+        if all(primary.get(f) is not None for f in fill):
+            break
+
+    return primary
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
