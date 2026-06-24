@@ -36,7 +36,14 @@ def http_post(url, data, timeout=5):
     except Exception:
         return None
 
-# ─── API fetchers ────────────────────────────────────────────────────────────
+def safe_float(v):
+    try:
+        f = float(v)
+        return f if f > 0 else None
+    except Exception:
+        return None
+
+# ─── API fetchers ─────────────────────────────────────────────────────────────
 
 def api_hyperliquid(sym):
     sym = sym.upper()
@@ -45,58 +52,100 @@ def api_hyperliquid(sym):
         return None
     price = float(mids[sym])
     change = None
+    volume = None
+    high = None
+    low = None
     meta = http_post("https://api.hyperliquid.xyz/info", {"type": "metaAndAssetCtxs"})
     if meta and len(meta) >= 2:
         for i, asset in enumerate(meta[0].get("universe", [])):
             if asset.get("name") == sym and i < len(meta[1]):
-                prev = float(meta[1][i].get("prevDayPx", 0) or 0)
+                ctx = meta[1][i]
+                prev = safe_float(ctx.get("prevDayPx"))
                 if prev:
                     change = round((price - prev) / prev * 100, 2)
+                volume = safe_float(ctx.get("dayNtlVlm"))
                 break
-    return {"price": price, "change24h": change, "source": "Hyperliquid"}
+    return {"price": price, "change24h": change, "high24h": high, "low24h": low,
+            "volume24h": volume, "market_cap": None, "source": "Hyperliquid"}
 
 def api_binance(sym):
     s = sym.upper() + "USDT"
     d = http_get(f"https://api.binance.com/api/v3/ticker/24hr?symbol={s}")
-    if d and "lastPrice" in d and float(d["lastPrice"]) > 0:
-        return {"price": float(d["lastPrice"]), "change24h": round(float(d.get("priceChangePercent", 0)), 2), "source": "Binance"}
+    if d and safe_float(d.get("lastPrice")):
+        return {
+            "price": float(d["lastPrice"]),
+            "change24h": round(float(d.get("priceChangePercent", 0)), 2),
+            "high24h": safe_float(d.get("highPrice")),
+            "low24h": safe_float(d.get("lowPrice")),
+            "volume24h": safe_float(d.get("quoteVolume")),
+            "market_cap": None,
+            "source": "Binance"
+        }
 
 def api_okx(sym):
     s = sym.upper() + "-USDT"
     d = http_get(f"https://www.okx.com/api/v5/market/ticker?instId={s}")
     if d and d.get("data"):
         row = d["data"][0]
-        price = float(row.get("last", 0))
-        open24 = float(row.get("open24h", 0) or 0)
-        change = round((price - open24) / open24 * 100, 2) if open24 else None
-        if price > 0:
-            return {"price": price, "change24h": change, "source": "OKX"}
+        price = safe_float(row.get("last"))
+        open24 = safe_float(row.get("open24h"))
+        change = round((price - open24) / open24 * 100, 2) if price and open24 else None
+        if price:
+            return {
+                "price": price, "change24h": change,
+                "high24h": safe_float(row.get("high24h")),
+                "low24h": safe_float(row.get("low24h")),
+                "volume24h": safe_float(row.get("volCcy24h")),
+                "market_cap": None, "source": "OKX"
+            }
 
 def api_bybit(sym):
     s = sym.upper() + "USDT"
     d = http_get(f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={s}")
     if d and d.get("result", {}).get("list"):
         row = d["result"]["list"][0]
-        price = float(row.get("lastPrice", 0))
-        if price > 0:
-            return {"price": price, "change24h": round(float(row.get("price24hPcnt", 0)) * 100, 2), "source": "Bybit"}
+        price = safe_float(row.get("lastPrice"))
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(row.get("price24hPcnt", 0)) * 100, 2),
+                "high24h": safe_float(row.get("highPrice24h")),
+                "low24h": safe_float(row.get("lowPrice24h")),
+                "volume24h": safe_float(row.get("turnover24h")),
+                "market_cap": None, "source": "Bybit"
+            }
 
 def api_kucoin(sym):
     s = sym.upper() + "-USDT"
     d = http_get(f"https://api.kucoin.com/api/v1/market/stats?symbol={s}")
     if d and d.get("data", {}).get("last"):
         row = d["data"]
-        price = float(row["last"])
-        if price > 0:
-            return {"price": price, "change24h": round(float(row.get("changeRate", 0)) * 100, 2), "source": "KuCoin"}
+        price = safe_float(row.get("last"))
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(row.get("changeRate", 0)) * 100, 2),
+                "high24h": safe_float(row.get("high")),
+                "low24h": safe_float(row.get("low")),
+                "volume24h": safe_float(row.get("volValue")),
+                "market_cap": None, "source": "KuCoin"
+            }
 
 def api_gateio(sym):
     s = sym.upper() + "_USDT"
     d = http_get(f"https://api.gateio.ws/api/v4/spot/tickers?currency_pair={s}")
     if d and isinstance(d, list) and d:
-        price = float(d[0].get("last", 0))
-        if price > 0:
-            return {"price": price, "change24h": round(float(d[0].get("change_percentage", 0)), 2), "source": "Gate.io"}
+        row = d[0]
+        price = safe_float(row.get("last"))
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(row.get("change_percentage", 0)), 2),
+                "high24h": safe_float(row.get("high_24h")),
+                "low24h": safe_float(row.get("low_24h")),
+                "volume24h": safe_float(row.get("quote_volume")),
+                "market_cap": None, "source": "Gate.io"
+            }
 
 def api_kraken(sym):
     s = sym.upper()
@@ -105,37 +154,62 @@ def api_kraken(sym):
     if d and not d.get("error") and d.get("result"):
         key = list(d["result"].keys())[0]
         row = d["result"][key]
-        price = float(row["c"][0])
-        open_p = float(row["o"])
-        if price > 0:
+        price = safe_float(row["c"][0])
+        open_p = safe_float(row.get("o"))
+        if price:
             change = round((price - open_p) / open_p * 100, 2) if open_p else None
-            return {"price": price, "change24h": change, "source": "Kraken"}
+            return {
+                "price": price, "change24h": change,
+                "high24h": safe_float(row.get("h", [None])[0]),
+                "low24h": safe_float(row.get("l", [None])[0]),
+                "volume24h": None, "market_cap": None, "source": "Kraken"
+            }
 
 def api_cryptocompare(sym):
     s = sym.upper()
     d = http_get(f"https://min-api.cryptocompare.com/data/pricemultifull?fsyms={s}&tsyms=USD")
     if d and d.get("RAW", {}).get(s, {}).get("USD"):
         row = d["RAW"][s]["USD"]
-        price = float(row.get("PRICE", 0))
-        if price > 0:
-            return {"price": price, "change24h": round(float(row.get("CHANGEPCT24HOUR", 0)), 2), "source": "CryptoCompare"}
+        price = safe_float(row.get("PRICE"))
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(row.get("CHANGEPCT24HOUR", 0)), 2),
+                "high24h": safe_float(row.get("HIGH24HOUR")),
+                "low24h": safe_float(row.get("LOW24HOUR")),
+                "volume24h": safe_float(row.get("VOLUME24HOURTO")),
+                "market_cap": safe_float(row.get("MKTCAP")),
+                "source": "CryptoCompare"
+            }
 
 def api_mexc(sym):
     s = sym.upper() + "USDT"
     d = http_get(f"https://api.mexc.com/api/v3/ticker/24hr?symbol={s}")
-    if d and "lastPrice" in d:
-        price = float(d["lastPrice"])
-        if price > 0:
-            return {"price": price, "change24h": round(float(d.get("priceChangePercent", 0)), 2), "source": "MEXC"}
+    if d and safe_float(d.get("lastPrice")):
+        return {
+            "price": float(d["lastPrice"]),
+            "change24h": round(float(d.get("priceChangePercent", 0)), 2),
+            "high24h": safe_float(d.get("highPrice")),
+            "low24h": safe_float(d.get("lowPrice")),
+            "volume24h": safe_float(d.get("quoteVolume")),
+            "market_cap": None, "source": "MEXC"
+        }
 
 def api_bitfinex(sym):
     s = sym.upper()
     ticker = f"t{s}USD"
     d = http_get(f"https://api-pub.bitfinex.com/v2/ticker/{ticker}")
-    if d and isinstance(d, list) and len(d) >= 7:
-        price = float(d[6])
-        if price > 0:
-            return {"price": price, "change24h": round(float(d[5]) * 100, 2), "source": "Bitfinex"}
+    # [BID,BID_SIZE,ASK,ASK_SIZE,DAILY_CHG,DAILY_CHG_REL,LAST,VOL,HIGH,LOW]
+    if d and isinstance(d, list) and len(d) >= 10:
+        price = safe_float(d[6])
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(d[5]) * 100, 2),
+                "high24h": safe_float(d[8]),
+                "low24h": safe_float(d[9]),
+                "volume24h": None, "market_cap": None, "source": "Bitfinex"
+            }
 
 def api_coincap(sym):
     s = sym.lower()
@@ -143,9 +217,16 @@ def api_coincap(sym):
     if d and d.get("data"):
         for asset in d["data"]:
             if asset.get("symbol", "").lower() == s:
-                price = float(asset.get("priceUsd", 0) or 0)
-                if price > 0:
-                    return {"price": price, "change24h": round(float(asset.get("changePercent24Hr", 0) or 0), 2), "source": "CoinCap"}
+                price = safe_float(asset.get("priceUsd"))
+                if price:
+                    return {
+                        "price": price,
+                        "change24h": round(float(asset.get("changePercent24Hr") or 0), 2),
+                        "high24h": None, "low24h": None,
+                        "volume24h": safe_float(asset.get("volumeUsd24Hr")),
+                        "market_cap": safe_float(asset.get("marketCapUsd")),
+                        "source": "CoinCap"
+                    }
 
 def api_coingecko(sym):
     s = sym.lower()
@@ -159,13 +240,21 @@ def api_coingecko(sym):
             break
     if not coin_id:
         coin_id = search["coins"][0]["id"]
-    d = http_get(f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd&include_24hr_change=true")
-    if d and coin_id in d:
-        price = float(d[coin_id].get("usd", 0) or 0)
-        if price > 0:
-            return {"price": price, "change24h": round(float(d[coin_id].get("usd_24h_change", 0) or 0), 2), "source": "CoinGecko", "name": coin_id}
+    d = http_get(f"https://api.coingecko.com/api/v3/coins/{coin_id}?localization=false&tickers=false&community_data=false&developer_data=false")
+    if d and d.get("market_data"):
+        md = d["market_data"]
+        price = safe_float(md.get("current_price", {}).get("usd"))
+        if price:
+            return {
+                "price": price,
+                "change24h": round(float(md.get("price_change_percentage_24h") or 0), 2),
+                "high24h": safe_float(md.get("high_24h", {}).get("usd")),
+                "low24h": safe_float(md.get("low_24h", {}).get("usd")),
+                "volume24h": safe_float(md.get("total_volume", {}).get("usd")),
+                "market_cap": safe_float(md.get("market_cap", {}).get("usd")),
+                "source": "CoinGecko"
+            }
 
-# Priority order: exchanges first, aggregators last
 APIS = [
     api_hyperliquid, api_binance, api_okx, api_bybit, api_kucoin,
     api_gateio, api_kraken, api_cryptocompare, api_mexc, api_bitfinex,
@@ -173,7 +262,6 @@ APIS = [
 ]
 
 def fetch_price(symbol):
-    """Run all APIs in parallel, return best result by priority order."""
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(APIS)) as ex:
         futures = {ex.submit(fn, symbol): fn for fn in APIS}
@@ -181,7 +269,7 @@ def fetch_price(symbol):
             fn = futures[future]
             try:
                 r = future.result()
-                if r:
+                if r and r.get("price"):
                     results[fn] = r
             except Exception:
                 pass
@@ -190,7 +278,7 @@ def fetch_price(symbol):
             return results[fn]
     return None
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
+# ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -214,13 +302,16 @@ def get_price():
 @app.route("/api/assets", methods=["GET"])
 def get_assets():
     assets = load_assets()
-    out = []
     def fetch_one(a):
         sym = a.get("symbol", "").upper()
         r = fetch_price(sym)
         if r:
             return {**r, "symbol": sym, "id": sym}
-        return {"symbol": sym, "id": sym, "price": None, "change24h": None, "source": None}
+        return {"symbol": sym, "id": sym, "price": None, "change24h": None,
+                "high24h": None, "low24h": None, "volume24h": None,
+                "market_cap": None, "source": None}
+    if not assets:
+        return jsonify([])
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(assets))) as ex:
         out = list(ex.map(fetch_one, assets))
     return jsonify(out)
