@@ -15,20 +15,52 @@
     <div class="header-actions">
       <button id="btn-theme" onclick="toggleTheme()" title="Tema"></button>
       <button id="btn-currency" onclick="toggleCurrency()" title="Moeda">$</button>
-      <button id="btn-add" onclick="openModal()">+ Adicionar</button>
+      <button id="btn-add-tracker" class="btn-add" onclick="openModal()">+ Adicionar</button>
+      <button id="btn-add-trade" class="btn-add hidden" onclick="openTradeModal()">+ Trade</button>
     </div>
   </header>
 
-  <main id="asset-list">
-    <div class="loading">Carregando...</div>
-  </main>
+  <!-- Tab bar -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" id="tab-tracker" onclick="switchTab('tracker')">📊 Tracker</button>
+    <button class="tab-btn" id="tab-trade" onclick="switchTab('trade')">💼 Trade</button>
+  </nav>
+
+  <!-- Tracker section -->
+  <section id="section-tracker">
+    <main id="asset-list">
+      <div class="loading">Carregando...</div>
+    </main>
+  </section>
+
+  <!-- Trade section -->
+  <section id="section-trade" class="hidden">
+    <div id="portfolio-summary" class="portfolio-summary hidden">
+      <div class="psum-item">
+        <span class="psum-label">INVESTIDO</span>
+        <span class="psum-val" id="psum-invested">—</span>
+      </div>
+      <div class="psum-item">
+        <span class="psum-label">VALOR ATUAL</span>
+        <span class="psum-val" id="psum-value">—</span>
+      </div>
+      <div class="psum-item">
+        <span class="psum-label">LUCRO/PREJUÍZO</span>
+        <span class="psum-val" id="psum-pnl">—</span>
+      </div>
+    </div>
+    <main id="portfolio-list">
+      <div class="loading">Carregando...</div>
+    </main>
+  </section>
 
   <div class="refresh-bar">
     <span id="last-update">—</span>
-    <button onclick="loadAssets()">↻ Atualizar</button>
+    <button id="refresh-btn-tracker" onclick="loadAssets()">↻ Atualizar</button>
+    <button id="refresh-btn-trade" class="hidden" onclick="loadPortfolio()">↻ Atualizar</button>
   </div>
 
-  <!-- Modal busca por ticker -->
+  <!-- Tracker: modal busca por ticker -->
   <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
     <div class="modal-box">
       <h2>Buscar Ativo</h2>
@@ -67,7 +99,54 @@
     </div>
   </div>
 
+  <!-- Trade: modal adicionar trade -->
+  <div id="trade-modal" class="modal hidden" onclick="if(event.target===this)closeTradeModal()">
+    <div class="modal-box">
+      <h2>Registrar Compra</h2>
+
+      <div class="search-wrap">
+        <input id="trade-ticker-input" type="text" placeholder="Ticker: BTC, ETH, SOL..."
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               oninput="onTradeTickerInput(this.value)" onkeydown="onTradeTickerKey(event)" />
+        <span id="trade-search-spinner" class="spinner hidden"></span>
+      </div>
+      <div id="trade-suggestions" class="suggestions hidden"></div>
+
+      <div id="trade-price-preview" class="trade-price-preview hidden">
+        <span id="trade-cur-price-label">Preço atual: </span><span id="trade-cur-price">—</span>
+      </div>
+
+      <div class="trade-form-row">
+        <div class="trade-form-col">
+          <label class="trade-label">Quantidade</label>
+          <input id="trade-qty" type="number" step="any" min="0" placeholder="0.00"
+                 class="trade-input" oninput="updateTradePreview()" />
+        </div>
+        <div class="trade-form-col">
+          <label class="trade-label">Preço pago (USD)</label>
+          <input id="trade-price" type="number" step="any" min="0" placeholder="0.00"
+                 class="trade-input" oninput="updateTradePreview()" />
+        </div>
+      </div>
+
+      <div id="trade-total-preview" class="trade-total-preview hidden">
+        Total investido: <strong id="trade-total-val">—</strong>
+      </div>
+
+      <div class="trade-form-col" style="margin-top:4px">
+        <label class="trade-label">Data (opcional)</label>
+        <input id="trade-date" type="text" placeholder="2025-01-01 12:00:00" class="trade-input" />
+      </div>
+
+      <div id="trade-error" class="price-error hidden"></div>
+
+      <button class="btn-confirm" onclick="submitTrade()">✓ Confirmar Compra</button>
+      <button class="btn-cancel" onclick="closeTradeModal()">Fechar</button>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script src="/static/app.js"></script>
+  <script src="/static/trade.js"></script>
 </body>
 </html>

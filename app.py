@@ -1,5 +1,5 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, urllib.request, concurrent.futures, time, threading
+import json, os, urllib.request, concurrent.futures, time, threading, time as _time
 
 app = Flask(__name__)
 DATA_FILE = "assets.json"
@@ -431,6 +431,93 @@ def fetch_price(symbol):
         primary["market_cap"] = _mcap_get(symbol)
 
     return primary
+
+# ─── Portfolio (Trade) ────────────────────────────────────────────────────────
+
+PORTFOLIO_FILE = "portfolio_data.json"
+
+def load_portfolio():
+    if os.path.exists(PORTFOLIO_FILE):
+        try:
+            return json.load(open(PORTFOLIO_FILE))
+        except Exception:
+            return []
+    return []
+
+def save_portfolio(tokens):
+    with open(PORTFOLIO_FILE, "w") as f:
+        json.dump(tokens, f)
+
+@app.route("/api/portfolio", methods=["GET"])
+def get_portfolio():
+    tokens = load_portfolio()
+    if not tokens:
+        return jsonify([])
+    def fetch_one(t):
+        sym = t.get("ticker", "").upper()
+        r = fetch_price(sym)
+        icon_url = _icon_cache.get(sym)
+        result = dict(t)
+        result["current_price"] = r["price"] if r else None
+        result["icon_url"] = icon_url
+        return result
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(tokens))) as ex:
+        out = list(ex.map(fetch_one, tokens))
+    return jsonify(out)
+
+@app.route("/api/portfolio", methods=["POST"])
+def add_portfolio_trade():
+    data = request.json
+    sym = data.get("ticker", "").strip().upper()
+    if not sym:
+        return jsonify({"ok": False, "error": "no ticker"}), 400
+    try:
+        qty = float(data.get("qty", 0))
+        price_paid = float(data.get("price_paid", 0))
+        if qty <= 0 or price_paid <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "invalid qty/price"}), 400
+    date_str = data.get("date", "")
+    tokens = load_portfolio()
+    trade = {"date": date_str, "qty": qty, "price_paid": price_paid}
+    existing = next((t for t in tokens if t["ticker"] == sym), None)
+    if existing:
+        existing.setdefault("trades", []).append(trade)
+    else:
+        tokens.append({"id": int(_time.time() * 1000), "ticker": sym, "trades": [trade]})
+    save_portfolio(tokens)
+    return jsonify({"ok": True})
+
+@app.route("/api/portfolio/<ticker>", methods=["DELETE"])
+def delete_portfolio_token(ticker):
+    tokens = [t for t in load_portfolio() if t.get("ticker", "").upper() != ticker.upper()]
+    save_portfolio(tokens)
+    return jsonify({"ok": True})
+
+@app.route("/api/portfolio/<ticker>/trade/<int:idx>", methods=["DELETE"])
+def delete_portfolio_trade(ticker, idx):
+    tokens = load_portfolio()
+    for t in tokens:
+        if t.get("ticker", "").upper() == ticker.upper():
+            trades = t.get("trades", [])
+            if 0 <= idx < len(trades):
+                trades.pop(idx)
+    save_portfolio(tokens)
+    return jsonify({"ok": True})
+
+@app.route("/api/portfolio/<ticker>", methods=["PUT"])
+def rename_portfolio_token(ticker):
+    data = request.json
+    new_ticker = data.get("ticker", "").strip().upper()
+    if not new_ticker:
+        return jsonify({"ok": False}), 400
+    tokens = load_portfolio()
+    for t in tokens:
+        if t.get("ticker", "").upper() == ticker.upper():
+            t["ticker"] = new_ticker
+    save_portfolio(tokens)
+    return jsonify({"ok": True})
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
