@@ -1,9 +1,10 @@
-let searchTimeout   = null;
-let suggestTimeout  = null;
-let pendingSymbol   = null;
-let activeIndex     = -1;
+let searchTimeout      = null;
+let suggestTimeout     = null;
+let pendingSymbol      = null;
+let searchingFor       = null;  // símbolo sendo buscado agora
+let activeIndex        = -1;
 let currentSuggestions = [];
-let searchSeq       = 0;  // incrementa a cada busca — cancela resultados antigos
+let searchSeq          = 0;
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
@@ -158,7 +159,8 @@ async function deleteAsset(symbol) {
 
 function openModal() {
   pendingSymbol = null;
-  activeIndex = -1;
+  searchingFor  = null;
+  activeIndex   = -1;
   currentSuggestions = [];
   document.getElementById("ticker-input").value = "";
   document.getElementById("price-result").classList.add("hidden");
@@ -186,19 +188,23 @@ function onTickerInput(val) {
   const sym = val.trim().toUpperCase();
 
   // Teclado mobile dispara oninput várias vezes com o mesmo valor
-  // (autocapitalização, autocorreção). Se já encontramos este símbolo, ignora.
-  if (sym && sym === pendingSymbol) return;
+  // (autocapitalização). Se já encontramos OU já estamos buscando este
+  // símbolo exato, ignora completamente — não incrementa searchSeq.
+  if (sym && (sym === pendingSymbol || sym === searchingFor)) return;
 
   document.getElementById("price-result").classList.add("hidden");
   document.getElementById("price-error").classList.add("hidden");
   pendingSymbol = null;
-  activeIndex = -1;
+  searchingFor  = null;
+  activeIndex   = -1;
 
   if (!sym) {
     document.getElementById("search-spinner").classList.add("hidden");
     hideSuggestions();
     return;
   }
+
+  searchingFor = sym;
 
   // Fetch suggestions quickly
   suggestTimeout = setTimeout(() => fetchSuggestions(sym), 150);
@@ -240,6 +246,8 @@ function selectSuggestion(sym) {
   hideSuggestions();
   clearTimeout(searchTimeout);
   clearTimeout(suggestTimeout);
+  pendingSymbol = null;
+  searchingFor  = sym;
   document.getElementById("search-spinner").classList.remove("hidden");
   const seq = ++searchSeq;
   fetchTickerPrice(sym, seq);
@@ -294,6 +302,7 @@ async function fetchTickerPrice(sym, seq) {
     if (seq !== searchSeq) return;
 
     pendingSymbol = sym;
+    searchingFor  = null;
 
     document.getElementById("pr-symbol").textContent = sym.slice(0, 4);
     const lblEl = document.getElementById("pr-symbol-label");
