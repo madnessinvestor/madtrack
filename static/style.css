@@ -655,15 +655,19 @@ section.hidden { display: none; }
   font-weight: 600;
   color: var(--text);
   text-align: right;
+  white-space: nowrap;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ptcol-asset {
-  flex: 1.6;
+  flex: 1.5;
   display: flex;
   align-items: center;
   gap: 8px;
   text-align: left;
   font-weight: 700;
+  overflow: visible;
 }
 .ptcol-asset-info {
   display: flex;
@@ -678,14 +682,17 @@ section.hidden { display: none; }
   letter-spacing: 0;
 }
 .ptcol-perf {
-  flex: 1.8;
+  flex: 2.2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+  white-space: nowrap;
+  overflow: visible;
 }
 .ptcol-perf .change {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 /* ─── Portfolio card details (expanded) ──────────────────────────────────────── */
