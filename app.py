@@ -966,22 +966,39 @@ _WRAPPED_NATIVE = {"WETH","WBNB","WMATIC","WAVAX","WFTM","WONE","WHYPE","WCORE",
 
 def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, timestamp):
     """
-    Robust DEX swap parser using NET balance deltas per (token, address).
-    Works even when tokens pass through routers/pools (Uniswap v3, Aerodrome, etc.)
+    DEX swap parser that finds the TRUE buyer/seller in a transaction.
+
+    Strategy:
+      1. Compute net token deltas for EVERY address in the transfer list.
+      2. Identify the "user" as the address with the clearest buy or sell pattern:
+           BUY  = net positive non-stable  AND  net negative stable  (spent USDC, got BTC)
+           SELL = net negative non-stable  AND  net positive stable   (sold BTC, got USDC)
+         tx_from gets a tie-breaking bonus so it wins when equally scored.
+      3. Exclude clear router/pool addresses: addresses where MANY different tokens
+         flow in AND out (they are intermediaries, not the user).
+      4. Fall back to tx_from if no clean pattern is found.
+
+    This correctly handles:
+      - Multi-hop routes (intermediate tokens never touch the user's address)
+      - Smart-contract wallets / meta-txs (tx_from is a relayer/bundler)
+      - Sells (non-stable → stable) and token-to-token swaps
     """
     tx_from = tx_from.lower()
-    # delta[(sym, addr)] = net token flow (positive = received, negative = sent)
-    delta   = {}
-    is_stable  = {}   # sym -> bool
-    is_wrapped = {}   # sym -> bool
+
+    # --- Step 1: compute net delta per (address, symbol) ---
+    is_stable  = {}
+    is_wrapped = {}
+    addr_delta = {}   # addr -> {sym: net_amount}
+    addr_syms_in  = {}  # addr -> set of symbols received
+    addr_syms_out = {}  # addr -> set of symbols sent
 
     for t in transfers:
-        tok    = t.get("token") or {}
-        sym    = tok.get("symbol", "").upper()
+        tok  = t.get("token") or {}
+        sym  = tok.get("symbol", "").upper()
         if not sym:
             continue
-        dec    = int((t.get("total") or {}).get("decimals", 18) or 18)
-        raw    = (t.get("total") or {}).get("value", "0") or "0"
+        dec = int((t.get("total") or {}).get("decimals", 18) or 18)
+        raw = (t.get("total") or {}).get("value", "0") or "0"
         try:
             amount = int(raw) / (10 ** dec)
         except Exception:
@@ -990,85 +1007,104 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         to_a   = ((t.get("to")   or {}).get("hash") or "").lower()
         is_stable[sym]  = sym in _STABLECOINS
         is_wrapped[sym] = sym in _WRAPPED_NATIVE
+
         if to_a:
-            delta[(sym, to_a)]   = delta.get((sym, to_a), 0)   + amount
+            addr_delta.setdefault(to_a, {})[sym] = addr_delta.get(to_a, {}).get(sym, 0) + amount
+            addr_syms_in.setdefault(to_a, set()).add(sym)
         if from_a:
-            delta[(sym, from_a)] = delta.get((sym, from_a), 0) - amount
-
-    # Identify buyer: tx_from, or the address with the most positive non-stable delta
-    # (handles smart-contract wallets / meta-txs)
-    candidate_buyers = {tx_from}
-    for (sym, addr), d in delta.items():
-        if d > 0 and not is_stable.get(sym) and not is_wrapped.get(sym):
-            candidate_buyers.add(addr)
-
-    # For each candidate, compute: tokens received (non-stable, non-wrapped) and stable spent
-    best_result = None
-    for buyer in candidate_buyers:
-        tokens_in  = [(sym, d) for (sym, addr), d in delta.items()
-                      if addr == buyer and d > 0 and not is_stable.get(sym) and not is_wrapped.get(sym)]
-        stable_out = sum(-d for (sym, addr), d in delta.items()
-                         if addr == buyer and d < 0 and is_stable.get(sym))
-        # Stable also counts if the buyer is the tx_from and a stable went somewhere else
-        if not stable_out and buyer == tx_from:
-            stable_out = sum(d for (sym, addr), d in delta.items()
-                             if addr == tx_from and is_stable.get(sym) and d < 0)
-            stable_out = abs(stable_out)
-
-        if tokens_in:
-            # Pick token with largest received amount
-            best_tok, best_qty = max(tokens_in, key=lambda x: x[1])
-            score = best_qty  # prefer larger quantities
-            if best_result is None or score > best_result[0]:
-                best_result = (score, best_tok, best_qty, stable_out, buyer)
+            addr_delta.setdefault(from_a, {})[sym] = addr_delta.get(from_a, {}).get(sym, 0) - amount
+            addr_syms_out.setdefault(from_a, set()).add(sym)
 
     try:
-        native_val = int(tx_data.get("value", "0") or "0") / 1e18
+        native_val = int(tx_data.get("value", "0x0") or "0x0", 16) / 1e18
     except Exception:
-        native_val = 0.0
+        try:
+            native_val = int(tx_data.get("value", "0") or "0") / 1e18
+        except Exception:
+            native_val = 0.0
 
     result = {"network": chain_name, "timestamp": timestamp}
 
-    if best_result:
-        _, tok_sym, tok_qty, stable_paid, _ = best_result
-        result["ticker"] = tok_sym
-        result["qty"]    = round(tok_qty, 10)
-        if stable_paid > 0:
-            result["total_usd"] = round(stable_paid, 6)
-        elif native_val > 0:
+    # --- Step 2: score each address to find the real user ---
+    # A router/pool has many distinct tokens flowing IN and OUT → exclude them
+    def is_router(addr):
+        n_in  = len(addr_syms_in.get(addr, set()))
+        n_out = len(addr_syms_out.get(addr, set()))
+        return n_in >= 3 and n_out >= 3
+
+    best_buyer  = None   # (score, addr, recv_sym, recv_qty, stable_spent)
+    best_seller = None   # (score, addr, sold_sym, sold_qty, stable_recv)
+
+    for addr, deltas in addr_delta.items():
+        if is_router(addr):
+            continue
+
+        pos_stable     = [(s, d) for s, d in deltas.items() if d > 0 and is_stable.get(s)]
+        pos_non_stable = [(s, d) for s, d in deltas.items() if d > 0 and not is_stable.get(s) and not is_wrapped.get(s)]
+        pos_wrapped    = [(s, d) for s, d in deltas.items() if d > 0 and is_wrapped.get(s)]
+        neg_stable     = [(s, -d) for s, d in deltas.items() if d < 0 and is_stable.get(s)]
+        neg_non_stable = [(s, -d) for s, d in deltas.items() if d < 0 and not is_stable.get(s) and not is_wrapped.get(s)]
+
+        tiebreak = 1 if addr == tx_from else 0
+
+        # BUY pattern: received non-stable + spent stable (or wrapped native)
+        received = pos_non_stable or pos_wrapped
+        if received and neg_stable:
+            recv_sym, recv_qty = max(received, key=lambda x: x[1])
+            stable_spent = sum(v for _, v in neg_stable)
+            score = stable_spent + tiebreak * 1e-9
+            if best_buyer is None or score > best_buyer[0]:
+                best_buyer = (score, addr, recv_sym, recv_qty, stable_spent)
+
+        # SELL pattern: received stable + spent non-stable
+        if pos_stable and neg_non_stable:
+            stable_recv = sum(v for _, v in pos_stable)
+            sold_sym, sold_qty = max(neg_non_stable, key=lambda x: x[1])
+            score = stable_recv + tiebreak * 1e-9
+            if best_seller is None or score > best_seller[0]:
+                best_seller = (score, addr, sold_sym, sold_qty, stable_recv)
+
+    # --- Step 3: build result from the best match ---
+
+    if best_buyer:
+        _, _addr, recv_sym, recv_qty, stable_spent = best_buyer
+        result["ticker"]    = recv_sym
+        result["qty"]       = round(recv_qty, 10)
+        result["total_usd"] = round(stable_spent, 6) if stable_spent > 0 else None
+        if result["total_usd"] is None and native_val > 0:
             result["native_sym"]    = native_sym
             result["native_amount"] = round(native_val, 8)
-            result["total_usd"]     = None
-        else:
-            result["total_usd"] = None
-    elif native_val > 0 and not transfers:
-        # Simple native transfer
+        return result
+
+    if best_seller:
+        _, _addr, sold_sym, sold_qty, stable_recv = best_seller
+        result["ticker"]    = sold_sym
+        result["qty"]       = round(sold_qty, 10)
+        result["total_usd"] = round(stable_recv, 6)
+        return result
+
+    # --- Step 4: fallbacks ---
+    # Check tx_from directly (covers simple transfers, native-only txs, etc.)
+    user_delta = addr_delta.get(tx_from, {})
+    pos_ns = [(s, d) for s, d in user_delta.items() if d > 0 and not is_stable.get(s)]
+    neg_st = [(s, -d) for s, d in user_delta.items() if d < 0 and is_stable.get(s)]
+    if pos_ns:
+        best_tok, best_qty = max(pos_ns, key=lambda x: x[1])
+        result["ticker"]    = best_tok
+        result["qty"]       = round(best_qty, 10)
+        result["total_usd"] = round(sum(v for _, v in neg_st), 6) if neg_st else None
+        if result["total_usd"] is None and native_val > 0:
+            result["native_sym"]    = native_sym
+            result["native_amount"] = round(native_val, 8)
+        return result
+
+    if native_val > 0 and not transfers:
         result["ticker"]    = native_sym
         result["qty"]       = round(native_val, 10)
         result["total_usd"] = None
-    else:
-        # Fallback: stable-to-stable swap (e.g. USDT → USDC)
-        # Find stable received (positive delta for tx_from) and stable sent (negative delta)
-        stable_received = [(sym, d) for (sym, addr), d in delta.items()
-                           if addr == tx_from and d > 0 and is_stable.get(sym)]
-        stable_sent     = [(sym, -d) for (sym, addr), d in delta.items()
-                           if addr == tx_from and d < 0 and is_stable.get(sym)]
-        if not stable_received:
-            # Maybe tx_from isn't the direct recipient — pick any address with positive stable delta
-            stable_received = [(sym, d) for (sym, addr), d in delta.items()
-                               if d > 0 and is_stable.get(sym)
-                               and not any(addr == a for (_, a) in [(s,a) for (s,a),_ in delta.items() if not is_stable.get(s)])]
-        if stable_received:
-            best_recv = max(stable_received, key=lambda x: x[1])
-            result["ticker"]    = best_recv[0]
-            result["qty"]       = round(best_recv[1], 6)
-            if stable_sent:
-                result["total_usd"] = round(max(stable_sent, key=lambda x: x[1])[1], 6)
-            else:
-                result["total_usd"] = round(best_recv[1], 6)
-        else:
-            result["error"] = "swap_complex"
+        return result
 
+    result["error"] = "swap_complex"
     return result
 
 def _lookup_evm(hash_):
