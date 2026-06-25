@@ -3,6 +3,22 @@
 let alertsData = [];
 const ALERT_INTERVAL = 30000;
 
+// ─── Audio unlock (browsers block AudioContext until first user gesture) ───────
+let _audioCtx = null;
+function _getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  if (_audioCtx && _audioCtx.state === "suspended") {
+    _audioCtx.resume().catch(() => {});
+  }
+  return _audioCtx;
+}
+// Unlock on first user gesture so the sound works immediately when alert fires
+["click","touchstart","keydown"].forEach(ev =>
+  document.addEventListener(ev, () => _getAudioCtx(), { once: false, passive: true })
+);
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function initAlerts() {
