@@ -1033,3 +1033,30 @@ section.hidden { display: none; }
   color: var(--red);
   font-size: 12px;
 }
+.hash-net-row {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.hash-net-row::-webkit-scrollbar { display: none; }
+.hash-net-chip {
+  flex-shrink: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted2);
+  border-radius: 20px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.hash-net-chip.active {
+  background: rgba(0,230,118,0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}

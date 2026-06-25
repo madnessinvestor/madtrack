@@ -796,6 +796,34 @@ EVM_CHAINS = [
     ("Optimism",     "https://optimism.blockscout.com", "ETH"),
 ]
 
+# key → (display name, blockscout base url, native symbol)
+NETWORK_MAP = {
+    "ethereum":  ("Ethereum",     "https://eth.blockscout.com",               "ETH"),
+    "base":      ("Base",         "https://base.blockscout.com",              "ETH"),
+    "arbitrum":  ("Arbitrum One", "https://arbitrum.blockscout.com",          "ETH"),
+    "optimism":  ("Optimism",     "https://optimism.blockscout.com",          "ETH"),
+    "bsc":       ("BSC",          "https://bsc.blockscout.com",               "BNB"),
+    "polygon":   ("Polygon",      "https://polygon.blockscout.com",           "MATIC"),
+    "hyperevm":  ("HyperEVM",     "https://hyperliquid.blockscout.com",       "HYPE"),
+    "avalanche": ("Avalanche",    "https://avalanche.blockscout.com",         "AVAX"),
+    "zksync":    ("zkSync Era",   "https://zksync.blockscout.com",            "ETH"),
+    "linea":     ("Linea",        "https://explorer.linea.build",             "ETH"),
+    "scroll":    ("Scroll",       "https://scroll.blockscout.com",            "ETH"),
+    "mantle":    ("Mantle",       "https://mantle.blockscout.com",            "MNT"),
+}
+
+def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
+    """Fetch a tx from a specific EVM chain (Blockscout v2 API)."""
+    h = hash_ if hash_.startswith("0x") else f"0x{hash_}"
+    for candidate in [h, hash_]:
+        data = _tx_fetch(f"{base_url}/api/v2/transactions/{candidate}")
+        if data and data.get("hash"):
+            tx_from  = (data.get("from") or {}).get("hash", "")
+            transfers = data.get("token_transfers") or []
+            ts        = _ts_fmt(data.get("timestamp"))
+            return jsonify(_parse_evm_result(tx_from, transfers, data, native_sym, chain_name, ts))
+    return jsonify({"error": "not_found"}), 404
+
 def _ts_fmt(iso_str):
     if not iso_str:
         return None
@@ -946,12 +974,28 @@ def _lookup_solana(hash_):
 import re as _re
 @app.route("/api/tx-lookup")
 def tx_lookup():
-    hash_ = request.args.get("hash", "").strip()
+    hash_   = request.args.get("hash",    "").strip()
+    network = request.args.get("network", "").strip().lower()
     if not hash_:
         return jsonify({"error": "no_hash"}), 400
-    if _re.match(r'^0x[0-9a-fA-F]{64}$', hash_):
+
+    # Manual network selection — bypass auto-detect
+    if network == "bitcoin":
+        return _lookup_bitcoin(hash_)
+    if network == "solana":
+        return _lookup_solana(hash_)
+    if network in NETWORK_MAP:
+        name, base_url, native = NETWORK_MAP[network]
+        return _lookup_evm_single(hash_, name, base_url, native)
+
+    # Auto-detect from hash format (lenient: 60–68 hex chars with or without 0x)
+    if _re.match(r'^0x[0-9a-fA-F]{60,68}$', hash_):
         return _lookup_evm(hash_)
-    elif _re.match(r'^[0-9a-fA-F]{64}$', hash_):
+    elif _re.match(r'^[0-9a-fA-F]{60,68}$', hash_):
+        # Could be BTC or EVM without 0x — try EVM first, then BTC
+        evm_res = _lookup_evm(hash_)
+        if evm_res[1] == 200 if isinstance(evm_res, tuple) else True:
+            return evm_res
         return _lookup_bitcoin(hash_)
     elif _re.match(r'^[1-9A-HJ-NP-Za-km-z]{32,90}$', hash_):
         return _lookup_solana(hash_)

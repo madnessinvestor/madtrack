@@ -2,12 +2,23 @@
 
 // ─── TX Hash Lookup ───────────────────────────────────────────────────────────
 
-let _txHashTimer = null;
+let _txHashTimer    = null;
+let _selectedHashNet = "";
+
+function selectHashNet(btn, net) {
+  document.querySelectorAll(".hash-net-chip").forEach(c => c.classList.remove("active"));
+  btn.classList.add("active");
+  _selectedHashNet = net;
+  const hash = document.getElementById("trade-hash-input")?.value?.trim();
+  if (hash && hash.length >= 20) {
+    clearTimeout(_txHashTimer);
+    _txHashTimer = setTimeout(() => _lookupTxHash(hash), 300);
+  }
+}
 
 function onTxHashInput(val) {
   clearTimeout(_txHashTimer);
   const result  = document.getElementById("trade-hash-result");
-  const spinner = document.getElementById("trade-hash-spinner");
   if (!val || val.trim().length < 20) {
     result?.classList.add("hidden");
     return;
@@ -21,7 +32,8 @@ async function _lookupTxHash(hash) {
   spinner?.classList.remove("hidden");
   result?.classList.add("hidden");
   try {
-    const res  = await fetch(`/api/tx-lookup?hash=${encodeURIComponent(hash)}`);
+    const netParam = _selectedHashNet ? `&network=${encodeURIComponent(_selectedHashNet)}` : "";
+    const res  = await fetch(`/api/tx-lookup?hash=${encodeURIComponent(hash)}${netParam}`);
     const data = await res.json();
     spinner?.classList.add("hidden");
     if (!res.ok || data.error) {
@@ -407,11 +419,14 @@ function openTradeModal(prefillTicker) {
     tickerInput.placeholder = t("trade_ticker_ph");
   }
 
-  tradeLastEdited = "price";
+  tradeLastEdited  = "price";
+  _selectedHashNet = "";
   clearTimeout(_txHashTimer);
   const _v  = (id, val)  => { const el = document.getElementById(id); if (el) el.value = val; };
   const _add = (id, cls) => document.getElementById(id)?.classList.add(cls);
   const _rm  = (id, cls) => document.getElementById(id)?.classList.remove(cls);
+  // reset network chips to Auto
+  document.querySelectorAll(".hash-net-chip").forEach((c, i) => c.classList.toggle("active", i === 0));
   _v("trade-hash-input", "");
   _v("trade-qty", "");
   _v("trade-price", "");
