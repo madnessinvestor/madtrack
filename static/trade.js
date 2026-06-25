@@ -16,6 +16,40 @@ function selectHashNet(btn, net) {
   }
 }
 
+// Map of URL hostname patterns → network chip key
+const _EXPLORER_DOMAINS = {
+  'etherscan.io':             'ethereum',
+  'basescan.org':             'base',
+  'arbiscan.io':              'arbitrum',
+  'optimistic.etherscan.io':  'optimism',
+  'bscscan.com':              'bsc',
+  'polygonscan.com':          'polygon',
+  'snowtrace.io':             'avalanche',
+  'avascan.info':             'avalanche',
+  'explorer.zksync.io':       'zksync',
+  'era.zksync.network':       'zksync',
+  'lineascan.build':          'linea',
+  'scrollscan.com':           'scroll',
+  'explorer.mantle.xyz':      'mantle',
+  'hyperevmscan.io':          'hyperevm',
+  'mempool.space':            'bitcoin',
+  'blockchair.com':           'bitcoin',
+  'solscan.io':               'solana',
+  'explorer.solana.com':      'solana',
+  'solana.fm':                'solana',
+};
+
+function _netFromUrl(raw) {
+  try {
+    const url = raw.includes('://') ? raw : 'https://' + raw;
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    for (const [domain, net] of Object.entries(_EXPLORER_DOMAINS)) {
+      if (host === domain || host.endsWith('.' + domain)) return net;
+    }
+  } catch (_) {}
+  return null;
+}
+
 function _extractHash(raw) {
   // Accept full explorer URLs like https://etherscan.io/tx/0xABC... or hyperevmscan.io/tx/...
   const m = raw.match(/(?:\/tx\/|[?&]tx=)(0x[0-9a-fA-F]+|[0-9a-fA-F]{40,})/i);
@@ -27,7 +61,23 @@ function _extractHash(raw) {
 function onTxHashInput(val) {
   clearTimeout(_txHashTimer);
   const result  = document.getElementById("trade-hash-result");
-  const extracted = _extractHash(val || "");
+  const raw = val || "";
+
+  // Auto-select network chip when a known explorer URL is pasted
+  const detectedNet = _netFromUrl(raw);
+  if (detectedNet) {
+    const chips = document.querySelectorAll(".hash-net-chip");
+    chips.forEach(c => {
+      const onclick = c.getAttribute("onclick") || "";
+      const m = onclick.match(/'([^']*)'\)/);
+      const chipNet = m ? m[1] : "";
+      const active = chipNet === detectedNet;
+      c.classList.toggle("active", active);
+      if (active) _selectedHashNet = chipNet;
+    });
+  }
+
+  const extracted = _extractHash(raw);
   if (!extracted || extracted.length < 20) {
     result?.classList.add("hidden");
     return;
@@ -72,19 +122,23 @@ function _showHashError(errKey) {
 function _applyTxResult(data) {
   const result = document.getElementById("trade-hash-result");
 
+  // Use native token as ticker/qty fallback when token swap info isn't available
+  const effectiveTicker = data.ticker || data.native_sym || "";
+  const effectiveQty    = (data.qty != null) ? data.qty : (data.native_amount != null ? data.native_amount : null);
+
   // Fill ticker
-  if (data.ticker) {
+  if (effectiveTicker) {
     const tickerEl = document.getElementById("trade-ticker-input");
     if (tickerEl && !tickerEl.disabled) {
-      tickerEl.value = data.ticker;
-      onTradeTickerInput(data.ticker);
+      tickerEl.value = effectiveTicker;
+      onTradeTickerInput(effectiveTicker);
     }
   }
 
   // Fill qty
-  if (data.qty) {
+  if (effectiveQty != null) {
     const qtyEl = document.getElementById("trade-qty");
-    if (qtyEl) qtyEl.value = data.qty;
+    if (qtyEl) qtyEl.value = effectiveQty;
   }
 
   // Fill investment / price
@@ -93,7 +147,7 @@ function _applyTxResult(data) {
     if (invEl) invEl.value = data.total_usd;
     tradeLastEdited = "investment";
     updateTradePreview();
-  } else if (data.qty) {
+  } else if (effectiveQty != null) {
     tradeLastEdited = "qty";
     updateTradePreview();
   }
