@@ -1136,9 +1136,19 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
                 best_stable_swap = (score, addr, recv_sym, recv_qty, sent_qty)
 
     # --- Step 3: build result from the best match ---
-    # Priority: buy > sell > stable-swap (non-stable trades are more common/interesting)
+    # Priority: buy > sell > stable-swap
+    # Exception: if best_buyer is only buying a *wrapped native* token (WHYPE, WETH…)
+    # AND tx_from is directly the seller, the "buyer" is a DEX pool counterparty —
+    # the user is actually selling, so prefer the seller's perspective.
+    buyer_buys_wrapped    = best_buyer  is not None and is_wrapped.get(best_buyer[2],  False)
+    tx_from_direct_seller = best_seller is not None and best_seller[1] == tx_from
 
-    if best_buyer:
+    use_buyer = (
+        best_buyer is not None
+        and not (buyer_buys_wrapped and tx_from_direct_seller)
+    )
+
+    if use_buyer:
         _, _addr, recv_sym, recv_qty, stable_spent = best_buyer
         result["ticker"]    = recv_sym
         result["qty"]       = round(recv_qty, 10)
