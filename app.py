@@ -814,6 +814,115 @@ NETWORK_MAP = {
     "mantle":    ("Mantle",       "https://mantle.blockscout.com",            "MNT"),
 }
 
+# ── HyperEVM: direct RPC lookup (no Blockscout available) ─────────────────────
+_HYPER_RPC   = "https://rpc.hyperliquid.xyz/evm"
+_TRANSFER_SIG = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+_SYM_SEL      = "0x95d89b41"   # symbol()
+_DEC_SEL      = "0x313ce567"   # decimals()
+_erc20_cache  = {}             # contract → (symbol, decimals)
+
+def _rpc(method, params):
+    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
+    try:
+        req = urllib.request.Request(
+            _HYPER_RPC, payload,
+            {"Content-Type": "application/json", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return json.loads(r.read()).get("result")
+    except Exception:
+        return None
+
+def _erc20_meta(addr):
+    addr = addr.lower()
+    if addr in _erc20_cache:
+        return _erc20_cache[addr]
+    def eth_call_str(sel):
+        res = _rpc("eth_call", [{"to": addr, "data": sel}, "latest"]) or "0x"
+        try:
+            b = bytes.fromhex(res[2:])
+            length = int.from_bytes(b[32:64], "big")
+            return b[64:64+length].decode("utf-8", "ignore").strip()
+        except Exception:
+            return ""
+    def eth_call_uint(sel):
+        res = _rpc("eth_call", [{"to": addr, "data": sel}, "latest"]) or "0x0"
+        try:
+            return int(res, 16)
+        except Exception:
+            return 18
+    sym = eth_call_str(_SYM_SEL)
+    dec = eth_call_uint(_DEC_SEL)
+    _erc20_cache[addr] = (sym, dec)
+    return sym, dec
+
+def _lookup_hyperevm_rpc(hash_):
+    h = hash_ if hash_.startswith("0x") else f"0x{hash_}"
+    receipt = _rpc("eth_getTransactionReceipt", [h])
+    if not receipt:
+        return jsonify({"error": "not_found"}), 404
+
+    tx_from = (receipt.get("from") or "").lower()
+    try:
+        native_val = int(receipt.get("value", "0x0") or "0x0", 16) / 1e18
+    except Exception:
+        native_val = 0.0
+
+    # Also fetch tx for native value (receipt may not carry it)
+    tx = _rpc("eth_getTransactionByHash", [h]) or {}
+    try:
+        native_val = int(tx.get("value", "0x0") or "0x0", 16) / 1e18
+    except Exception:
+        pass
+
+    # Decode ERC-20 Transfer events from logs
+    transfers = []
+    for log in (receipt.get("logs") or []):
+        topics = log.get("topics") or []
+        if not topics or topics[0].lower() != _TRANSFER_SIG:
+            continue
+        contract = log.get("address", "").lower()
+        sym, dec  = _erc20_meta(contract)
+        if not sym:
+            continue
+        from_a = ("0x" + topics[1][-40:]).lower() if len(topics) > 1 else ""
+        to_a   = ("0x" + topics[2][-40:]).lower() if len(topics) > 2 else ""
+        data   = log.get("data", "0x0")
+        try:
+            raw_val = int(data, 16)
+        except Exception:
+            raw_val = 0
+        transfers.append({
+            "token": {"symbol": sym},
+            "total": {"value": str(raw_val), "decimals": str(dec)},
+            "from":  {"hash": from_a},
+            "to":    {"hash": to_a},
+        })
+
+    # Build a fake tx_data dict for _parse_evm_result
+    tx_data = {"value": tx.get("value", "0x0")}
+    # Timestamp from block (best effort)
+    block_ts = None
+    block_num = receipt.get("blockNumber")
+    if block_num:
+        blk = _rpc("eth_getBlockByNumber", [block_num, False]) or {}
+        ts_hex = blk.get("timestamp", "")
+        if ts_hex:
+            try:
+                import datetime as _dt
+                block_ts = _dt.datetime.utcfromtimestamp(int(ts_hex, 16)).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+    parsed = _parse_evm_result(tx_from, transfers, tx_data, "HYPE", "HyperEVM", block_ts)
+    if not transfers and native_val > 0:
+        parsed = {
+            "network": "HyperEVM", "ticker": "HYPE",
+            "qty": round(native_val, 10), "total_usd": None, "timestamp": block_ts,
+        }
+    return jsonify(parsed)
+
+# ──────────────────────────────────────────────────────────────────────────────
 def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
     """Fetch a tx from a specific EVM chain. Tries Blockscout v2, then Etherscan-style API."""
     h = hash_ if hash_.startswith("0x") else f"0x{hash_}"
@@ -1071,6 +1180,8 @@ def tx_lookup():
         return _lookup_bitcoin(hash_)
     if network == "solana":
         return _lookup_solana(hash_)
+    if network == "hyperevm":
+        return _lookup_hyperevm_rpc(hash_)
     if network in NETWORK_MAP:
         name, base_url, native = NETWORK_MAP[network]
         return _lookup_evm_single(hash_, name, base_url, native)
