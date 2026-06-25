@@ -813,15 +813,33 @@ NETWORK_MAP = {
 }
 
 def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
-    """Fetch a tx from a specific EVM chain (Blockscout v2 API)."""
+    """Fetch a tx from a specific EVM chain. Tries Blockscout v2, then Etherscan-style API."""
     h = hash_ if hash_.startswith("0x") else f"0x{hash_}"
+    # 1) Blockscout v2
     for candidate in [h, hash_]:
         data = _tx_fetch(f"{base_url}/api/v2/transactions/{candidate}")
         if data and data.get("hash"):
-            tx_from  = (data.get("from") or {}).get("hash", "")
+            tx_from   = (data.get("from") or {}).get("hash", "")
             transfers = data.get("token_transfers") or []
             ts        = _ts_fmt(data.get("timestamp"))
             return jsonify(_parse_evm_result(tx_from, transfers, data, native_sym, chain_name, ts))
+    # 2) Etherscan-style API fallback
+    for candidate in [h, hash_]:
+        url  = f"{base_url}/api?module=proxy&action=eth_getTransactionByHash&txhash={candidate}"
+        data = _tx_fetch(url)
+        if data and data.get("result"):
+            tx = data["result"]
+            try:
+                native_val = int(tx.get("value", "0x0") or "0x0", 16) / 1e18
+            except Exception:
+                native_val = 0.0
+            return jsonify({
+                "network":   chain_name,
+                "ticker":    native_sym if native_val > 0 else "",
+                "qty":       round(native_val, 10) if native_val > 0 else None,
+                "total_usd": None,
+                "timestamp": None,
+            })
     return jsonify({"error": "not_found"}), 404
 
 def _ts_fmt(iso_str):
@@ -978,6 +996,11 @@ def tx_lookup():
     network = request.args.get("network", "").strip().lower()
     if not hash_:
         return jsonify({"error": "no_hash"}), 400
+
+    # Extract hash from full explorer URL (e.g. https://etherscan.io/tx/0xABC...)
+    url_match = _re.search(r'/tx/(0x[0-9a-fA-F]+|[0-9a-fA-F]{40,})', hash_)
+    if url_match:
+        hash_ = url_match.group(1)
 
     # Manual network selection — bypass auto-detect
     if network == "bitcoin":

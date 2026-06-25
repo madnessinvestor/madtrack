@@ -1,4 +1,4 @@
-const CACHE = "madtracker-v5";
+const CACHE = "madtracker-v6";
 const STATIC = ["/", "/static/style.css", "/static/app.js", "/static/i18n.js", "/static/trade.js", "/static/alerts.js"];
 
 self.addEventListener("install", e => {
