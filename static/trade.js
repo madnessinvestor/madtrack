@@ -16,14 +16,23 @@ function selectHashNet(btn, net) {
   }
 }
 
+function _extractHash(raw) {
+  // Accept full explorer URLs like https://etherscan.io/tx/0xABC... or hyperevmscan.io/tx/...
+  const m = raw.match(/(?:\/tx\/|[?&]tx=)(0x[0-9a-fA-F]+|[0-9a-fA-F]{40,})/i);
+  if (m) return m[1];
+  // Or just a raw hex / base58 string
+  return raw.trim();
+}
+
 function onTxHashInput(val) {
   clearTimeout(_txHashTimer);
   const result  = document.getElementById("trade-hash-result");
-  if (!val || val.trim().length < 20) {
+  const extracted = _extractHash(val || "");
+  if (!extracted || extracted.length < 20) {
     result?.classList.add("hidden");
     return;
   }
-  _txHashTimer = setTimeout(() => _lookupTxHash(val.trim()), 700);
+  _txHashTimer = setTimeout(() => _lookupTxHash(extracted), 700);
 }
 
 async function _lookupTxHash(hash) {

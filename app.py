@@ -804,7 +804,7 @@ NETWORK_MAP = {
     "optimism":  ("Optimism",     "https://optimism.blockscout.com",          "ETH"),
     "bsc":       ("BSC",          "https://bsc.blockscout.com",               "BNB"),
     "polygon":   ("Polygon",      "https://polygon.blockscout.com",           "MATIC"),
-    "hyperevm":  ("HyperEVM",     "https://hyperliquid.blockscout.com",       "HYPE"),
+    "hyperevm":  ("HyperEVM",     "https://hyperevmscan.io",                  "HYPE"),
     "avalanche": ("Avalanche",    "https://avalanche.blockscout.com",         "AVAX"),
     "zksync":    ("zkSync Era",   "https://zksync.blockscout.com",            "ETH"),
     "linea":     ("Linea",        "https://explorer.linea.build",             "ETH"),
