@@ -850,12 +850,24 @@ def _ts_fmt(iso_str):
     except Exception:
         return None
 
+_WRAPPED_NATIVE = {"WETH","WBNB","WMATIC","WAVAX","WFTM","WONE","WHYPE","WCORE","WGLMR"}
+
 def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, timestamp):
-    received, spent = [], []
+    """
+    Robust DEX swap parser using NET balance deltas per (token, address).
+    Works even when tokens pass through routers/pools (Uniswap v3, Aerodrome, etc.)
+    """
     tx_from = tx_from.lower()
+    # delta[(sym, addr)] = net token flow (positive = received, negative = sent)
+    delta   = {}
+    is_stable  = {}   # sym -> bool
+    is_wrapped = {}   # sym -> bool
+
     for t in transfers:
         tok    = t.get("token") or {}
         sym    = tok.get("symbol", "").upper()
+        if not sym:
+            continue
         dec    = int((t.get("total") or {}).get("decimals", 18) or 18)
         raw    = (t.get("total") or {}).get("value", "0") or "0"
         try:
@@ -864,25 +876,53 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
             amount = 0
         from_a = ((t.get("from") or {}).get("hash") or "").lower()
         to_a   = ((t.get("to")   or {}).get("hash") or "").lower()
-        if to_a == tx_from:
-            received.append({"sym": sym, "amount": amount, "stable": sym in _STABLECOINS})
-        elif from_a == tx_from:
-            spent.append({"sym": sym, "amount": amount, "stable": sym in _STABLECOINS})
+        is_stable[sym]  = sym in _STABLECOINS
+        is_wrapped[sym] = sym in _WRAPPED_NATIVE
+        if to_a:
+            delta[(sym, to_a)]   = delta.get((sym, to_a), 0)   + amount
+        if from_a:
+            delta[(sym, from_a)] = delta.get((sym, from_a), 0) - amount
 
-    bought      = [r for r in received if not r["stable"]]
-    paid_stable = [s for s in spent   if s["stable"]]
+    # Identify buyer: tx_from, or the address with the most positive non-stable delta
+    # (handles smart-contract wallets / meta-txs)
+    candidate_buyers = {tx_from}
+    for (sym, addr), d in delta.items():
+        if d > 0 and not is_stable.get(sym) and not is_wrapped.get(sym):
+            candidate_buyers.add(addr)
+
+    # For each candidate, compute: tokens received (non-stable, non-wrapped) and stable spent
+    best_result = None
+    for buyer in candidate_buyers:
+        tokens_in  = [(sym, d) for (sym, addr), d in delta.items()
+                      if addr == buyer and d > 0 and not is_stable.get(sym) and not is_wrapped.get(sym)]
+        stable_out = sum(-d for (sym, addr), d in delta.items()
+                         if addr == buyer and d < 0 and is_stable.get(sym))
+        # Stable also counts if the buyer is the tx_from and a stable went somewhere else
+        if not stable_out and buyer == tx_from:
+            stable_out = sum(d for (sym, addr), d in delta.items()
+                             if addr == tx_from and is_stable.get(sym) and d < 0)
+            stable_out = abs(stable_out)
+
+        if tokens_in:
+            # Pick token with largest received amount
+            best_tok, best_qty = max(tokens_in, key=lambda x: x[1])
+            score = best_qty  # prefer larger quantities
+            if best_result is None or score > best_result[0]:
+                best_result = (score, best_tok, best_qty, stable_out, buyer)
+
     try:
         native_val = int(tx_data.get("value", "0") or "0") / 1e18
     except Exception:
         native_val = 0.0
 
     result = {"network": chain_name, "timestamp": timestamp}
-    if bought:
-        b = bought[0]
-        result["ticker"]   = b["sym"]
-        result["qty"]      = round(b["amount"], 10)
-        if paid_stable:
-            result["total_usd"] = round(sum(p["amount"] for p in paid_stable), 6)
+
+    if best_result:
+        _, tok_sym, tok_qty, stable_paid, _ = best_result
+        result["ticker"] = tok_sym
+        result["qty"]    = round(tok_qty, 10)
+        if stable_paid > 0:
+            result["total_usd"] = round(stable_paid, 6)
         elif native_val > 0:
             result["native_sym"]    = native_sym
             result["native_amount"] = round(native_val, 8)
@@ -890,11 +930,13 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         else:
             result["total_usd"] = None
     elif native_val > 0 and not transfers:
+        # Simple native transfer
         result["ticker"]    = native_sym
         result["qty"]       = round(native_val, 10)
         result["total_usd"] = None
     else:
         result["error"] = "swap_complex"
+
     return result
 
 def _lookup_evm(hash_):
