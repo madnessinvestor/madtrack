@@ -787,7 +787,8 @@ def _tx_post(url, payload, timeout=10):
 _STABLECOINS = {"USDT","USDC","DAI","BUSD","FDUSD","TUSD","USDE","FRAX","LUSD",
                 "USDBC","USDC.E","USDV","PYUSD","GUSD","DOLA","CUSD","SUSD","MUSD","USDP",
                 "USDH","USDD","CRVUSD","GHO","USDR","USDX","EUSD","LISUSD","MKUSD",
-                "USDC.e","USDT.e","USDCE","USDTE","EURS","AGEUR","EURA"}
+                "USDC.e","USDT.e","USDCE","USDTE","EURS","AGEUR","EURA",
+                "USD₮0","USDT0","USD0","USDM","USDY","USDV2"}
 
 EVM_CHAINS = [
     ("Ethereum",     "https://eth.blockscout.com",      "ETH"),
