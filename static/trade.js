@@ -290,28 +290,32 @@ function openTradeModal(prefillTicker) {
   tradeMode           = "unit";
 
   const tickerInput = document.getElementById("trade-ticker-input");
-  tickerInput.value    = prefillTicker || "";
-  tickerInput.disabled = !!prefillTicker;
-  tickerInput.placeholder = t("trade_ticker_ph");
+  if (tickerInput) {
+    tickerInput.value       = prefillTicker || "";
+    tickerInput.disabled    = !!prefillTicker;
+    tickerInput.placeholder = t("trade_ticker_ph");
+  }
 
   tradeLastEdited = "price";
-  const _v = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  const _v  = (id, val)  => { const el = document.getElementById(id); if (el) el.value = val; };
+  const _add = (id, cls) => document.getElementById(id)?.classList.add(cls);
+  const _rm  = (id, cls) => document.getElementById(id)?.classList.remove(cls);
   _v("trade-qty", "");
   _v("trade-price", "");
   _v("trade-total-paid", "");
   _v("trade-investment", "");
   _v("trade-date", nowStr());
-  document.getElementById("trade-error").classList.add("hidden");
-  document.getElementById("trade-suggestions").classList.add("hidden");
-  document.getElementById("trade-price-preview").classList.add("hidden");
-  document.getElementById("trade-total-preview").classList.add("hidden");
-  document.getElementById("trade-derived-preview").classList.add("hidden");
-  document.getElementById("trade-col-price").classList.remove("hidden");
-  document.getElementById("trade-col-totalpaid").classList.add("hidden");
-  document.getElementById("trade-row-investment").classList.remove("hidden");
-  document.getElementById("trade-mode-unit").classList.add("active");
-  document.getElementById("trade-mode-total").classList.remove("active");
-  document.getElementById("trade-modal").classList.remove("hidden");
+  _add("trade-error",          "hidden");
+  _add("trade-suggestions",    "hidden");
+  _add("trade-price-preview",  "hidden");
+  _add("trade-total-preview",  "hidden");
+  _add("trade-derived-preview","hidden");
+  _rm ("trade-col-price",      "hidden");
+  _add("trade-col-totalpaid",  "hidden");
+  _rm ("trade-row-investment", "hidden");
+  _add("trade-mode-unit",      "active");
+  _rm ("trade-mode-total",     "active");
+  _rm ("trade-modal",          "hidden");
 
   if (prefillTicker) {
     tradePendingTicker = prefillTicker.toUpperCase();
@@ -327,10 +331,10 @@ function openTradeModalFor(ticker, e) {
 }
 
 function closeTradeModal() {
-  document.getElementById("trade-modal").classList.add("hidden");
+  document.getElementById("trade-modal")?.classList.add("hidden");
   clearTimeout(tradeSearchTimeout);
   clearTimeout(tradeSuggestTimeout);
-  document.getElementById("trade-suggestions").classList.add("hidden");
+  document.getElementById("trade-suggestions")?.classList.add("hidden");
 }
 
 function nowStr() {
