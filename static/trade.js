@@ -141,11 +141,17 @@ function _applyTxResult(data) {
     if (qtyEl) qtyEl.value = effectiveQty;
   }
 
-  // Fill investment / price
-  if (data.total_usd) {
+  // Fill price per token + total investment
+  if (data.total_usd && effectiveQty) {
+    // Price per token = total paid / quantity received
+    const pricePerToken = data.total_usd / effectiveQty;
+    const priceEl = document.getElementById("trade-price");
+    if (priceEl) priceEl.value = pricePerToken.toPrecision(8).replace(/\.?0+$/, "");
+
     const invEl = document.getElementById("trade-investment");
     if (invEl) invEl.value = data.total_usd;
-    tradeLastEdited = "investment";
+
+    tradeLastEdited = "price";
     updateTradePreview();
   } else if (effectiveQty != null) {
     tradeLastEdited = "qty";
