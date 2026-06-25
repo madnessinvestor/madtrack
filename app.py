@@ -785,7 +785,9 @@ def _tx_post(url, payload, timeout=10):
         return None
 
 _STABLECOINS = {"USDT","USDC","DAI","BUSD","FDUSD","TUSD","USDE","FRAX","LUSD",
-                "USDBC","USDC.E","USDV","PYUSD","GUSD","DOLA","CUSD","SUSD","MUSD","USDP"}
+                "USDBC","USDC.E","USDV","PYUSD","GUSD","DOLA","CUSD","SUSD","MUSD","USDP",
+                "USDH","USDD","CRVUSD","GHO","USDR","USDX","EUSD","LISUSD","MKUSD",
+                "USDC.e","USDT.e","USDCE","USDTE","EURS","AGEUR","EURA"}
 
 EVM_CHAINS = [
     ("Ethereum",     "https://eth.blockscout.com",      "ETH"),
@@ -935,7 +937,27 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         result["qty"]       = round(native_val, 10)
         result["total_usd"] = None
     else:
-        result["error"] = "swap_complex"
+        # Fallback: stable-to-stable swap (e.g. USDT → USDC)
+        # Find stable received (positive delta for tx_from) and stable sent (negative delta)
+        stable_received = [(sym, d) for (sym, addr), d in delta.items()
+                           if addr == tx_from and d > 0 and is_stable.get(sym)]
+        stable_sent     = [(sym, -d) for (sym, addr), d in delta.items()
+                           if addr == tx_from and d < 0 and is_stable.get(sym)]
+        if not stable_received:
+            # Maybe tx_from isn't the direct recipient — pick any address with positive stable delta
+            stable_received = [(sym, d) for (sym, addr), d in delta.items()
+                               if d > 0 and is_stable.get(sym)
+                               and not any(addr == a for (_, a) in [(s,a) for (s,a),_ in delta.items() if not is_stable.get(s)])]
+        if stable_received:
+            best_recv = max(stable_received, key=lambda x: x[1])
+            result["ticker"]    = best_recv[0]
+            result["qty"]       = round(best_recv[1], 6)
+            if stable_sent:
+                result["total_usd"] = round(max(stable_sent, key=lambda x: x[1])[1], 6)
+            else:
+                result["total_usd"] = round(best_recv[1], 6)
+        else:
+            result["error"] = "swap_complex"
 
     return result
 
