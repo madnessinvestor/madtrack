@@ -924,6 +924,47 @@ def _lookup_hyperevm_rpc(hash_):
     return jsonify(parsed)
 
 # ──────────────────────────────────────────────────────────────────────────────
+def _blockscout_all_transfers(base_url, hash_):
+    """
+    Fetch ALL token transfers for a tx from Blockscout v2.
+    The main /api/v2/transactions/{hash} endpoint caps inline token_transfers
+    at ~10. For complex swaps we need the dedicated paginated endpoint.
+    Returns a deduplicated list in the same Blockscout transfer dict format.
+    """
+    seen = set()
+    result = []
+
+    def add(transfers):
+        for t in (transfers or []):
+            key = (
+                ((t.get("from") or {}).get("hash") or "").lower(),
+                ((t.get("to")   or {}).get("hash") or "").lower(),
+                (t.get("token") or {}).get("symbol", ""),
+                ((t.get("total") or {}).get("value") or ""),
+            )
+            if key not in seen:
+                seen.add(key)
+                result.append(t)
+
+    # Paginate through the dedicated token-transfers endpoint
+    next_page = None
+    for _ in range(10):   # max 10 pages (= up to ~500 transfers)
+        url = f"{base_url}/api/v2/transactions/{hash_}/token-transfers?type=ERC-20"
+        if next_page:
+            url += f"&{next_page}"
+        page = _tx_fetch(url, timeout=8)
+        if not page:
+            break
+        add(page.get("items") or [])
+        next_page_params = page.get("next_page_params")
+        if not next_page_params:
+            break
+        # Build query string from next_page_params dict
+        next_page = "&".join(f"{k}={v}" for k, v in next_page_params.items())
+
+    return result
+
+
 def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
     """Fetch a tx from a specific EVM chain. Tries Blockscout v2, then Etherscan-style API."""
     h = hash_ if hash_.startswith("0x") else f"0x{hash_}"
@@ -931,10 +972,30 @@ def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
     for candidate in [h, hash_]:
         data = _tx_fetch(f"{base_url}/api/v2/transactions/{candidate}")
         if data and data.get("hash"):
-            tx_from   = (data.get("from") or {}).get("hash", "")
-            transfers = data.get("token_transfers") or []
-            ts        = _ts_fmt(data.get("timestamp"))
-            return jsonify(_parse_evm_result(tx_from, transfers, data, native_sym, chain_name, ts))
+            tx_from = (data.get("from") or {}).get("hash", "")
+            ts      = _ts_fmt(data.get("timestamp"))
+
+            # Fetch ALL token transfers (dedicated endpoint, paginated)
+            # Fall back to the inline list if the dedicated endpoint fails
+            all_transfers = _blockscout_all_transfers(base_url, candidate)
+            if not all_transfers:
+                all_transfers = data.get("token_transfers") or []
+
+            # Blockscout v2 returns `value` as a decimal string, not hex.
+            # Normalise it so _parse_evm_result can parse it correctly.
+            raw_value = str(data.get("value") or "0")
+            if raw_value.startswith("0x"):
+                tx_data = data
+            else:
+                # Wrap in a dict with hex-encoded value for the parser
+                tx_data = dict(data)
+                try:
+                    tx_data["value"] = hex(int(raw_value))
+                except Exception:
+                    tx_data["value"] = "0x0"
+
+            return jsonify(_parse_evm_result(tx_from, all_transfers, tx_data, native_sym, chain_name, ts))
+
     # 2) Etherscan-style API fallback
     for candidate in [h, hash_]:
         url  = f"{base_url}/api?module=proxy&action=eth_getTransactionByHash&txhash={candidate}"
