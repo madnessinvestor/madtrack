@@ -474,7 +474,7 @@ def add_portfolio_trade():
     try:
         qty = float(data.get("qty", 0))
         price_paid = float(data.get("price_paid", 0))
-        if qty <= 0 or price_paid <= 0:
+        if qty == 0 or price_paid <= 0:
             raise ValueError
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "invalid qty/price"}), 400
@@ -1163,6 +1163,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         result["ticker"]    = sold_sym
         result["qty"]       = round(sold_qty, 10)
         result["total_usd"] = round(stable_recv, 6)
+        result["is_sell"]   = True
         return result
 
     if best_stable_swap:

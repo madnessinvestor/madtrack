@@ -164,15 +164,22 @@ function _applyTxResult(data) {
     if (dateEl) dateEl.value = data.timestamp;
   }
 
+  // Update sell/buy mode on confirm button
+  _currentHashIsSell = !!data.is_sell;
+  _updateConfirmBtn();
+
   // Show result card
   if (!result) return;
+  const tradeTypeLabel = data.is_sell ? "🔴 VENDA" : "🟢 COMPRA";
   let html = `<span class="hash-network-badge">🔗 ${data.network || "?"}</span>`;
+  html += `<span class="hash-trade-type ${data.is_sell ? "sell" : "buy"}">${tradeTypeLabel}</span>`;
   const details = [];
   if (data.ticker && data.qty) {
     details.push(`<span class="hash-detail-item">${t("qty_label")}: <strong>${fmtQty(data.qty)} ${data.ticker}</strong></span>`);
   }
   if (data.total_usd) {
-    details.push(`<span class="hash-detail-item">${t("investment_label")}: <strong>${formatUSD(data.total_usd, true)}</strong></span>`);
+    const usdLabel = data.is_sell ? "Recebido" : t("investment_label");
+    details.push(`<span class="hash-detail-item">${usdLabel}: <strong>${formatUSD(data.total_usd, true)}</strong></span>`);
   } else if (data.native_sym && data.native_amount) {
     details.push(`<span class="hash-detail-item">Pago: <strong>${data.native_amount} ${data.native_sym}</strong></span>`);
   }
@@ -190,6 +197,13 @@ function _applyTxResult(data) {
   result.classList.remove("hidden");
 }
 
+function _updateConfirmBtn() {
+  const btn = document.querySelector("#trade-modal .btn-confirm");
+  if (!btn) return;
+  const key = _currentHashIsSell ? "confirm_sell" : "confirm_trade";
+  btn.innerHTML = `✓ ${t(key)}`;
+}
+
 // ─── Portfolio vars ───────────────────────────────────────────────────────────
 
 let cachedPortfolio = [];
@@ -202,6 +216,7 @@ let tradeFetchedPrice    = null;
 let tradePendingTicker   = null;
 let tradeMode            = "unit"; // "unit" | "total"
 let tradeLastEdited      = "price"; // "price" | "investment" — for bidirectional sync
+let _currentHashIsSell   = false;  // true when tx lookup detected a sell
 
 function setTradeMode(mode) {
   tradeMode = mode;
@@ -366,17 +381,26 @@ function portfolioCardHTML(tok) {
     ? `<span class="pdetail-val ${beCls}">${beSign}${be_dist.toFixed(2)}%</span>`
     : `<span class="pdetail-val">—</span>`;
 
-  const tradesHTML = (tok.trades || []).map((tr, idx) => `
-    <div class="trade-row">
+  const tradesHTML = (tok.trades || []).map((tr, idx) => {
+    const isSell  = tr.qty < 0;
+    const absQty  = Math.abs(tr.qty);
+    const total   = absQty * tr.price_paid;
+    const badge   = isSell
+      ? `<span class="trade-row-badge sell">${t("p_sell_badge")}</span>`
+      : "";
+    const confirmKey = isSell ? "confirm_remove_trade_sell" : "confirm_remove_trade";
+    return `
+    <div class="trade-row${isSell ? " trade-row-sell" : ""}">
       <div class="trade-row-left">
-        <span class="trade-row-date">${tr.date || "—"}</span>
-        <span class="trade-row-qty">${fmtQty(tr.qty)} × ${formatUSD(tr.price_paid)}</span>
+        <span class="trade-row-date">${tr.date || "—"}${badge}</span>
+        <span class="trade-row-qty">${fmtQty(absQty)} × ${formatUSD(tr.price_paid)}</span>
       </div>
       <div class="trade-row-right">
-        <span class="trade-row-total">${formatUSD(tr.qty * tr.price_paid)}</span>
-        <button class="trade-row-del" onclick="deletePortfolioTrade('${sym}',${idx},event)" title="Remover">✕</button>
+        <span class="trade-row-total${isSell ? " sell-total" : ""}">${isSell ? "+" : ""}${formatUSD(total)}</span>
+        <button class="trade-row-del" onclick="deletePortfolioTrade('${sym}',${idx},event,'${confirmKey}')" title="Remover">✕</button>
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 
   return `<div class="asset-card expandable portfolio-card" data-pticker="${sym}" onclick="togglePortfolioCard(this,event)">
     <div class="card-top">
@@ -465,9 +489,10 @@ async function deletePortfolioToken(ticker, e) {
   loadPortfolio();
 }
 
-async function deletePortfolioTrade(ticker, idx, e) {
+async function deletePortfolioTrade(ticker, idx, e, confirmKey) {
   e.stopPropagation();
-  if (!confirm(t("confirm_remove_trade"))) return;
+  const msgKey = confirmKey || "confirm_remove_trade";
+  if (!confirm(t(msgKey))) return;
   await fetch(`/api/portfolio/${encodeURIComponent(ticker)}/trade/${idx}`, { method: "DELETE" });
   loadPortfolio();
 }
@@ -488,8 +513,9 @@ function openTradeModal(prefillTicker) {
     tickerInput.placeholder = t("trade_ticker_ph");
   }
 
-  tradeLastEdited  = "price";
-  _selectedHashNet = "";
+  tradeLastEdited    = "price";
+  _currentHashIsSell = false;
+  _selectedHashNet   = "";
   clearTimeout(_txHashTimer);
   const _v  = (id, val)  => { const el = document.getElementById(id); if (el) el.value = val; };
   const _add = (id, cls) => document.getElementById(id)?.classList.add(cls);
@@ -514,6 +540,7 @@ function openTradeModal(prefillTicker) {
   _add("trade-mode-unit",      "active");
   _rm ("trade-mode-total",     "active");
   _rm ("trade-modal",          "hidden");
+  _updateConfirmBtn();
 
   if (prefillTicker) {
     tradePendingTicker = prefillTicker.toUpperCase();
@@ -672,13 +699,13 @@ function updateTradePreview() {
 async function submitTrade() {
   const errEl  = document.getElementById("trade-error");
   const ticker = (document.getElementById("trade-ticker-input").value || tradePendingTicker || "").trim().toUpperCase();
-  const qty    = parseFloat(document.getElementById("trade-qty").value);
+  const absQty = parseFloat(document.getElementById("trade-qty").value);
   const date   = document.getElementById("trade-date").value.trim();
 
   errEl.classList.add("hidden");
 
   if (!ticker) { errEl.textContent = t("err_ticker"); errEl.classList.remove("hidden"); return; }
-  if (isNaN(qty) || qty <= 0) { errEl.textContent = t("err_qty"); errEl.classList.remove("hidden"); return; }
+  if (isNaN(absQty) || absQty <= 0) { errEl.textContent = t("err_qty"); errEl.classList.remove("hidden"); return; }
 
   let price;
   if (tradeMode === "unit") {
@@ -688,9 +715,12 @@ async function submitTrade() {
     const totalPaid = parseFloat(document.getElementById("trade-total-paid").value);
     if (isNaN(totalPaid) || totalPaid <= 0) { errEl.textContent = t("err_total"); errEl.classList.remove("hidden"); return; }
     const rate = typeof getRate === "function" ? getRate() : 1;
-    price = (totalPaid / rate) / qty;
+    price = (totalPaid / rate) / absQty;
     if (!isFinite(price) || price <= 0) { errEl.textContent = t("err_price"); errEl.classList.remove("hidden"); return; }
   }
+
+  // Sells are stored as negative qty so the portfolio math works naturally
+  const qty = _currentHashIsSell ? -absQty : absQty;
 
   const res = await fetch("/api/portfolio", {
     method: "POST",
