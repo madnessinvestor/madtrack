@@ -67,6 +67,7 @@ function toggleCurrency() {
   localStorage.setItem("currency", currentCurrency);
   updateCurrencyBtn();
   rerenderAssets();
+  if (typeof loadPortfolio === "function") loadPortfolio();
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
