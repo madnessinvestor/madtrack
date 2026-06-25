@@ -1093,8 +1093,9 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         n_out = len(addr_syms_out.get(addr, set()))
         return n_in >= 3 and n_out >= 3
 
-    best_buyer  = None   # (score, addr, recv_sym, recv_qty, stable_spent)
-    best_seller = None   # (score, addr, sold_sym, sold_qty, stable_recv)
+    best_buyer       = None   # (score, addr, recv_sym, recv_qty, stable_spent)
+    best_seller      = None   # (score, addr, sold_sym, sold_qty, stable_recv)
+    best_stable_swap = None   # (score, addr, recv_sym, recv_qty, sent_qty)
 
     for addr, deltas in addr_delta.items():
         if is_router(addr):
@@ -1125,7 +1126,17 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
             if best_seller is None or score > best_seller[0]:
                 best_seller = (score, addr, sold_sym, sold_qty, stable_recv)
 
+        # STABLE-TO-STABLE pattern: spent one stable, received a different stable
+        # e.g. USDT → USDC, DAI → USDT
+        if pos_stable and neg_stable:
+            recv_sym, recv_qty = max(pos_stable, key=lambda x: x[1])
+            sent_qty = sum(v for _, v in neg_stable)
+            score = sent_qty + tiebreak * 1e-9
+            if best_stable_swap is None or score > best_stable_swap[0]:
+                best_stable_swap = (score, addr, recv_sym, recv_qty, sent_qty)
+
     # --- Step 3: build result from the best match ---
+    # Priority: buy > sell > stable-swap (non-stable trades are more common/interesting)
 
     if best_buyer:
         _, _addr, recv_sym, recv_qty, stable_spent = best_buyer
@@ -1142,6 +1153,13 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         result["ticker"]    = sold_sym
         result["qty"]       = round(sold_qty, 10)
         result["total_usd"] = round(stable_recv, 6)
+        return result
+
+    if best_stable_swap:
+        _, _addr, recv_sym, recv_qty, sent_qty = best_stable_swap
+        result["ticker"]    = recv_sym
+        result["qty"]       = round(recv_qty, 6)
+        result["total_usd"] = round(sent_qty, 6)
         return result
 
     # --- Step 4: fallbacks ---
