@@ -763,6 +763,201 @@ def reset_alert(alert_id):
     save_alerts(alerts)
     return jsonify({"ok": True})
 
+# ─── TX Hash Lookup ──────────────────────────────────────────────────────────
+
+def _tx_fetch(url, timeout=8):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode())
+    except Exception:
+        return None
+
+def _tx_post(url, payload, timeout=10):
+    try:
+        data = json.dumps(payload).encode()
+        req = urllib.request.Request(url, data=data,
+            headers={"Content-Type": "application/json", "User-Agent": "MadTracker/1.0"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode())
+    except Exception:
+        return None
+
+_STABLECOINS = {"USDT","USDC","DAI","BUSD","FDUSD","TUSD","USDE","FRAX","LUSD",
+                "USDBC","USDC.E","USDV","PYUSD","GUSD","DOLA","CUSD","SUSD","MUSD","USDP"}
+
+EVM_CHAINS = [
+    ("Ethereum",     "https://eth.blockscout.com",      "ETH"),
+    ("BSC",          "https://bsc.blockscout.com",      "BNB"),
+    ("Polygon",      "https://polygon.blockscout.com",  "MATIC"),
+    ("Arbitrum One", "https://arbitrum.blockscout.com", "ETH"),
+    ("Base",         "https://base.blockscout.com",     "ETH"),
+    ("Optimism",     "https://optimism.blockscout.com", "ETH"),
+]
+
+def _ts_fmt(iso_str):
+    if not iso_str:
+        return None
+    try:
+        return str(iso_str).replace("T", " ")[:19]
+    except Exception:
+        return None
+
+def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, timestamp):
+    received, spent = [], []
+    tx_from = tx_from.lower()
+    for t in transfers:
+        tok    = t.get("token") or {}
+        sym    = tok.get("symbol", "").upper()
+        dec    = int((t.get("total") or {}).get("decimals", 18) or 18)
+        raw    = (t.get("total") or {}).get("value", "0") or "0"
+        try:
+            amount = int(raw) / (10 ** dec)
+        except Exception:
+            amount = 0
+        from_a = ((t.get("from") or {}).get("hash") or "").lower()
+        to_a   = ((t.get("to")   or {}).get("hash") or "").lower()
+        if to_a == tx_from:
+            received.append({"sym": sym, "amount": amount, "stable": sym in _STABLECOINS})
+        elif from_a == tx_from:
+            spent.append({"sym": sym, "amount": amount, "stable": sym in _STABLECOINS})
+
+    bought      = [r for r in received if not r["stable"]]
+    paid_stable = [s for s in spent   if s["stable"]]
+    try:
+        native_val = int(tx_data.get("value", "0") or "0") / 1e18
+    except Exception:
+        native_val = 0.0
+
+    result = {"network": chain_name, "timestamp": timestamp}
+    if bought:
+        b = bought[0]
+        result["ticker"]   = b["sym"]
+        result["qty"]      = round(b["amount"], 10)
+        if paid_stable:
+            result["total_usd"] = round(sum(p["amount"] for p in paid_stable), 6)
+        elif native_val > 0:
+            result["native_sym"]    = native_sym
+            result["native_amount"] = round(native_val, 8)
+            result["total_usd"]     = None
+        else:
+            result["total_usd"] = None
+    elif native_val > 0 and not transfers:
+        result["ticker"]    = native_sym
+        result["qty"]       = round(native_val, 10)
+        result["total_usd"] = None
+    else:
+        result["error"] = "swap_complex"
+    return result
+
+def _lookup_evm(hash_):
+    for chain_name, base_url, native_sym in EVM_CHAINS:
+        data = _tx_fetch(f"{base_url}/api/v2/transactions/{hash_}")
+        if not data or not data.get("hash"):
+            continue
+        tx_from   = (data.get("from") or {}).get("hash", "")
+        transfers = data.get("token_transfers") or []
+        ts        = _ts_fmt(data.get("timestamp"))
+        parsed    = _parse_evm_result(tx_from, transfers, data, native_sym, chain_name, ts)
+        return jsonify(parsed)
+    return jsonify({"error": "not_found"}), 404
+
+def _lookup_bitcoin(hash_):
+    data = _tx_fetch(f"https://blockstream.info/api/tx/{hash_}")
+    if not data or "txid" not in data:
+        return jsonify({"error": "not_found"}), 404
+    status   = data.get("status", {})
+    ts       = None
+    if status.get("block_time"):
+        from datetime import datetime, timezone
+        ts = datetime.fromtimestamp(status["block_time"], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    vout     = data.get("vout", [])
+    total_sat = sum(v.get("value", 0) for v in vout if v.get("scriptpubkey_type") != "op_return")
+    return jsonify({
+        "network":   "Bitcoin",
+        "ticker":    "BTC",
+        "qty":       round(total_sat / 1e8, 8),
+        "total_usd": None,
+        "timestamp": ts,
+        "note":      "btc_outputs",
+    })
+
+def _sol_mint_symbol(mint, timeout=5):
+    data = _tx_fetch(f"https://api.jup.ag/tokens/v1/{mint}", timeout=timeout)
+    if data and isinstance(data, dict) and data.get("symbol"):
+        return data["symbol"].upper()
+    return None
+
+def _lookup_solana(hash_):
+    resp = _tx_post("https://api.mainnet-beta.solana.com", {
+        "jsonrpc": "2.0", "id": 1, "method": "getTransaction",
+        "params": [hash_, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}]
+    })
+    if not resp or not resp.get("result"):
+        return jsonify({"error": "not_found"}), 404
+    result = resp["result"]
+    meta   = result.get("meta") or {}
+    ts     = None
+    if result.get("blockTime"):
+        from datetime import datetime, timezone
+        ts = datetime.fromtimestamp(result["blockTime"], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    pre_map   = {b["accountIndex"]: b for b in (meta.get("preTokenBalances") or [])}
+    post_list = meta.get("postTokenBalances") or []
+    changes   = []
+    for p in post_list:
+        idx      = p["accountIndex"]
+        pre_b    = pre_map.get(idx, {})
+        pre_amt  = float((pre_b.get("uiTokenAmount") or {}).get("uiAmount") or 0)
+        post_amt = float((p.get("uiTokenAmount") or {}).get("uiAmount") or 0)
+        delta    = post_amt - pre_amt
+        mint     = p.get("mint", "")
+        changes.append({"delta": delta, "mint": mint})
+
+    bought = [c for c in changes if c["delta"] > 0]
+    if bought:
+        best = max(bought, key=lambda x: x["delta"])
+        sym  = _sol_mint_symbol(best["mint"])
+        return jsonify({
+            "network":   "Solana",
+            "ticker":    sym or "",
+            "qty":       round(best["delta"], 9),
+            "total_usd": None,
+            "timestamp": ts,
+            "mint":      best["mint"],
+        })
+
+    pre_sol  = meta.get("preBalances", [])
+    post_sol = meta.get("postBalances", [])
+    if pre_sol and post_sol:
+        gains = [post_sol[i] - pre_sol[i] for i in range(min(len(pre_sol), len(post_sol)))]
+        max_g = max(gains) if gains else 0
+        if max_g > 0:
+            return jsonify({
+                "network":   "Solana",
+                "ticker":    "SOL",
+                "qty":       round(max_g / 1e9, 9),
+                "total_usd": None,
+                "timestamp": ts,
+            })
+    return jsonify({"error": "not_found"}), 404
+
+import re as _re
+@app.route("/api/tx-lookup")
+def tx_lookup():
+    hash_ = request.args.get("hash", "").strip()
+    if not hash_:
+        return jsonify({"error": "no_hash"}), 400
+    if _re.match(r'^0x[0-9a-fA-F]{64}$', hash_):
+        return _lookup_evm(hash_)
+    elif _re.match(r'^[0-9a-fA-F]{64}$', hash_):
+        return _lookup_bitcoin(hash_)
+    elif _re.match(r'^[1-9A-HJ-NP-Za-km-z]{32,90}$', hash_):
+        return _lookup_solana(hash_)
+    else:
+        return jsonify({"error": "hash_format"}), 400
+
 _warmup()
 
 if __name__ == "__main__":

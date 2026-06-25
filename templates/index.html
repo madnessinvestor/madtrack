@@ -118,6 +118,18 @@
     <div class="modal-box">
       <h2 data-i18n="trade_modal_title">Registrar Compra</h2>
 
+      <!-- Hash import -->
+      <div class="hash-import-wrap">
+        <div class="hash-input-row">
+          <input id="trade-hash-input" type="text" class="trade-input hash-input"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="Cole hash de transação (opcional)"
+                 oninput="onTxHashInput(this.value)" />
+          <span id="trade-hash-spinner" class="spinner hidden"></span>
+        </div>
+        <div id="trade-hash-result" class="hash-result hidden"></div>
+      </div>
+
       <div class="search-wrap">
         <input id="trade-ticker-input" type="text"
                autocomplete="off" autocapitalize="characters" spellcheck="false"

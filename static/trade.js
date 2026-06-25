@@ -1,5 +1,116 @@
 // ─── Trade Tab ────────────────────────────────────────────────────────────────
 
+// ─── TX Hash Lookup ───────────────────────────────────────────────────────────
+
+let _txHashTimer = null;
+
+function onTxHashInput(val) {
+  clearTimeout(_txHashTimer);
+  const result  = document.getElementById("trade-hash-result");
+  const spinner = document.getElementById("trade-hash-spinner");
+  if (!val || val.trim().length < 20) {
+    result?.classList.add("hidden");
+    return;
+  }
+  _txHashTimer = setTimeout(() => _lookupTxHash(val.trim()), 700);
+}
+
+async function _lookupTxHash(hash) {
+  const spinner = document.getElementById("trade-hash-spinner");
+  const result  = document.getElementById("trade-hash-result");
+  spinner?.classList.remove("hidden");
+  result?.classList.add("hidden");
+  try {
+    const res  = await fetch(`/api/tx-lookup?hash=${encodeURIComponent(hash)}`);
+    const data = await res.json();
+    spinner?.classList.add("hidden");
+    if (!res.ok || data.error) {
+      _showHashError(data.error);
+      return;
+    }
+    _applyTxResult(data);
+  } catch (e) {
+    spinner?.classList.add("hidden");
+  }
+}
+
+function _showHashError(errKey) {
+  const result = document.getElementById("trade-hash-result");
+  if (!result) return;
+  const msgs = {
+    not_found:   t("hash_not_found"),
+    hash_format: t("hash_format_err"),
+    swap_complex:t("hash_complex"),
+    no_hash:     t("hash_format_err"),
+  };
+  result.className = "hash-result hash-error-box";
+  result.innerHTML = `<span class="hash-err-msg">${msgs[errKey] || t("hash_not_found")}</span>`;
+  result.classList.remove("hidden");
+}
+
+function _applyTxResult(data) {
+  const result = document.getElementById("trade-hash-result");
+
+  // Fill ticker
+  if (data.ticker) {
+    const tickerEl = document.getElementById("trade-ticker-input");
+    if (tickerEl && !tickerEl.disabled) {
+      tickerEl.value = data.ticker;
+      onTradeTickerInput(data.ticker);
+    }
+  }
+
+  // Fill qty
+  if (data.qty) {
+    const qtyEl = document.getElementById("trade-qty");
+    if (qtyEl) qtyEl.value = data.qty;
+  }
+
+  // Fill investment / price
+  if (data.total_usd) {
+    const invEl = document.getElementById("trade-investment");
+    if (invEl) invEl.value = data.total_usd;
+    tradeLastEdited = "investment";
+    updateTradePreview();
+  } else if (data.qty) {
+    tradeLastEdited = "qty";
+    updateTradePreview();
+  }
+
+  // Fill date
+  if (data.timestamp) {
+    const dateEl = document.getElementById("trade-date");
+    if (dateEl) dateEl.value = data.timestamp;
+  }
+
+  // Show result card
+  if (!result) return;
+  let html = `<span class="hash-network-badge">🔗 ${data.network || "?"}</span>`;
+  const details = [];
+  if (data.ticker && data.qty) {
+    details.push(`<span class="hash-detail-item">${t("qty_label")}: <strong>${fmtQty(data.qty)} ${data.ticker}</strong></span>`);
+  }
+  if (data.total_usd) {
+    details.push(`<span class="hash-detail-item">${t("investment_label")}: <strong>${formatUSD(data.total_usd, true)}</strong></span>`);
+  } else if (data.native_sym && data.native_amount) {
+    details.push(`<span class="hash-detail-item">Pago: <strong>${data.native_amount} ${data.native_sym}</strong></span>`);
+  }
+  if (data.timestamp) {
+    details.push(`<span class="hash-detail-item">📅 <strong>${data.timestamp}</strong></span>`);
+  }
+  if (details.length) html += `<div class="hash-detail-row">${details.join("")}</div>`;
+  if (data.note === "btc_outputs") {
+    html += `<div class="hash-note">⚠️ ${t("hash_btc_note")}</div>`;
+  } else if (!data.total_usd && (data.native_sym || !data.qty)) {
+    html += `<div class="hash-note">⚠️ ${t("hash_native_note")}</div>`;
+  }
+  result.className = "hash-result";
+  result.innerHTML = html;
+  result.classList.remove("hidden");
+}
+
+// ─── Portfolio vars ───────────────────────────────────────────────────────────
+
 let cachedPortfolio = [];
 let tradeSearchTimeout   = null;
 let tradeSuggestTimeout  = null;
@@ -297,14 +408,17 @@ function openTradeModal(prefillTicker) {
   }
 
   tradeLastEdited = "price";
+  clearTimeout(_txHashTimer);
   const _v  = (id, val)  => { const el = document.getElementById(id); if (el) el.value = val; };
   const _add = (id, cls) => document.getElementById(id)?.classList.add(cls);
   const _rm  = (id, cls) => document.getElementById(id)?.classList.remove(cls);
+  _v("trade-hash-input", "");
   _v("trade-qty", "");
   _v("trade-price", "");
   _v("trade-total-paid", "");
   _v("trade-investment", "");
   _v("trade-date", nowStr());
+  _add("trade-hash-result", "hidden");
   _add("trade-error",          "hidden");
   _add("trade-suggestions",    "hidden");
   _add("trade-price-preview",  "hidden");

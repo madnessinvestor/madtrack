@@ -972,3 +972,64 @@ section.hidden { display: none; }
 .alert-btn.reset { color: var(--accent); }
 .alert-btn.del   { color: var(--muted); }
 .alert-btn:active { opacity: 0.6; }
+
+/* ─── Hash Import ────────────────────────────────────────────────────────── */
+.hash-import-wrap {
+  margin-bottom: 10px;
+}
+.hash-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hash-input {
+  font-family: monospace;
+  font-size: 11px;
+  letter-spacing: 0;
+  width: 100%;
+}
+.hash-result {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: rgba(0,230,118,0.07);
+  border: 1px solid rgba(0,230,118,0.18);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+.hash-result.hash-error-box {
+  background: rgba(255,77,77,0.07);
+  border-color: rgba(255,77,77,0.2);
+}
+.hash-network-badge {
+  display: inline-block;
+  background: rgba(0,230,118,0.15);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 6px;
+}
+.hash-detail-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+.hash-detail-item {
+  font-size: 11px;
+  color: var(--muted2);
+}
+.hash-detail-item strong {
+  color: var(--text);
+}
+.hash-note {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+.hash-err-msg {
+  color: var(--red);
+  font-size: 12px;
+}
