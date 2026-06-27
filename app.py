@@ -689,6 +689,52 @@ def get_history():
 
     return jsonify({"symbol": sym, "period": period, "candles": candles})
 
+
+@app.route("/api/perf")
+def api_perf():
+    """Return % price change over 6M, 1Y, 2Y and all-time for a symbol."""
+    sym = request.args.get("symbol", "").upper().strip()
+    if not sym:
+        return jsonify({"error": "no symbol"}), 400
+
+    interval_ms = 86_400_000   # 1 day in ms
+    count       = 1095         # ~3 years of daily candles
+    now_ms      = int(time.time() * 1000)
+    start_ms    = now_ms - count * interval_ms
+
+    candles = (
+        _candles_hyperliquid(sym, "1d", start_ms, now_ms) or
+        _candles_mexc(sym, "1d", count) or
+        _candles_gate(sym, "1d", count) or
+        _candles_okx(sym, "1d", count)
+    )
+
+    if not candles or len(candles) < 2:
+        return jsonify({"error": "no history"}), 404
+
+    closes = [c["c"] for c in candles if c.get("c") is not None]
+    if len(closes) < 2:
+        return jsonify({"error": "no data"}), 404
+
+    current = closes[-1]
+
+    def pct(days_ago):
+        target = now_ms - days_ago * interval_ms
+        best   = min(candles, key=lambda c: abs(c["t"] - target))
+        old    = best.get("c")
+        if old and old != 0 and best["t"] < now_ms - days_ago * interval_ms * 0.5:
+            return round((current - old) / old * 100, 2)
+        return None
+
+    return jsonify({
+        "current":  current,
+        "perf_6m":  pct(180),
+        "perf_1y":  pct(365),
+        "perf_2y":  pct(730),
+        "perf_all": round((current - closes[0]) / closes[0] * 100, 2) if closes[0] else None,
+    })
+
+
 # ─── Background warmup ────────────────────────────────────────────────────────
 
 _coinlore_cache = {}

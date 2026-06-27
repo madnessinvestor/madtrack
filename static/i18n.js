@@ -68,6 +68,7 @@ const TRANSLATIONS = {
     via:              "via",
     // column switcher
     cols_label:       "Colunas",
+    perf_label:       "Variação histórica",
     // stats labels
     max24h:   "MÁX 24H",
     min24h:   "MÍN 24H",
@@ -169,6 +170,7 @@ const TRANSLATIONS = {
     via:              "via",
     // column switcher
     cols_label:       "Columns",
+    perf_label:       "Historical Performance",
     // stats labels
     max24h:   "MAX 24H",
     min24h:   "MIN 24H",

@@ -559,6 +559,7 @@ function openDetailSheet(sym) {
   document.getElementById("detail-change").innerHTML      = changeHTML(asset?.change24h, "lg");
 
   renderDetailStats(asset);
+  loadDetailPerf(sym);
 
   const iconWrap = document.getElementById("detail-icon");
   iconWrap.dataset.sym = sym;
@@ -603,6 +604,52 @@ function renderDetailStats(asset) {
     asset.market_cap != null ? `<div class="stat"><span class="stat-label">${t("mcap")}</span><span class="stat-val">${formatUSD(asset.market_cap, skip)}</span></div>` : "",
   ].filter(Boolean);
   el.innerHTML = rows.join("");
+}
+
+async function loadDetailPerf(sym) {
+  const el = document.getElementById("detail-perf");
+  if (!el) return;
+  el.innerHTML = `<div class="detail-perf-loading"><span>${t("loading") || "…"}</span></div>`;
+
+  try {
+    const res  = await fetch(`/api/perf?symbol=${encodeURIComponent(sym)}`);
+    if (sym !== _detailSym) return;
+    if (!res.ok) { el.innerHTML = ""; return; }
+    const data = await res.json();
+    if (sym !== _detailSym) return;
+
+    const periods = [
+      { key: "perf_6m",  label: "6M" },
+      { key: "perf_1y",  label: "1A" },
+      { key: "perf_2y",  label: "2A" },
+      { key: "perf_all", label: "∞"  },
+    ];
+
+    const tiles = periods.map(({ key, label }) => {
+      const v = data[key];
+      if (v == null) {
+        return `<div class="perf-tile">
+          <div class="perf-tile-label">${label}</div>
+          <div class="perf-tile-val na">—</div>
+        </div>`;
+      }
+      const cls   = v >= 0 ? "up" : "down";
+      const sign  = v >= 0 ? "+" : "";
+      const disp  = Math.abs(v) >= 1000
+        ? `${sign}${(v / 1000).toFixed(1)}k%`
+        : `${sign}${v.toFixed(1)}%`;
+      return `<div class="perf-tile">
+        <div class="perf-tile-label">${label}</div>
+        <div class="perf-tile-val ${cls}">${disp}</div>
+      </div>`;
+    }).join("");
+
+    el.innerHTML = `
+      <div class="detail-perf-title">${t("perf_label") || "Variação"}</div>
+      <div class="detail-perf-grid">${tiles}</div>`;
+  } catch {
+    if (sym === _detailSym) document.getElementById("detail-perf").innerHTML = "";
+  }
 }
 
 function selectDetailPeriod(btn) {

@@ -1354,6 +1354,54 @@ section.hidden { display: none; }
   margin-top: 8px;
 }
 
+/* Performance section */
+.detail-perf {
+  padding: 10px 14px 4px;
+  border-top: 1px solid var(--border);
+}
+.detail-perf-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.detail-perf-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.perf-tile {
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 7px 6px;
+  text-align: center;
+  min-width: 0;
+}
+.perf-tile-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.perf-tile-val {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.perf-tile-val.up   { color: #00e676; }
+.perf-tile-val.down { color: #ff4d4d; }
+.perf-tile-val.na   { color: var(--muted); font-weight: 400; }
+.perf-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 /* Actions */
 .detail-actions {
   display: flex;
