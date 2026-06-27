@@ -143,6 +143,76 @@ function playAlertSound() {
   } catch(e) {}
 }
 
+// ─── In-app toast ─────────────────────────────────────────────────────────────
+
+function showAlertToast(ticker, price, target, direction) {
+  const arrow    = direction === "above" ? "🔺" : "🔻";
+  const dirLabel = direction === "above" ? "subiu acima de" : "caiu abaixo de";
+
+  const toast = document.createElement("div");
+  toast.className = "alert-toast alert-toast-enter";
+  toast.innerHTML = `
+    <div class="alert-toast-icon">${arrow}</div>
+    <div class="alert-toast-body">
+      <div class="alert-toast-title">${ticker} ${dirLabel} ${formatUSD(target, true)}</div>
+      <div class="alert-toast-sub">Preço atual: <strong>${formatUSD(price, true)}</strong></div>
+    </div>
+    <button class="alert-toast-close" onclick="this.closest('.alert-toast').remove()">✕</button>
+  `;
+
+  let container = document.getElementById("alert-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "alert-toast-container";
+    document.body.appendChild(container);
+  }
+  container.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => toast.classList.add("alert-toast-visible"));
+  });
+
+  // Auto-dismiss after 8 s
+  setTimeout(() => {
+    toast.classList.remove("alert-toast-visible");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  }, 8000);
+}
+
+// ─── System notification (desktop + Android PWA) ──────────────────────────────
+
+async function _sendSystemNotification(title, body, tag) {
+  // 1. Try via Service Worker (works on Android PWA + desktop)
+  if ("serviceWorker" in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (Notification.permission === "granted") {
+        await reg.showNotification(title, {
+          body,
+          icon:     "/static/icons/icon-192.png",
+          badge:    "/static/icons/icon-72.png",
+          vibrate:  [200, 100, 200, 100, 200],
+          tag,
+          renotify: true,
+          requireInteraction: false,
+        });
+        return;
+      }
+    } catch (e) {}
+  }
+  // 2. Fallback: direct Notification API (desktop browsers without SW)
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification(title, {
+        body,
+        icon: "/static/icons/icon-192.png",
+        tag,
+      });
+    } catch (e) {}
+  }
+}
+
 // ─── Fire alert ───────────────────────────────────────────────────────────────
 
 async function fireAlert(alert, price) {
@@ -152,17 +222,14 @@ async function fireAlert(alert, price) {
   updateBellBadge();
   playAlertSound();
 
+  // Always show in-app toast (works in any context)
+  showAlertToast(alert.ticker, price, alert.target, alert.direction);
+
+  // Also send system notification (desktop / Android PWA)
   const arrow = alert.direction === "above" ? "🔺" : "🔻";
   const title = `MadTracker ${arrow} ${alert.ticker}`;
-  const body  = `${alert.ticker} atingiu ${formatUSD(price, true)}\nAlvo: ${formatUSD(alert.target, true)}`;
-
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: "SHOW_NOTIFICATION", title, body, tag: `alert-${alert.id}`
-    });
-  } else if ("Notification" in window && Notification.permission === "granted") {
-    new Notification(title, { body, icon: "/static/icons/icon-192.png", tag: `alert-${alert.id}` });
-  }
+  const body  = `${alert.ticker} atingiu ${formatUSD(price, true)} — Alvo: ${formatUSD(alert.target, true)}`;
+  await _sendSystemNotification(title, body, `alert-${alert.id}`);
 }
 
 // ─── Bell badge ───────────────────────────────────────────────────────────────

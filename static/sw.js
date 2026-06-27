@@ -1,5 +1,5 @@
-const CACHE = "madtracker-v8";
-const STATIC = ["/", "/static/style.css", "/static/app.js", "/static/i18n.js", "/static/trade.js", "/static/alerts.js"];
+const CACHE = "madtracker-v9";
+const STATIC = ["/", "/static/style.css", "/static/app.js", "/static/i18n.js", "/static/trade.js", "/static/alerts.js", "/static/madai.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)));
