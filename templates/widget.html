@@ -29,58 +29,60 @@
   .widget-header {
     font-size: 11px;
     color: #aaaaaa;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
     letter-spacing: 0.01em;
   }
 
-  /* Two-column layout: each column is a mini table */
+  /* Two columns side by side */
   .widget-cols {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     flex: 1;
     align-items: start;
+    overflow: hidden;
   }
 
+  /*
+   * Each column is a CSS grid with 3 named areas:
+   *   ticker | price | pct
+   * All rows share the same column template → guaranteed alignment.
+   */
   .widget-col {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+    display: grid;
+    /* ticker flexible, price right-aligned fixed, pct right-aligned fixed */
+    grid-template-columns: 1fr max-content max-content;
+    column-gap: 6px;
+    align-content: start;
+    overflow: hidden;
   }
 
-  /* Each row: ticker (left), price (right), change (right) */
-  .w-row {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    column-gap: 5px;
-    align-items: baseline;
+  /* Each "cell" in the grid — 3 cells = one row */
+  .w-ticker,
+  .w-price,
+  .w-pct {
+    font-size: 12px;
     padding: 2px 0;
-    line-height: 1.3;
+    line-height: 1.35;
+    white-space: nowrap;
     overflow: hidden;
   }
 
   .w-ticker {
-    font-size: 12px;
-    font-weight: 400;
     color: #e4e4e4;
-    overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 400;
   }
 
   .w-price {
-    font-size: 12px;
     color: #e4e4e4;
     text-align: right;
-    white-space: nowrap;
   }
 
-  .w-chg {
-    font-size: 12px;
+  .w-pct {
     font-weight: 600;
     text-align: right;
-    white-space: nowrap;
-    min-width: 42px;
+    min-width: 44px;
   }
 
   .pos { color: #4dff8e; }
@@ -100,24 +102,17 @@
 <script>
   function fmtPrice(p) {
     if (p == null) return "—";
-    if (p >= 10000) return p.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
-    if (p >= 1)     return p.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+    if (p >= 10000) return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (p >= 1)     return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (p >= 0.01)  return p.toFixed(4);
     return p.toPrecision(3);
   }
 
-  function fmtChange(price, pct) {
-    if (price == null || pct == null) return { text: "—", cls: "neu" };
-    const prev = price / (1 + pct / 100);
-    const abs  = price - prev;
-    let text;
-    const sign = abs >= 0 ? "+" : "";
-    const a = Math.abs(abs);
-    if (a >= 100)   text = sign + abs.toFixed(2);
-    else if (a >= 1)text = sign + abs.toFixed(2);
-    else if (a >= 0.001) text = sign + abs.toFixed(3);
-    else            text = sign + abs.toPrecision(2);
-    const cls = abs > 0.00005 ? "pos" : abs < -0.00005 ? "neg" : "neu";
+  function fmtPct(pct) {
+    if (pct == null) return { text: "—", cls: "neu" };
+    const sign = pct >= 0 ? "+" : "";
+    const text = sign + pct.toFixed(2) + "%";
+    const cls = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
     return { text, cls };
   }
 
@@ -125,14 +120,15 @@
     return sym.length > n ? sym.slice(0, n - 3) + "..." : sym;
   }
 
-  function rowHtml(a) {
-    if (!a) return "";
-    const { text: chg, cls } = fmtChange(a.price, a.change24h);
-    return `<div class="w-row">
-      <span class="w-ticker">${trunc(a.symbol, 12)}</span>
-      <span class="w-price">${fmtPrice(a.price)}</span>
-      <span class="w-chg ${cls}">${chg}</span>
-    </div>`;
+  /* Returns 3 span elements (cells in the shared grid) */
+  function cellsHtml(a) {
+    if (!a) {
+      return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-pct"></span>`;
+    }
+    const { text: pct, cls } = fmtPct(a.change24h);
+    return `<span class="w-ticker">${trunc(a.symbol, 12)}</span>` +
+           `<span class="w-price">${fmtPrice(a.price)}</span>` +
+           `<span class="w-pct ${cls}">${pct}</span>`;
   }
 
   async function load() {
@@ -141,13 +137,16 @@
       const data = await r.json();
 
       const now = new Date();
-      const hh = now.getHours().toString().padStart(2,"0");
-      const mm = now.getMinutes().toString().padStart(2,"0");
+      const hh = now.getHours().toString().padStart(2, "0");
+      const mm = now.getMinutes().toString().padStart(2, "0");
       document.getElementById("wh").textContent = "Last fetch: " + hh + ":" + mm;
 
       const half = Math.ceil(data.length / 2);
-      document.getElementById("wc1").innerHTML = data.slice(0, half).map(rowHtml).join("");
-      document.getElementById("wc2").innerHTML = data.slice(half).map(rowHtml).join("");
+      const col1 = data.slice(0, half);
+      const col2 = data.slice(half);
+
+      document.getElementById("wc1").innerHTML = col1.map(cellsHtml).join("");
+      document.getElementById("wc2").innerHTML = col2.map(cellsHtml).join("");
     } catch(e) {
       document.getElementById("wh").textContent = "Erro ao carregar";
     }
