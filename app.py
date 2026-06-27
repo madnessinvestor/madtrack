@@ -1336,7 +1336,7 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 AI_PROVIDERS = {
     "openrouter": {
         "url": "https://openrouter.ai/api/v1/chat/completions",
-        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "model": "openrouter/auto",
         "auth_header": lambda key: f"Bearer {key}",
         "key": lambda: OPENROUTER_API_KEY,
     }
