@@ -339,11 +339,17 @@
       </div>
 
       <div class="detail-periods">
-        <button class="detail-period active" data-p="1D" onclick="selectDetailPeriod(this)">1D</button>
-        <button class="detail-period" data-p="1W" onclick="selectDetailPeriod(this)">1W</button>
-        <button class="detail-period" data-p="1M" onclick="selectDetailPeriod(this)">1M</button>
-        <button class="detail-period" data-p="3M" onclick="selectDetailPeriod(this)">3M</button>
-        <button class="detail-period" data-p="1Y" onclick="selectDetailPeriod(this)">1A</button>
+        <div class="period-btns">
+          <button class="detail-period active" data-p="1D" onclick="selectDetailPeriod(this)">1D</button>
+          <button class="detail-period" data-p="1W" onclick="selectDetailPeriod(this)">1S</button>
+          <button class="detail-period" data-p="1M" onclick="selectDetailPeriod(this)">1M</button>
+          <button class="detail-period" data-p="3M" onclick="selectDetailPeriod(this)">3M</button>
+          <button class="detail-period" data-p="1Y" onclick="selectDetailPeriod(this)">1A</button>
+        </div>
+        <div class="chart-type-btns">
+          <button class="chart-type-btn active" data-type="line" onclick="setChartType('line')" title="Linha">〜</button>
+          <button class="chart-type-btn" data-type="candle" onclick="setChartType('candle')" title="Velas">🕯</button>
+        </div>
       </div>
 
       <div class="detail-stats" id="detail-stats"></div>

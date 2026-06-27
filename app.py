@@ -698,7 +698,7 @@ def api_perf():
         return jsonify({"error": "no symbol"}), 400
 
     interval_ms = 86_400_000   # 1 day in ms
-    count       = 1826         # ~5 years of daily candles
+    count       = 366          # 1 year of daily candles
     now_ms      = int(time.time() * 1000)
     start_ms    = now_ms - count * interval_ms
 
@@ -722,16 +722,16 @@ def api_perf():
         target = now_ms - days_ago * interval_ms
         best   = min(candles, key=lambda c: abs(c["t"] - target))
         old    = best.get("c")
-        if old and old != 0 and best["t"] < now_ms - days_ago * interval_ms * 0.5:
+        if old and old != 0 and (now_ms - best["t"]) >= days_ago * interval_ms * 0.5:
             return round((current - old) / old * 100, 2)
         return None
 
     return jsonify({
         "current":  current,
-        "perf_6m":  pct(180),
+        "perf_1w":  pct(7),
+        "perf_1m":  pct(30),
+        "perf_3m":  pct(90),
         "perf_1y":  pct(365),
-        "perf_5y":  pct(1825),
-        "perf_all": round((current - closes[0]) / closes[0] * 100, 2) if closes[0] else None,
     })
 
 

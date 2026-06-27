@@ -1295,7 +1295,7 @@ section.hidden { display: none; }
 .detail-chart-wrap {
   position: relative;
   margin: 0 4px;
-  height: 160px;
+  height: 200px;
   border-radius: 10px;
   overflow: hidden;
   background: var(--surface2);
@@ -1322,9 +1322,33 @@ section.hidden { display: none; }
 /* Period buttons */
 .detail-periods {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 14px 4px;
-  justify-content: center;
+}
+.period-btns {
+  display: flex;
+  gap: 5px;
+}
+.chart-type-btns {
+  display: flex;
+  gap: 4px;
+}
+.chart-type-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.chart-type-btn.active {
+  background: #00e676;
+  color: #000;
+  border-color: transparent;
+  font-weight: 600;
 }
 .detail-period {
   background: var(--surface2);
@@ -1368,8 +1392,8 @@ section.hidden { display: none; }
 }
 .detail-perf-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
 }
 .perf-tile {
   background: var(--surface2);

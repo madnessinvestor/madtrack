@@ -559,7 +559,7 @@ function openDetailSheet(sym) {
   document.getElementById("detail-change").innerHTML      = changeHTML(asset?.change24h, "lg");
 
   renderDetailStats(asset);
-  loadDetailPerf(sym);
+  loadDetailPerf(sym, asset);
 
   const iconWrap = document.getElementById("detail-icon");
   iconWrap.dataset.sym = sym;
@@ -606,10 +606,18 @@ function renderDetailStats(asset) {
   el.innerHTML = rows.join("");
 }
 
-async function loadDetailPerf(sym) {
+async function loadDetailPerf(sym, asset) {
   const el = document.getElementById("detail-perf");
   if (!el) return;
-  el.innerHTML = `<div class="detail-perf-loading"><span>${t("loading") || "…"}</span></div>`;
+  el.innerHTML = `<div class="detail-perf-loading"><span>…</span></div>`;
+
+  const _tile = (label, v) => {
+    if (v == null) return `<div class="perf-tile"><div class="perf-tile-label">${label}</div><div class="perf-tile-val na">—</div></div>`;
+    const cls  = v >= 0 ? "up" : "down";
+    const sign = v >= 0 ? "+" : "";
+    const disp = Math.abs(v) >= 1000 ? `${sign}${(v/1000).toFixed(1)}k%` : `${sign}${v.toFixed(1)}%`;
+    return `<div class="perf-tile"><div class="perf-tile-label">${label}</div><div class="perf-tile-val ${cls}">${disp}</div></div>`;
+  };
 
   try {
     const res  = await fetch(`/api/perf?symbol=${encodeURIComponent(sym)}`);
@@ -618,33 +626,15 @@ async function loadDetailPerf(sym) {
     const data = await res.json();
     if (sym !== _detailSym) return;
 
-    const periods = [
-      { key: "perf_6m", label: "6M" },
-      { key: "perf_1y", label: "1A" },
-    ];
+    const tiles = [
+      _tile("1D", asset?.change24h ?? null),
+      _tile("1S", data.perf_1w),
+      _tile("1M", data.perf_1m),
+      _tile("3M", data.perf_3m),
+      _tile("1A", data.perf_1y),
+    ].join("");
 
-    const tiles = periods.map(({ key, label }) => {
-      const v = data[key];
-      if (v == null) {
-        return `<div class="perf-tile">
-          <div class="perf-tile-label">${label}</div>
-          <div class="perf-tile-val na">—</div>
-        </div>`;
-      }
-      const cls   = v >= 0 ? "up" : "down";
-      const sign  = v >= 0 ? "+" : "";
-      const disp  = Math.abs(v) >= 1000
-        ? `${sign}${(v / 1000).toFixed(1)}k%`
-        : `${sign}${v.toFixed(1)}%`;
-      return `<div class="perf-tile">
-        <div class="perf-tile-label">${label}</div>
-        <div class="perf-tile-val ${cls}">${disp}</div>
-      </div>`;
-    }).join("");
-
-    el.innerHTML = `
-      <div class="detail-perf-title">${t("perf_label") || "Variação"}</div>
-      <div class="detail-perf-grid">${tiles}</div>`;
+    el.innerHTML = `<div class="detail-perf-title">${t("perf_label") || "Variação"}</div><div class="detail-perf-grid">${tiles}</div>`;
   } catch {
     if (sym === _detailSym) document.getElementById("detail-perf").innerHTML = "";
   }
@@ -681,32 +671,120 @@ async function loadDetailChart(sym, period) {
   }
 }
 
-// ─── Chart state (for crosshair) ─────────────────────────────────────────────
+// ─── Chart state & type ──────────────────────────────────────────────────────
 let _chartState = null;
+let _chartType  = "line";   // "line" | "candle"
 
+function setChartType(type) {
+  _chartType = type;
+  document.querySelectorAll(".chart-type-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.type === type));
+  const canvas = document.getElementById("detail-chart");
+  if (_chartState && canvas) _redrawChart(canvas);
+}
+
+// ─── Y-axis nice scale ────────────────────────────────────────────────────────
+function _niceYLabels(minV, maxV, targetCount) {
+  const range = maxV - minV || 1;
+  const rough = range / targetCount;
+  const mag   = Math.pow(10, Math.floor(Math.log10(rough)));
+  const steps = [1, 2, 2.5, 5, 10, 20, 25, 50];
+  const step  = (steps.find(s => s * mag >= rough) ?? 10) * mag;
+  const start = Math.ceil((minV + step * 0.01) / step) * step;
+  const labels = [];
+  for (let v = start; v < maxV + step * 0.5; v = +(v + step).toPrecision(10))
+    labels.push(v);
+  return labels;
+}
+
+function _axisPrice(v) {
+  const a = Math.abs(v);
+  if (a >= 10000)  return v.toLocaleString("en", { maximumFractionDigits: 0 });
+  if (a >= 100)    return v.toFixed(1);
+  if (a >= 10)     return v.toFixed(2);
+  if (a >= 1)      return v.toFixed(3);
+  if (a >= 0.01)   return v.toFixed(5);
+  return v.toFixed(7);
+}
+
+// ─── Chart geometry ───────────────────────────────────────────────────────────
 function _computeChartGeo(W, H, candles) {
   const closes = candles.map(c => c.c).filter(v => v != null);
   if (closes.length < 2) return null;
-  const minV   = Math.min(...closes);
-  const maxV   = Math.max(...closes);
-  const range  = maxV - minV || 1;
+  const highs = candles.map(c => c.h ?? c.c).filter(v => v != null);
+  const lows  = candles.map(c => c.l ?? c.c).filter(v => v != null);
+  let minV = Math.min(...lows);
+  let maxV = Math.max(...highs);
+  const buf = (maxV - minV) * 0.07 || maxV * 0.02 || 1;
+  minV -= buf; maxV += buf;
+  const range  = maxV - minV;
   const isUp   = closes[closes.length - 1] >= closes[0];
-  const pad    = { top: 28, bottom: 8, left: 2, right: 2 };
+  const pad    = { top: 14, bottom: 28, left: 4, right: 62 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
+  const toY    = v => pad.top + (1 - (v - minV) / range) * chartH;
   const pts    = closes.map((v, i) => ({
     x: pad.left + (i / (closes.length - 1)) * chartW,
-    y: pad.top  + (1 - (v - minV) / range) * chartH
+    y: toY(v)
   }));
-  return { closes, minV, maxV, range, isUp, pad, W, H, pts };
+  const yLabels = _niceYLabels(minV, maxV, 4);
+  return { candles, closes, minV, maxV, range, isUp, pad, W, H, chartW, chartH, toY, pts, yLabels };
 }
 
-function _drawChartBase(ctx, geo) {
+// ─── Axes ─────────────────────────────────────────────────────────────────────
+function _drawAxes(ctx, geo, period) {
+  const { candles, minV, range, pad, W, H, chartW, chartH, yLabels } = geo;
+  ctx.save();
+  ctx.font = "10px -apple-system,BlinkMacSystemFont,sans-serif";
+
+  yLabels.forEach(v => {
+    const y = pad.top + (1 - (v - minV) / range) * chartH;
+    if (y < pad.top - 2 || y > pad.top + chartH + 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.40)";
+    ctx.textAlign = "left";
+    ctx.fillText(_axisPrice(v), W - pad.right + 4, y + 3.5);
+  });
+
+  const total = candles.length;
+  const count = Math.min(5, total);
+  const idxs  = Array.from({ length: count }, (_, i) =>
+    Math.round(i * (total - 1) / Math.max(count - 1, 1)));
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  ctx.textAlign = "center";
+  idxs.forEach(i => {
+    const c = candles[i];
+    if (!c) return;
+    const x  = pad.left + (i / Math.max(total - 1, 1)) * chartW;
+    const cx = Math.min(Math.max(x, 22), W - pad.right - 22);
+    ctx.fillText(_fmtAxisDate(c.t, period), cx, H - 8);
+  });
+  ctx.restore();
+}
+
+function _fmtAxisDate(ts, period) {
+  if (!ts) return "";
+  const d  = new Date(ts);
+  const p2 = n => String(n).padStart(2, "0");
+  const MO = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  if (period === "1D") return `${p2(d.getHours())}h`;
+  if (period === "1W") return `${p2(d.getDate())}/${p2(d.getMonth()+1)}`;
+  if (period === "1M" || period === "3M") return `${p2(d.getDate())}/${p2(d.getMonth()+1)}`;
+  return MO[d.getMonth()];
+}
+
+// ─── Line chart ───────────────────────────────────────────────────────────────
+function _drawLineChart(ctx, geo) {
   const { isUp, pad, W, H, pts } = geo;
   const color = isUp ? "#00e676" : "#ff4d4d";
   const grad  = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
-  grad.addColorStop(0, isUp ? "rgba(0,230,118,0.32)" : "rgba(255,77,77,0.32)");
-  grad.addColorStop(1, isUp ? "rgba(0,230,118,0.02)" : "rgba(255,77,77,0.02)");
+  grad.addColorStop(0, isUp ? "rgba(0,230,118,0.28)" : "rgba(255,77,77,0.26)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
 
   ctx.beginPath();
   ctx.moveTo(pts[0].x, H - pad.bottom);
@@ -721,10 +799,47 @@ function _drawChartBase(ctx, geo) {
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.strokeStyle = color;
-  ctx.lineWidth   = 2;
+  ctx.lineWidth   = 1.5;
   ctx.lineJoin    = "round";
   ctx.lineCap     = "round";
   ctx.stroke();
+}
+
+// ─── Candlestick chart ────────────────────────────────────────────────────────
+function _drawCandlesticks(ctx, geo) {
+  const { candles, pad, chartW, chartH, toY } = geo;
+  const n     = candles.length;
+  const slot  = chartW / n;
+  const bodyW = Math.max(Math.min(slot * 0.65, 10), 1);
+
+  candles.forEach((c, i) => {
+    const x   = pad.left + (i / Math.max(n - 1, 1)) * chartW;
+    const up  = (c.c ?? 0) >= (c.o ?? 0);
+    const col = up ? "#00e676" : "#ff4d4d";
+    const yO  = toY(c.o ?? c.c);
+    const yC  = toY(c.c ?? c.o);
+    const yH  = toY(c.h ?? Math.max(c.o ?? 0, c.c ?? 0));
+    const yL  = toY(c.l ?? Math.min(c.o ?? 0, c.c ?? 0));
+
+    ctx.beginPath();
+    ctx.moveTo(x, yH);
+    ctx.lineTo(x, yL);
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+
+    const bTop = Math.min(yO, yC);
+    const bH   = Math.max(Math.abs(yC - yO), 1.5);
+    ctx.fillStyle = col;
+    ctx.fillRect(x - bodyW / 2, bTop, bodyW, bH);
+  });
+}
+
+// ─── Base draw dispatcher ─────────────────────────────────────────────────────
+function _drawChartBase(ctx, geo, period, chartType) {
+  _drawAxes(ctx, geo, period ?? _detailPeriod);
+  if ((chartType ?? _chartType) === "candle") _drawCandlesticks(ctx, geo);
+  else _drawLineChart(ctx, geo);
 }
 
 function _drawChartCrosshair(ctx, geo, candles, idx) {
@@ -733,27 +848,24 @@ function _drawChartCrosshair(ctx, geo, candles, idx) {
   const color  = geo.isUp ? "#00e676" : "#ff4d4d";
   const { pad, W, H } = geo;
 
-  // Dashed vertical line
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(pt.x, pad.top);
   ctx.lineTo(pt.x, H - pad.bottom);
-  ctx.strokeStyle = "rgba(200,200,200,0.28)";
+  ctx.strokeStyle = "rgba(200,200,200,0.30)";
   ctx.lineWidth   = 1;
   ctx.setLineDash([3, 4]);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Dot
   ctx.beginPath();
-  ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
-  ctx.fillStyle = color;
+  ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle   = color;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
   ctx.lineWidth   = 1.5;
   ctx.stroke();
 
-  // Label: price + date
   const skip  = isForexPair(_detailSym);
   const price = formatPrice(candle.c, skip);
   const date  = _fmtChartDate(candle.t, _detailPeriod);
@@ -761,25 +873,23 @@ function _drawChartCrosshair(ctx, geo, candles, idx) {
 
   ctx.font = "bold 11px -apple-system,BlinkMacSystemFont,sans-serif";
   const tw = ctx.measureText(label).width;
-  const lx = Math.min(Math.max(pt.x - tw / 2 - 7, 2), W - tw - 18);
-  const ly = 4;
+  const lx = Math.min(Math.max(pt.x - tw / 2 - 7, 2), W - pad.right - tw - 16);
+  const ly = 3;
+  const bw = tw + 14, bh = 20, r = 4;
 
-  ctx.fillStyle = "rgba(24,24,24,0.88)";
-  const r = 4;
-  const bx = lx, by = ly, bw = tw + 14, bh = 20;
+  ctx.fillStyle = "rgba(20,20,20,0.92)";
   ctx.beginPath();
-  ctx.moveTo(bx + r, by);
-  ctx.lineTo(bx + bw - r, by);
-  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
-  ctx.lineTo(bx + bw, by + bh - r);
-  ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
-  ctx.lineTo(bx + r, by + bh);
-  ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
-  ctx.lineTo(bx, by + r);
-  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.moveTo(lx + r, ly);
+  ctx.lineTo(lx + bw - r, ly);
+  ctx.quadraticCurveTo(lx + bw, ly, lx + bw, ly + r);
+  ctx.lineTo(lx + bw, ly + bh - r);
+  ctx.quadraticCurveTo(lx + bw, ly + bh, lx + bw - r, ly + bh);
+  ctx.lineTo(lx + r, ly + bh);
+  ctx.quadraticCurveTo(lx, ly + bh, lx, ly + bh - r);
+  ctx.lineTo(lx, ly + r);
+  ctx.quadraticCurveTo(lx, ly, lx + r, ly);
   ctx.closePath();
   ctx.fill();
-
   ctx.fillStyle = "#f0f0f0";
   ctx.fillText(label, lx + 7, ly + 14);
   ctx.restore();
@@ -790,8 +900,8 @@ function _fmtChartDate(ts, period) {
   const d   = new Date(ts);
   const p2  = n => String(n).padStart(2, "0");
   const MON = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  if (period === "1D")                  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  if (period === "1W")                  return `${p2(d.getDate())}/${p2(d.getMonth()+1)} ${p2(d.getHours())}h`;
+  if (period === "1D") return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  if (period === "1W") return `${p2(d.getDate())}/${p2(d.getMonth()+1)} ${p2(d.getHours())}h`;
   if (period === "1M" || period === "3M") return `${p2(d.getDate())}/${p2(d.getMonth()+1)}`;
   return `${p2(d.getDate())} ${MON[d.getMonth()]} ${d.getFullYear()}`;
 }
@@ -813,12 +923,9 @@ function drawSparkline(canvas, candles) {
   const H   = canvas.offsetHeight;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
-
   const geo = _computeChartGeo(W, H, candles);
   if (!geo) return;
-
   _chartState = { candles, geo, dpr, W, H };
-
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
   _drawChartBase(ctx, geo);
@@ -829,13 +936,11 @@ function updateChartCrosshair(canvas, clientX) {
   const { candles, geo, dpr, W, H } = _chartState;
   const rect = canvas.getBoundingClientRect();
   const x    = (clientX - rect.left) * (W / rect.width);
-
   let nearestIdx = 0, minDist = Infinity;
   geo.pts.forEach((pt, i) => {
     const d = Math.abs(pt.x - x);
     if (d < minDist) { minDist = d; nearestIdx = i; }
   });
-
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
   const ctx = canvas.getContext("2d");
