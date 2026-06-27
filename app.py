@@ -525,6 +525,10 @@ def rename_portfolio_token(ticker):
 def index():
     return render_template("index.html")
 
+@app.route("/widget")
+def widget():
+    return render_template("widget.html")
+
 @app.route("/favicon.ico")
 def favicon():
     return send_file("static/icons/icon-192.png", mimetype="image/png")
