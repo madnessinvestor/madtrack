@@ -664,12 +664,58 @@ def _candles_okx(sym, interval, limit):
             "l": safe_float(c[3]), "c": safe_float(c[4])} for c in data["data"] if len(c) >= 5]
     return out[::-1] if out else None
 
+_FOREX_CURRENCIES = {"USD","EUR","BRL","GBP","JPY","CHF","AUD","CAD","CNY","NZD","MXN","SEK","NOK","DKK"}
+
+def _is_forex(sym):
+    s = sym.upper()
+    return len(s) == 6 and s[:3] in _FOREX_CURRENCIES and s[3:] in _FOREX_CURRENCIES
+
+def _candles_forex(sym, period):
+    """Fetch OHLC candles for a forex pair via brapi.dev (Yahoo Finance backend)."""
+    s = sym.upper()
+    range_map = {
+        "1D":  ("1d",  "60m"),
+        "1W":  ("5d",  "1h"),
+        "1M":  ("1mo", "1d"),
+        "3M":  ("3mo", "1d"),
+        "1Y":  ("1y",  "1d"),
+        "ALL": ("5y",  "1wk"),
+    }
+    rng, interval = range_map.get(period, ("1mo", "1d"))
+    data = http_get(
+        f"https://brapi.dev/api/quote/{s}=X"
+        f"?range={rng}&interval={interval}&fundamental=false", timeout=10)
+    if not data or not data.get("results"):
+        return None
+    hist = data["results"][0].get("historicalDataPrice") or []
+    out = []
+    for c in hist:
+        ts = c.get("date")
+        if ts is None:
+            continue
+        # brapi returns seconds; convert to ms
+        t_ms = int(ts) * 1000 if int(ts) < 9_999_999_999 else int(ts)
+        o = c.get("open") or c.get("close")
+        h = c.get("high") or c.get("close")
+        l = c.get("low")  or c.get("close")
+        cl = c.get("close") or c.get("adjustedClose")
+        if cl is not None:
+            out.append({"t": t_ms, "o": o, "h": h, "l": l, "c": cl})
+    return out if len(out) >= 2 else None
+
 @app.route("/api/history")
 def get_history():
     sym    = request.args.get("symbol", "").upper().strip()
     period = request.args.get("period", "1D").upper()
     if not sym:
         return jsonify({"error": "no symbol"}), 400
+
+    # Forex pairs: use brapi.dev (Yahoo Finance)
+    if _is_forex(sym):
+        candles = _candles_forex(sym, period)
+        if candles:
+            return jsonify({"symbol": sym, "period": period, "candles": candles})
+        return jsonify({"error": "no history"}), 404
 
     period_conf = {"1D": ("1h", 24), "1W": ("4h", 42), "1M": ("1d", 30), "3M": ("1d", 90), "1Y": ("1d", 365), "ALL": ("1d", 1095)}
     interval, count = period_conf.get(period, ("1h", 24))
@@ -702,12 +748,15 @@ def api_perf():
     now_ms      = int(time.time() * 1000)
     start_ms    = now_ms - count * interval_ms
 
-    candles = (
-        _candles_hyperliquid(sym, "1d", start_ms, now_ms) or
-        _candles_mexc(sym, "1d", count) or
-        _candles_gate(sym, "1d", count) or
-        _candles_okx(sym, "1d", count)
-    )
+    if _is_forex(sym):
+        candles = _candles_forex(sym, "1Y")
+    else:
+        candles = (
+            _candles_hyperliquid(sym, "1d", start_ms, now_ms) or
+            _candles_mexc(sym, "1d", count) or
+            _candles_gate(sym, "1d", count) or
+            _candles_okx(sym, "1d", count)
+        )
 
     if not candles or len(candles) < 2:
         return jsonify({"error": "no history"}), 404
