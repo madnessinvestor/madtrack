@@ -598,7 +598,7 @@ function renderDetailStats(asset) {
   const hasBoth = asset.high24h != null && asset.low24h != null;
   const rows = [
     hasBoth
-      ? `<div class="stat"><span class="stat-label">${t("max24h")} / ${t("min24h")}</span><span class="stat-val">${formatPrice(asset.low24h, skip)} – ${formatPrice(asset.high24h, skip)}</span></div>` : "",
+      ? `<div class="stat"><span class="stat-label">${t("max24h")} / ${t("min24h")}</span><span class="stat-val">${formatPrice(asset.high24h, skip)} – ${formatPrice(asset.low24h, skip)}</span></div>` : "",
     !hasBoth && asset.high24h != null ? `<div class="stat"><span class="stat-label">${t("max24h")}</span><span class="stat-val">${formatPrice(asset.high24h, skip)}</span></div>` : "",
     !hasBoth && asset.low24h  != null ? `<div class="stat"><span class="stat-label">${t("min24h")}</span><span class="stat-val">${formatPrice(asset.low24h, skip)}</span></div>` : "",
     asset.volume24h  != null ? `<div class="stat"><span class="stat-label">${t("vol24h")}</span><span class="stat-val">${formatUSD(asset.volume24h, skip)}</span></div>` : "",
