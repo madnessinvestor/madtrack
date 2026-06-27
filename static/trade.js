@@ -279,17 +279,26 @@ function onTradeInvestmentInput() {
 
 function switchTab(tab) {
   const isTracker = tab === "tracker";
+  const isTrade   = tab === "trade";
+  const isAi      = tab === "ai";
 
   document.getElementById("section-tracker").classList.toggle("hidden", !isTracker);
-  document.getElementById("section-trade").classList.toggle("hidden",   isTracker);
+  document.getElementById("section-trade").classList.toggle("hidden",   !isTrade);
+  const aiSection = document.getElementById("section-ai");
+  if (aiSection) aiSection.classList.toggle("hidden", !isAi);
 
   document.getElementById("tab-tracker").classList.toggle("active", isTracker);
-  document.getElementById("tab-trade").classList.toggle("active",   !isTracker);
+  document.getElementById("tab-trade").classList.toggle("active",   isTrade);
+  const aiTab = document.getElementById("tab-ai");
+  if (aiTab) aiTab.classList.toggle("active", isAi);
 
   document.getElementById("btn-add-tracker").classList.toggle("hidden", !isTracker);
-  document.getElementById("btn-add-trade").classList.toggle("hidden",    isTracker);
+  document.getElementById("btn-add-trade").classList.toggle("hidden",    !isTrade);
 
-  if (!isTracker && !cachedPortfolio.length) {
+  const refreshBar = document.querySelector(".refresh-bar");
+  if (refreshBar) refreshBar.classList.toggle("hidden", isAi);
+
+  if (isTrade && !cachedPortfolio.length) {
     loadPortfolio();
   }
 }

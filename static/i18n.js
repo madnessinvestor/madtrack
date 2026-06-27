@@ -84,6 +84,19 @@ const TRANSLATIONS = {
     alert_err_ticker:   "Informe o ticker.",
     alert_err_price:    "Preço inválido.",
     alert_err_perm:     "Permissão de notificação negada. Ative nas configurações do navegador.",
+    // mad ai
+    tab_ai:             "Mad AI",
+    ai_title:           "Mad AI",
+    ai_subtitle:        "Análise inteligente do seu portfólio",
+    ai_analyze_btn:     "Analisar meus Trades",
+    ai_q1:              "Qual foi meu melhor trade?",
+    ai_q2:              "Qual meu lucro total?",
+    ai_q3:              "Qual meu win rate?",
+    ai_q4:              "Ativo com mais lucro?",
+    ai_q5:              "Quais padrões você identificou?",
+    ai_empty:           "Clique em <b>Analisar meus Trades</b> ou faça uma pergunta sobre seu portfólio.",
+    ai_input_ph:        "Pergunte sobre seu portfólio...",
+    ai_no_key:          "⚠️ API Key não configurada. Adicione OPENROUTER_API_KEY nos Secrets do Replit.",
   },
   en: {
     btn_add:          "Add",
@@ -168,6 +181,19 @@ const TRANSLATIONS = {
     alert_err_ticker:   "Enter the ticker.",
     alert_err_price:    "Invalid price.",
     alert_err_perm:     "Notification permission denied. Enable it in browser settings.",
+    // mad ai
+    tab_ai:             "Mad AI",
+    ai_title:           "Mad AI",
+    ai_subtitle:        "Smart analysis of your portfolio",
+    ai_analyze_btn:     "Analyze my Trades",
+    ai_q1:              "What was my best trade?",
+    ai_q2:              "What is my total profit?",
+    ai_q3:              "What is my win rate?",
+    ai_q4:              "Most profitable asset?",
+    ai_q5:              "What patterns did you find?",
+    ai_empty:           "Click <b>Analyze my Trades</b> or ask a question about your portfolio.",
+    ai_input_ph:        "Ask about your portfolio...",
+    ai_no_key:          "⚠️ API Key not configured. Add OPENROUTER_API_KEY to Replit Secrets.",
   }
 };
 
@@ -199,6 +225,8 @@ function applyLang() {
   if (tickerInput) tickerInput.placeholder = t("ticker_placeholder");
   const tradeInput = document.getElementById("trade-ticker-input");
   if (tradeInput) tradeInput.placeholder = t("trade_ticker_ph");
+  const aiInput = document.getElementById("ai-input");
+  if (aiInput) aiInput.placeholder = t("ai_input_ph");
 
   // Re-render lists to pick up translated strings
   if (typeof rerenderAssets === "function") rerenderAssets();

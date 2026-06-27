@@ -1327,6 +1327,162 @@ def tx_lookup():
     else:
         return jsonify({"error": "hash_format"}), 400
 
+
+# ─── Mad AI ───────────────────────────────────────────────────────────────────
+
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+
+# Provider map — swap model/url here to change provider
+AI_PROVIDERS = {
+    "openrouter": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "auth_header": lambda key: f"Bearer {key}",
+        "key": lambda: OPENROUTER_API_KEY,
+    }
+}
+ACTIVE_AI_PROVIDER = "openrouter"
+
+def _build_portfolio_context():
+    """Build a concise text summary of the user's portfolio for the AI prompt."""
+    tokens = load_portfolio()
+    if not tokens:
+        return "O usuário não possui trades registrados no portfólio."
+
+    lines = ["=== PORTFÓLIO DO USUÁRIO ===\n"]
+    grand_invested = 0.0
+    grand_pnl = 0.0
+    all_trades_flat = []
+
+    for tok in tokens:
+        ticker = tok.get("ticker", "")
+        trades = tok.get("trades", [])
+        if not trades:
+            continue
+
+        total_qty = 0.0
+        total_invested = 0.0
+        sell_proceeds = 0.0
+        buys = []
+        sells = []
+
+        for tr in trades:
+            qty = tr.get("qty", 0)
+            price = tr.get("price_paid", 0)
+            date = tr.get("date", "")
+            total_qty += qty
+            if qty > 0:
+                total_invested += qty * price
+                buys.append({"qty": qty, "price": price, "date": date})
+                all_trades_flat.append({"ticker": ticker, "type": "compra", "qty": qty, "price": price, "date": date, "invested": qty * price})
+            else:
+                sell_proceeds += abs(qty) * price
+                sells.append({"qty": abs(qty), "price": price, "date": date})
+                all_trades_flat.append({"ticker": ticker, "type": "venda", "qty": abs(qty), "price": price, "date": date, "proceeds": abs(qty) * price})
+
+        avg_price = total_invested / total_qty if total_qty > 0 else 0
+        realized_pnl = sell_proceeds - sum(s["qty"] * avg_price for s in sells) if sells else 0
+
+        lines.append(f"Ativo: {ticker}")
+        lines.append(f"  Quantidade atual: {total_qty:.6g}")
+        lines.append(f"  Total investido (compras): ${total_invested:.2f}")
+        if avg_price:
+            lines.append(f"  Preço médio de compra: ${avg_price:.6g}")
+        if sells:
+            lines.append(f"  P&L realizado (vendas): ${realized_pnl:+.2f}")
+        for b in buys:
+            lines.append(f"  Compra: {b['qty']:.6g} @ ${b['price']:.6g}" + (f" em {b['date']}" if b['date'] else ""))
+        for s in sells:
+            lines.append(f"  Venda: {s['qty']:.6g} @ ${s['price']:.6g}" + (f" em {s['date']}" if s['date'] else ""))
+        lines.append("")
+        grand_invested += total_invested
+        grand_pnl += realized_pnl
+
+    lines.append(f"=== RESUMO GERAL ===")
+    lines.append(f"Total investido (compras): ${grand_invested:.2f}")
+    lines.append(f"P&L realizado total: ${grand_pnl:+.2f}")
+
+    total_buy_trades = sum(1 for t in all_trades_flat if t["type"] == "compra")
+    total_sell_trades = sum(1 for t in all_trades_flat if t["type"] == "venda")
+    lines.append(f"Total de compras registradas: {total_buy_trades}")
+    lines.append(f"Total de vendas registradas: {total_sell_trades}")
+
+    return "\n".join(lines)
+
+SYSTEM_PROMPT = """Você é o Mad AI, assistente financeiro integrado ao MadTracker.
+Seu papel é EXCLUSIVAMENTE analisar os dados de trades e portfólio fornecidos pelo usuário.
+
+REGRAS ABSOLUTAS:
+- Analise apenas os dados fornecidos no contexto do portfólio do usuário.
+- NUNCA faça recomendações de compra ou venda de ativos.
+- NUNCA sugira estratégias de investimento ou alocação.
+- Responda APENAS com análises factuais: estatísticas, padrões, insights sobre o histórico.
+- Se não houver trades, informe educadamente.
+- Responda no mesmo idioma da pergunta do usuário (PT ou EN).
+- Seja conciso e direto. Use formatação simples com listas quando útil.
+- Nunca invente dados — use apenas o que está no contexto fornecido.
+"""
+
+@app.route("/api/ai/chat", methods=["POST"])
+def ai_chat():
+    if not OPENROUTER_API_KEY:
+        return jsonify({"error": "AI não configurada. Adicione OPENROUTER_API_KEY nos Secrets do Replit."}), 503
+
+    data = request.json or {}
+    user_message = (data.get("message") or "").strip()
+    history = data.get("history") or []
+
+    if not user_message:
+        return jsonify({"error": "Mensagem vazia."}), 400
+
+    portfolio_context = _build_portfolio_context()
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": f"DADOS DO PORTFÓLIO ATUAL:\n{portfolio_context}"},
+    ]
+
+    for h in history[-10:]:
+        role = h.get("role")
+        content = h.get("content", "")
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+
+    messages.append({"role": "user", "content": user_message})
+
+    provider = AI_PROVIDERS[ACTIVE_AI_PROVIDER]
+    api_key = provider["key"]()
+    payload = json.dumps({
+        "model": provider["model"],
+        "messages": messages,
+        "max_tokens": 1024,
+        "temperature": 0.3,
+    }).encode()
+
+    req = urllib.request.Request(
+        provider["url"],
+        data=payload,
+        headers={
+            "Authorization": provider["auth_header"](api_key),
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://madtracker.replit.app",
+            "X-Title": "MadTracker",
+        },
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            result = json.loads(r.read().decode())
+        reply = result["choices"][0]["message"]["content"]
+        return jsonify({"reply": reply})
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        return jsonify({"error": f"Erro da API de IA: {e.code} — {body[:200]}"}), 502
+    except Exception as ex:
+        return jsonify({"error": f"Erro ao chamar IA: {str(ex)}"}), 502
+
+
 _warmup()
 
 if __name__ == "__main__":

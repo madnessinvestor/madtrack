@@ -36,6 +36,9 @@
     <button class="tab-btn" id="tab-trade" onclick="switchTab('trade')">
       💼 <span data-i18n="tab_trade">Trade</span>
     </button>
+    <button class="tab-btn" id="tab-ai" onclick="switchTab('ai')">
+      🤖 <span data-i18n="tab_ai">Mad AI</span>
+    </button>
   </nav>
 
   <!-- Tracker section -->
@@ -64,6 +67,49 @@
     <main id="portfolio-list">
       <div class="loading" data-i18n="loading">Carregando...</div>
     </main>
+  </section>
+
+  <!-- Mad AI section -->
+  <section id="section-ai" class="hidden">
+    <div class="ai-container">
+      <div class="ai-header-card">
+        <div class="ai-header-icon">🤖</div>
+        <div>
+          <div class="ai-header-title" data-i18n="ai_title">Mad AI</div>
+          <div class="ai-header-sub" data-i18n="ai_subtitle">Análise inteligente do seu portfólio</div>
+        </div>
+        <button class="ai-analyze-btn" onclick="aiAnalyzeTrades()" id="ai-analyze-btn">
+          <span data-i18n="ai_analyze_btn">Analisar meus Trades</span>
+        </button>
+      </div>
+
+      <div class="ai-suggestions">
+        <button class="ai-chip" onclick="aiAskPreset(this)" data-i18n="ai_q1">Qual foi meu melhor trade?</button>
+        <button class="ai-chip" onclick="aiAskPreset(this)" data-i18n="ai_q2">Qual meu lucro total?</button>
+        <button class="ai-chip" onclick="aiAskPreset(this)" data-i18n="ai_q3">Qual meu win rate?</button>
+        <button class="ai-chip" onclick="aiAskPreset(this)" data-i18n="ai_q4">Ativo com mais lucro?</button>
+        <button class="ai-chip" onclick="aiAskPreset(this)" data-i18n="ai_q5">Quais padrões você identificou?</button>
+      </div>
+
+      <div class="ai-chat" id="ai-chat">
+        <div class="ai-empty-state" id="ai-empty">
+          <div class="ai-empty-icon">✨</div>
+          <p data-i18n="ai_empty">Clique em <b>Analisar meus Trades</b> ou faça uma pergunta sobre seu portfólio.</p>
+        </div>
+      </div>
+
+      <div class="ai-input-row">
+        <input id="ai-input" type="text" class="ai-input"
+               autocomplete="off" spellcheck="false"
+               data-i18n-placeholder="ai_input_ph"
+               placeholder="Pergunte sobre seu portfólio..."
+               onkeydown="aiInputKey(event)" />
+        <button class="ai-send-btn" id="ai-send-btn" onclick="aiSend()">➤</button>
+      </div>
+      <div id="ai-no-key-warn" class="ai-no-key-warn hidden" data-i18n="ai_no_key">
+        ⚠️ API Key não configurada. Adicione OPENROUTER_API_KEY nos Secrets do Replit.
+      </div>
+    </div>
   </section>
 
   <!-- Single refresh bar -->
@@ -250,5 +296,6 @@
   <script src="/static/app.js"></script>
   <script src="/static/trade.js"></script>
   <script src="/static/alerts.js"></script>
+  <script src="/static/madai.js"></script>
 </body>
 </html>
