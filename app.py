@@ -698,7 +698,7 @@ def api_perf():
         return jsonify({"error": "no symbol"}), 400
 
     interval_ms = 86_400_000   # 1 day in ms
-    count       = 1095         # ~3 years of daily candles
+    count       = 1826         # ~5 years of daily candles
     now_ms      = int(time.time() * 1000)
     start_ms    = now_ms - count * interval_ms
 
@@ -730,7 +730,7 @@ def api_perf():
         "current":  current,
         "perf_6m":  pct(180),
         "perf_1y":  pct(365),
-        "perf_2y":  pct(730),
+        "perf_5y":  pct(1825),
         "perf_all": round((current - closes[0]) / closes[0] * 100, 2) if closes[0] else None,
     })
 

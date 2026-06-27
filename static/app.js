@@ -619,10 +619,10 @@ async function loadDetailPerf(sym) {
     if (sym !== _detailSym) return;
 
     const periods = [
-      { key: "perf_6m",  label: "6M" },
-      { key: "perf_1y",  label: "1A" },
-      { key: "perf_2y",  label: "2A" },
-      { key: "perf_all", label: "∞"  },
+      { key: "perf_6m",  label: "6M"      },
+      { key: "perf_1y",  label: "1A"      },
+      { key: "perf_5y",  label: "5A"      },
+      { key: "perf_all", label: "Criação" },
     ];
 
     const tiles = periods.map(({ key, label }) => {
