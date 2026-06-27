@@ -43,6 +43,14 @@
 
   <!-- Tracker section -->
   <section id="section-tracker">
+    <div class="tracker-toolbar">
+      <span class="toolbar-label" data-i18n="cols_label">Colunas</span>
+      <div class="col-btns">
+        <button class="col-btn active" data-cols="1" onclick="applyColumns(1)">1</button>
+        <button class="col-btn" data-cols="2" onclick="applyColumns(2)">2</button>
+        <button class="col-btn" data-cols="3" onclick="applyColumns(3)">3</button>
+      </div>
+    </div>
     <main id="asset-list">
       <div class="loading" data-i18n="loading">Carregando...</div>
     </main>
@@ -298,6 +306,55 @@
       <div id="alerts-list" class="alerts-list"></div>
 
       <button class="btn-cancel" onclick="closeAlertsModal()" data-i18n="close">Fechar</button>
+    </div>
+  </div>
+
+  <!-- Asset detail sheet -->
+  <div id="detail-sheet" class="detail-sheet hidden" onclick="if(event.target===this)closeDetailSheet()">
+    <div class="detail-box">
+      <div class="detail-header">
+        <button class="detail-close" onclick="closeDetailSheet()">✕</button>
+      </div>
+      <div class="detail-hero">
+        <div class="asset-icon lg" id="detail-icon" data-sym="">
+          <img class="icon-img" alt="" />
+          <span class="icon-text" id="detail-icon-text"></span>
+        </div>
+        <div class="detail-hero-info">
+          <div class="detail-sym" id="detail-sym"></div>
+          <div class="detail-source" id="detail-source"></div>
+        </div>
+        <div class="detail-hero-price">
+          <div class="detail-price" id="detail-price"></div>
+          <div id="detail-change"></div>
+        </div>
+      </div>
+
+      <div class="detail-chart-wrap">
+        <canvas id="detail-chart" class="detail-chart"></canvas>
+        <div class="detail-chart-empty hidden" id="detail-chart-empty">Sem histórico disponível</div>
+        <div class="detail-chart-loading hidden" id="detail-chart-loading">
+          <div class="spinner" style="position:relative;right:auto;width:20px;height:20px;border-width:2px;display:inline-block"></div>
+        </div>
+      </div>
+
+      <div class="detail-periods">
+        <button class="detail-period active" data-p="1D" onclick="selectDetailPeriod(this)">1D</button>
+        <button class="detail-period" data-p="1W" onclick="selectDetailPeriod(this)">1W</button>
+        <button class="detail-period" data-p="1M" onclick="selectDetailPeriod(this)">1M</button>
+        <button class="detail-period" data-p="3M" onclick="selectDetailPeriod(this)">3M</button>
+      </div>
+
+      <div class="detail-stats" id="detail-stats"></div>
+
+      <div class="detail-actions">
+        <button class="btn-confirm" onclick="detailAddToPortfolio()">
+          + <span data-i18n="btn_trade">Trade</span>
+        </button>
+        <button class="btn-delete-inline" onclick="detailRemove()">
+          <span data-i18n="p_remove">Remover</span>
+        </button>
+      </div>
     </div>
   </div>
 

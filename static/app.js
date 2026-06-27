@@ -187,20 +187,8 @@ function initSortable() {
 function cardHTML(a) {
   const skip     = isForexPair(a.symbol);
   const hasPrice = a.price !== null && a.price !== undefined;
-  const hasHigh  = a.high24h    != null;
-  const hasLow   = a.low24h     != null;
-  const hasVol   = a.volume24h  != null;
-  const hasCap   = a.market_cap != null;
-  const hasExtra = hasHigh || hasLow || hasVol || hasCap;
 
-  const statsRows = [
-    hasHigh ? `<div class="stat"><span class="stat-label">${t("max24h")}</span><span class="stat-val">${formatPrice(a.high24h, skip)}</span></div>` : "",
-    hasLow  ? `<div class="stat"><span class="stat-label">${t("min24h")}</span><span class="stat-val">${formatPrice(a.low24h, skip)}</span></div>` : "",
-    hasVol  ? `<div class="stat"><span class="stat-label">${t("vol24h")}</span><span class="stat-val">${formatUSD(a.volume24h, skip)}</span></div>` : "",
-    hasCap  ? `<div class="stat"><span class="stat-label">${t("mcap")}</span><span class="stat-val">${formatUSD(a.market_cap, skip)}</span></div>` : "",
-  ].join("");
-
-  return `<div class="asset-card${hasExtra ? " expandable" : ""}" data-sym="${a.symbol}" onclick="toggleCard(this, event)">
+  return `<div class="asset-card" data-sym="${a.symbol}" onclick="handleCardClick(this,event)">
     <div class="card-top">
       <div class="asset-left">
         <div class="asset-icon" data-sym="${a.symbol}">
@@ -216,21 +204,15 @@ function cardHTML(a) {
         <div class="asset-price">${hasPrice ? formatPrice(a.price, skip) : "—"}</div>
         ${changeHTML(a.change24h)}
       </div>
-      <span class="card-chevron${hasExtra ? "" : " hidden"}">›</span>
       <span class="drag-handle" title="Reordenar">⠿</span>
-    </div>
-
-    <div class="card-details">
-      ${statsRows}
-      <button class="btn-delete-inline" onclick="deleteAsset('${a.symbol}')" data-i18n="p_remove">${t("p_remove")}</button>
     </div>
   </div>`;
 }
 
-function toggleCard(card, e) {
-  if (e.target.classList.contains("btn-delete-inline")) return;
-  if (!card.classList.contains("expandable")) return;
-  card.classList.toggle("open");
+function handleCardClick(card, e) {
+  if (e.target.closest(".drag-handle")) return;
+  const sym = card.dataset.sym;
+  if (sym) openDetailSheet(sym);
 }
 
 const CDN1 = sym =>
@@ -523,13 +505,214 @@ async function confirmAdd() {
   loadAssets();
 }
 
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeModal(); closeDetailSheet(); }
+});
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js").catch(() => {});
 }
 
+// ─── Column layout ────────────────────────────────────────────────────────────
+
+let trackerColumns = parseInt(localStorage.getItem("trackerColumns") || "1");
+
+function applyColumns(n) {
+  trackerColumns = n;
+  localStorage.setItem("trackerColumns", n);
+  const list = document.getElementById("asset-list");
+  if (list) {
+    list.classList.remove("cols-2", "cols-3");
+    if (n === 2) list.classList.add("cols-2");
+    if (n === 3) list.classList.add("cols-3");
+  }
+  document.querySelectorAll(".col-btn").forEach(b => {
+    b.classList.toggle("active", parseInt(b.dataset.cols) === n);
+  });
+}
+
+// ─── Detail sheet ─────────────────────────────────────────────────────────────
+
+let _detailSym    = null;
+let _detailPeriod = "1D";
+
+function openDetailSheet(sym) {
+  _detailSym    = sym;
+  _detailPeriod = "1D";
+
+  const sheet = document.getElementById("detail-sheet");
+  sheet.classList.remove("hidden");
+  requestAnimationFrame(() => sheet.classList.add("open"));
+  document.body.style.overflow = "hidden";
+
+  document.querySelectorAll(".detail-period").forEach(b => {
+    b.classList.toggle("active", b.dataset.p === "1D");
+  });
+
+  const asset = cachedAssets.find(a => a.symbol === sym);
+  const skip  = isForexPair(sym);
+
+  document.getElementById("detail-sym").textContent       = sym;
+  document.getElementById("detail-icon-text").textContent = sym.slice(0, 4);
+  document.getElementById("detail-source").textContent    = asset?.source || "";
+  document.getElementById("detail-price").textContent     = asset?.price != null ? formatPrice(asset.price, skip) : "—";
+  document.getElementById("detail-change").innerHTML      = changeHTML(asset?.change24h, "lg");
+
+  renderDetailStats(asset);
+
+  const iconWrap = document.getElementById("detail-icon");
+  iconWrap.dataset.sym = sym;
+  const img  = iconWrap.querySelector(".icon-img");
+  const text = iconWrap.querySelector(".icon-text");
+  img.classList.remove("loaded");
+  img.src = "";
+  text.style.display = "";
+  applyAvatar(iconWrap, sym);
+  if (asset?.icon_url) {
+    tryLoadImage(img, text, asset.icon_url, () => tryCryptoIcon(img, text, sym));
+  } else if (isForexPair(sym)) {
+    const url = forexIconUrl(sym);
+    if (url) tryLoadImage(img, text, url, null);
+  } else {
+    tryCryptoIcon(img, text, sym);
+  }
+
+  loadDetailChart(sym, _detailPeriod);
+}
+
+function closeDetailSheet() {
+  const sheet = document.getElementById("detail-sheet");
+  if (!sheet || sheet.classList.contains("hidden")) return;
+  sheet.classList.remove("open");
+  document.body.style.overflow = "";
+  setTimeout(() => sheet.classList.add("hidden"), 300);
+  _detailSym = null;
+}
+
+function renderDetailStats(asset) {
+  const el   = document.getElementById("detail-stats");
+  const skip = isForexPair(_detailSym);
+  if (!asset) { el.innerHTML = ""; return; }
+  const rows = [
+    asset.high24h != null && asset.low24h != null
+      ? `<div class="stat"><span class="stat-label">${t("max24h")} / ${t("min24h")}</span><span class="stat-val">${formatPrice(asset.low24h, skip)} – ${formatPrice(asset.high24h, skip)}</span></div>` : "",
+    asset.high24h   != null ? `<div class="stat"><span class="stat-label">${t("max24h")}</span><span class="stat-val">${formatPrice(asset.high24h, skip)}</span></div>` : "",
+    asset.low24h    != null ? `<div class="stat"><span class="stat-label">${t("min24h")}</span><span class="stat-val">${formatPrice(asset.low24h, skip)}</span></div>` : "",
+    asset.volume24h  != null ? `<div class="stat"><span class="stat-label">${t("vol24h")}</span><span class="stat-val">${formatUSD(asset.volume24h, skip)}</span></div>` : "",
+    asset.market_cap != null ? `<div class="stat"><span class="stat-label">${t("mcap")}</span><span class="stat-val">${formatUSD(asset.market_cap, skip)}</span></div>` : "",
+  ].filter(Boolean);
+  el.innerHTML = rows.join("");
+}
+
+function selectDetailPeriod(btn) {
+  document.querySelectorAll(".detail-period").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  _detailPeriod = btn.dataset.p;
+  if (_detailSym) loadDetailChart(_detailSym, _detailPeriod);
+}
+
+async function loadDetailChart(sym, period) {
+  const canvas  = document.getElementById("detail-chart");
+  const loading = document.getElementById("detail-chart-loading");
+  const empty   = document.getElementById("detail-chart-empty");
+  const ctx     = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  loading.classList.remove("hidden");
+  empty.classList.add("hidden");
+
+  try {
+    const res = await fetch(`/api/history?symbol=${encodeURIComponent(sym)}&period=${period}`);
+    loading.classList.add("hidden");
+    if (_detailSym !== sym) return;
+    if (!res.ok) throw new Error("no data");
+    const data = await res.json();
+    if (!data.candles || !data.candles.length) throw new Error("empty");
+    drawSparkline(canvas, data.candles);
+  } catch {
+    loading.classList.add("hidden");
+    if (_detailSym === sym) empty.classList.remove("hidden");
+  }
+}
+
+function drawSparkline(canvas, candles) {
+  if (!candles || candles.length < 2) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth;
+  const H   = canvas.offsetHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const closes = candles.map(c => c.c).filter(v => v != null);
+  if (closes.length < 2) return;
+
+  const minV  = Math.min(...closes);
+  const maxV  = Math.max(...closes);
+  const range = maxV - minV || 1;
+  const isUp  = closes[closes.length - 1] >= closes[0];
+
+  const pad    = { top: 12, bottom: 8, left: 2, right: 2 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const pts = closes.map((v, i) => ({
+    x: pad.left + (i / (closes.length - 1)) * chartW,
+    y: pad.top  + (1 - (v - minV) / range) * chartH
+  }));
+
+  const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+  grad.addColorStop(0, isUp ? "rgba(0,230,118,0.32)" : "rgba(255,77,77,0.32)");
+  grad.addColorStop(1, isUp ? "rgba(0,230,118,0.02)" : "rgba(255,77,77,0.02)");
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, H - pad.bottom);
+  ctx.lineTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.lineTo(pts[pts.length - 1].x, H - pad.bottom);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = isUp ? "#00e676" : "#ff4d4d";
+  ctx.lineWidth   = 2;
+  ctx.lineJoin    = "round";
+  ctx.lineCap     = "round";
+  ctx.stroke();
+}
+
+function detailAddToPortfolio() {
+  const sym = _detailSym;
+  closeDetailSheet();
+  setTimeout(() => {
+    if (typeof openTradeModal === "function") {
+      openTradeModal();
+      const inp = document.getElementById("trade-ticker-input");
+      if (inp && sym) {
+        inp.value = sym;
+        if (typeof onTradeTickerInput === "function") onTradeTickerInput(sym);
+      }
+    }
+  }, 350);
+}
+
+function detailRemove() {
+  if (!_detailSym) return;
+  const sym = _detailSym;
+  closeDetailSheet();
+  setTimeout(() => deleteAsset(sym), 310);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
 fetchRates();
 updateCurrencyBtn();
+applyColumns(trackerColumns);
 loadAssets();
 setInterval(loadAssets, 60000);

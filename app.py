@@ -620,6 +620,75 @@ def get_rates():
         return jsonify(d["rates"])
     return jsonify({"EUR": 0.92, "BRL": 5.70})
 
+# ─── Price history (candles) ──────────────────────────────────────────────────
+
+def _candles_hyperliquid(sym, interval, start_ms, end_ms):
+    data = http_post("https://api.hyperliquid.xyz/info", {
+        "type": "candleSnapshot",
+        "req": {"coin": sym, "interval": interval, "startTime": start_ms, "endTime": end_ms}
+    }, timeout=8)
+    if not data or not isinstance(data, list) or not data:
+        return None
+    out = [{"t": c.get("t"), "o": safe_float(c.get("o")), "h": safe_float(c.get("h")),
+             "l": safe_float(c.get("l")), "c": safe_float(c.get("c"))} for c in data if "t" in c]
+    return out if out else None
+
+def _candles_mexc(sym, interval, limit):
+    mexc_int = {"1h": "60m", "4h": "4h", "1d": "1d"}.get(interval, "60m")
+    data = http_get(f"https://api.mexc.com/api/v3/klines?symbol={sym}USDT&interval={mexc_int}&limit={limit}", timeout=8)
+    if not data or not isinstance(data, list):
+        return None
+    out = [{"t": c[0], "o": safe_float(c[1]), "h": safe_float(c[2]),
+            "l": safe_float(c[3]), "c": safe_float(c[4])} for c in data if len(c) >= 5]
+    return out if out else None
+
+def _candles_gate(sym, interval, limit):
+    gate_int = {"1h": "1h", "4h": "4h", "1d": "1d"}.get(interval, "1h")
+    data = http_get(
+        f"https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair={sym}_USDT"
+        f"&interval={gate_int}&limit={limit}", timeout=8)
+    if not data or not isinstance(data, list):
+        return None
+    out = [{"t": int(c[0]) * 1000, "o": safe_float(c[5]), "h": safe_float(c[3]),
+            "l": safe_float(c[4]), "c": safe_float(c[2])} for c in data if len(c) >= 6]
+    return out if out else None
+
+def _candles_okx(sym, interval, limit):
+    okx_int = {"1h": "1H", "4h": "4H", "1d": "1Dutc"}.get(interval, "1H")
+    data = http_get(
+        f"https://www.okx.com/api/v5/market/candles?instId={sym}-USDT"
+        f"&bar={okx_int}&limit={limit}", timeout=8)
+    if not data or not data.get("data"):
+        return None
+    out = [{"t": int(c[0]), "o": safe_float(c[1]), "h": safe_float(c[2]),
+            "l": safe_float(c[3]), "c": safe_float(c[4])} for c in data["data"] if len(c) >= 5]
+    return out[::-1] if out else None
+
+@app.route("/api/history")
+def get_history():
+    sym    = request.args.get("symbol", "").upper().strip()
+    period = request.args.get("period", "1D").upper()
+    if not sym:
+        return jsonify({"error": "no symbol"}), 400
+
+    period_conf = {"1D": ("1h", 24), "1W": ("4h", 42), "1M": ("1d", 30), "3M": ("1d", 90)}
+    interval, count = period_conf.get(period, ("1h", 24))
+    interval_ms     = {"1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
+    now_ms   = int(time.time() * 1000)
+    start_ms = now_ms - count * interval_ms[interval]
+
+    candles = (
+        _candles_hyperliquid(sym, interval, start_ms, now_ms) or
+        _candles_mexc(sym, interval, count) or
+        _candles_gate(sym, interval, count) or
+        _candles_okx(sym, interval, count)
+    )
+
+    if not candles:
+        return jsonify({"error": "no history"}), 404
+
+    return jsonify({"symbol": sym, "period": period, "candles": candles})
+
 # ─── Background warmup ────────────────────────────────────────────────────────
 
 _coinlore_cache = {}

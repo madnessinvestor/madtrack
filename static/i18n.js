@@ -66,6 +66,8 @@ const TRANSLATIONS = {
     confirm_remove_trade: "Remover esta compra?",
     // source prefix
     via:              "via",
+    // column switcher
+    cols_label:       "Colunas",
     // stats labels
     max24h:   "MÁX 24H",
     min24h:   "MÍN 24H",
@@ -165,6 +167,8 @@ const TRANSLATIONS = {
     confirm_remove_trade: "Remove this purchase?",
     // source prefix
     via:              "via",
+    // column switcher
+    cols_label:       "Columns",
     // stats labels
     max24h:   "MAX 24H",
     min24h:   "MIN 24H",
