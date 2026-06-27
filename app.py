@@ -727,6 +727,12 @@ def create_alert():
     direction = data.get("direction", "above")
     if not ticker or target <= 0 or direction not in ("above", "below"):
         return jsonify({"error": "invalid data"}), 400
+    try:
+        repeat_interval = int(data.get("repeat_interval", 0))
+        if repeat_interval not in (0, 60, 300, 900, 3600):
+            repeat_interval = 0
+    except (TypeError, ValueError):
+        repeat_interval = 0
     alerts = load_alerts()
     alerts.append({
         "id": str(uuid.uuid4())[:8],
@@ -734,6 +740,8 @@ def create_alert():
         "target": target,
         "direction": direction,
         "triggered": False,
+        "repeat_interval": repeat_interval,
+        "last_fired_at": None,
     })
     save_alerts(alerts)
     return jsonify({"ok": True})
@@ -748,7 +756,10 @@ def trigger_alert_route(alert_id):
     alerts = load_alerts()
     for a in alerts:
         if a["id"] == alert_id:
-            a["triggered"] = True
+            a["last_fired_at"] = _time.time()
+            # One-time alert: mark as done. Repeating: keep active for next cycle.
+            if a.get("repeat_interval", 0) == 0:
+                a["triggered"] = True
             break
     save_alerts(alerts)
     return jsonify({"ok": True})
@@ -759,6 +770,7 @@ def reset_alert(alert_id):
     for a in alerts:
         if a["id"] == alert_id:
             a["triggered"] = False
+            a["last_fired_at"] = None
             break
     save_alerts(alerts)
     return jsonify({"ok": True})

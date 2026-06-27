@@ -84,6 +84,8 @@ const TRANSLATIONS = {
     alert_err_ticker:   "Informe o ticker.",
     alert_err_price:    "Preço inválido.",
     alert_err_perm:     "Permissão de notificação negada. Ative nas configurações do navegador.",
+    alert_repeat_label: "Repetir se persistir:",
+    alert_repeat_once:  "1x",
     // mad ai
     tab_ai:             "Mad AI",
     ai_title:           "Mad AI",
@@ -181,6 +183,8 @@ const TRANSLATIONS = {
     alert_err_ticker:   "Enter the ticker.",
     alert_err_price:    "Invalid price.",
     alert_err_perm:     "Notification permission denied. Enable it in browser settings.",
+    alert_repeat_label: "Repeat if persists:",
+    alert_repeat_once:  "Once",
     // mad ai
     tab_ai:             "Mad AI",
     ai_title:           "Mad AI",

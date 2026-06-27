@@ -279,6 +279,16 @@
           <input id="alert-target" type="number" step="any" min="0"
                  class="trade-input" placeholder="0.00" style="flex:1" />
         </div>
+        <div class="alert-repeat-row">
+          <span class="alert-repeat-label" data-i18n="alert_repeat_label">Repetir se persistir:</span>
+          <div class="alert-repeat-chips">
+            <button class="alert-repeat-chip active" data-val="0"    onclick="selectRepeat(this)" data-i18n="alert_repeat_once">1x</button>
+            <button class="alert-repeat-chip"        data-val="60"   onclick="selectRepeat(this)">1 min</button>
+            <button class="alert-repeat-chip"        data-val="300"  onclick="selectRepeat(this)">5 min</button>
+            <button class="alert-repeat-chip"        data-val="900"  onclick="selectRepeat(this)">15 min</button>
+            <button class="alert-repeat-chip"        data-val="3600" onclick="selectRepeat(this)">60 min</button>
+          </div>
+        </div>
         <div id="alert-error" class="price-error hidden"></div>
         <button class="btn-confirm" onclick="submitAlert()">
           + <span data-i18n="alert_add_btn">Criar Alerta</span>

@@ -2,6 +2,14 @@
 
 let alertsData = [];
 const ALERT_INTERVAL = 30000;
+let _selectedRepeat = 0;
+
+// ─── Repeat chip selector ─────────────────────────────────────────────────────
+function selectRepeat(btn) {
+  document.querySelectorAll(".alert-repeat-chip").forEach(c => c.classList.remove("active"));
+  btn.classList.add("active");
+  _selectedRepeat = parseInt(btn.dataset.val, 10) || 0;
+}
 
 // ─── Audio unlock (browsers block AudioContext until first user gesture) ───────
 let _audioCtx = null;
@@ -57,11 +65,17 @@ async function submitAlert() {
   await fetch("/api/alerts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ticker, target, direction: dir })
+    body: JSON.stringify({ ticker, target, direction: dir, repeat_interval: _selectedRepeat })
   });
 
   document.getElementById("alert-ticker").value = "";
   document.getElementById("alert-target").value = "";
+  // Reset repeat chip to "1x"
+  document.querySelectorAll(".alert-repeat-chip").forEach(c => c.classList.remove("active"));
+  const firstChip = document.querySelector(".alert-repeat-chip");
+  if (firstChip) firstChip.classList.add("active");
+  _selectedRepeat = 0;
+
   await loadAlerts();
 
   // Ask permission non-blocking — show soft warning if denied
@@ -99,9 +113,20 @@ async function requestNotifPermission() {
 
 // ─── Check alerts (runs every 30 s) ──────────────────────────────────────────
 
+function _alertIsReadyToCheck(a) {
+  // One-time alerts already triggered: skip
+  if (a.triggered) return false;
+  const interval = a.repeat_interval || 0;
+  // Never fired yet: always check
+  if (!a.last_fired_at) return true;
+  // Repeating: only check after enough time has passed since last fire
+  const nowSec = Date.now() / 1000;
+  return nowSec - a.last_fired_at >= interval;
+}
+
 async function checkAlerts() {
-  const active = alertsData.filter(a => !a.triggered);
-  if (!active.length) return;
+  const toCheck = alertsData.filter(_alertIsReadyToCheck);
+  if (!toCheck.length) return;
 
   let priceMap = {};
   try {
@@ -112,7 +137,7 @@ async function checkAlerts() {
     }
   } catch(e) { return; }
 
-  for (const alert of active) {
+  for (const alert of toCheck) {
     const price = priceMap[alert.ticker.toUpperCase()];
     if (price == null) continue;
     const fired = alert.direction === "above" ? price >= alert.target : price <= alert.target;
@@ -217,7 +242,12 @@ async function _sendSystemNotification(title, body, tag) {
 
 async function fireAlert(alert, price) {
   await fetch(`/api/alerts/${alert.id}/trigger`, { method: "POST" });
-  alert.triggered = true;
+  // One-time alerts become triggered; repeating alerts update last_fired_at locally
+  if ((alert.repeat_interval || 0) === 0) {
+    alert.triggered = true;
+  } else {
+    alert.last_fired_at = Date.now() / 1000;
+  }
   renderAlertsList();
   updateBellBadge();
   playAlertSound();
@@ -248,6 +278,26 @@ function updateBellBadge() {
 
 // ─── Render list ──────────────────────────────────────────────────────────────
 
+function _repeatLabel(interval) {
+  if (!interval) return "";
+  if (interval === 60)   return "↻ 1 min";
+  if (interval === 300)  return "↻ 5 min";
+  if (interval === 900)  return "↻ 15 min";
+  if (interval === 3600) return "↻ 60 min";
+  return `↻ ${interval}s`;
+}
+
+function _nextFireLabel(a) {
+  const interval = a.repeat_interval || 0;
+  if (!interval || !a.last_fired_at) return "";
+  const nextAt = a.last_fired_at + interval;
+  const diffSec = Math.max(0, Math.round(nextAt - Date.now() / 1000));
+  if (diffSec <= 0) return "";
+  const m = Math.floor(diffSec / 60);
+  const s = diffSec % 60;
+  return m > 0 ? `próx. em ${m}m${s > 0 ? s + "s" : ""}` : `próx. em ${s}s`;
+}
+
 function renderAlertsList() {
   const el = document.getElementById("alerts-list");
   if (!el) return;
@@ -258,14 +308,25 @@ function renderAlertsList() {
   }
 
   el.innerHTML = alertsData.map(a => {
-    const arrow    = a.direction === "above" ? "↑" : "↓";
-    const dirLabel = a.direction === "above" ? t("alert_above") : t("alert_below");
-    const cls      = a.triggered ? "alert-item triggered" : "alert-item active";
-    const statusTxt= a.triggered ? t("alert_triggered") : t("alert_active_label");
+    const arrow     = a.direction === "above" ? "↑" : "↓";
+    const dirLabel  = a.direction === "above" ? t("alert_above") : t("alert_below");
+    const isRepeat  = (a.repeat_interval || 0) > 0;
+    const cls       = a.triggered ? "alert-item triggered" : "alert-item active";
+    const statusTxt = a.triggered ? t("alert_triggered") : t("alert_active_label");
+    const repeatBadge = isRepeat
+      ? `<span class="alert-repeat-badge">${_repeatLabel(a.repeat_interval)}</span>` : "";
+    const nextLabel = isRepeat && !a.triggered ? _nextFireLabel(a) : "";
+    const nextBadge = nextLabel
+      ? `<span class="alert-next-label">${nextLabel}</span>` : "";
+
     return `<div class="${cls}">
       <div class="alert-item-info">
-        <span class="alert-item-ticker">${a.ticker}</span>
+        <div class="alert-item-top">
+          <span class="alert-item-ticker">${a.ticker}</span>
+          ${repeatBadge}
+        </div>
         <span class="alert-item-desc">${dirLabel} ${formatUSD(a.target, true)} ${arrow}</span>
+        ${nextBadge}
       </div>
       <div class="alert-item-actions">
         <span class="alert-item-status">${statusTxt}</span>
