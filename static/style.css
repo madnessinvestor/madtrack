@@ -1197,33 +1197,26 @@ section.hidden { display: none; }
 #asset-list.cols-2 { grid-template-columns: repeat(2, 1fr); }
 #asset-list.cols-3 { grid-template-columns: repeat(3, 1fr); }
 
-/* Compact card in 2-col mode */
-#asset-list.cols-2 .asset-card,
-#asset-list.cols-3 .asset-card {
-  padding: 7px 8px;
-}
-#asset-list.cols-2 .asset-source,
-#asset-list.cols-3 .asset-source { display: none; }
-#asset-list.cols-2 .drag-handle,
-#asset-list.cols-3 .drag-handle   { display: none; }
+/* 2-col: same horizontal layout as 1-col, just scaled down */
+#asset-list.cols-2 .asset-card { padding: 8px 7px; }
+#asset-list.cols-2 .asset-icon   { width: 28px; height: 28px; font-size: 0.56rem; }
+#asset-list.cols-2 .asset-symbol { font-size: 0.82rem; }
+#asset-list.cols-2 .asset-source { font-size: 0.6rem; }
+#asset-list.cols-2 .asset-price  { font-size: 0.84rem; }
+#asset-list.cols-2 .change       { font-size: 0.66rem; }
+#asset-list.cols-2 .drag-handle  { font-size: 0.82rem; }
 
-#asset-list.cols-2 .card-top {
-  flex-wrap: wrap;
-  gap: 4px;
-}
-#asset-list.cols-2 .asset-left  { flex: 1 1 100%; }
-#asset-list.cols-2 .asset-right { flex: 1 1 100%; align-items: flex-start; margin-left: 38px; }
-#asset-list.cols-2 .asset-price { font-size: 0.82rem; }
-#asset-list.cols-2 .change      { font-size: 0.65rem; }
-#asset-list.cols-2 .asset-icon  { width: 26px; height: 26px; font-size: 0.55rem; }
-
-#asset-list.cols-3 .card-top { flex-direction: column; align-items: flex-start; gap: 3px; }
-#asset-list.cols-3 .asset-left  { gap: 5px; }
-#asset-list.cols-3 .asset-right { margin-left: 0; align-items: flex-start; }
-#asset-list.cols-3 .asset-price { font-size: 0.75rem; }
-#asset-list.cols-3 .change      { display: none; }
-#asset-list.cols-3 .asset-icon  { width: 22px; height: 22px; font-size: 0.5rem; }
+/* 3-col: same horizontal layout, more compact */
+#asset-list.cols-3 .asset-card { padding: 7px 6px; }
+#asset-list.cols-3 .card-top   { gap: 4px; }
+#asset-list.cols-3 .asset-left { gap: 5px; }
+#asset-list.cols-3 .asset-icon   { width: 24px; height: 24px; font-size: 0.5rem; }
 #asset-list.cols-3 .asset-symbol { font-size: 0.72rem; }
+#asset-list.cols-3 .asset-source { font-size: 0.56rem; }
+#asset-list.cols-3 .asset-price  { font-size: 0.76rem; letter-spacing: -0.2px; }
+#asset-list.cols-3 .change       { font-size: 0.6rem; }
+#asset-list.cols-3 .drag-handle  { font-size: 0.75rem; padding: 2px 0; }
+#asset-list.cols-3 .asset-name-wrap { min-width: 0; overflow: hidden; }
 
 /* ─── Detail sheet (bottom panel) ───────────────────────────────────────────── */
 .detail-sheet {
