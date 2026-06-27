@@ -1344,68 +1344,108 @@ AI_PROVIDERS = {
 ACTIVE_AI_PROVIDER = "openrouter"
 
 def _build_portfolio_context():
-    """Build a concise text summary of the user's portfolio for the AI prompt."""
+    """Build a rich text summary of the user's portfolio including current prices and full P&L."""
     tokens = load_portfolio()
     if not tokens:
         return "O usuário não possui trades registrados no portfólio."
 
-    lines = ["=== PORTFÓLIO DO USUÁRIO ===\n"]
-    grand_invested = 0.0
-    grand_pnl = 0.0
-    all_trades_flat = []
+    # Fetch current prices in parallel (same approach as /api/portfolio)
+    def _enrich(tok):
+        sym = tok.get("ticker", "").upper()
+        r = fetch_price(sym)
+        return dict(tok, current_price=r["price"] if r else None)
 
-    for tok in tokens:
-        ticker = tok.get("ticker", "")
-        trades = tok.get("trades", [])
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(tokens))) as ex:
+        enriched = list(ex.map(_enrich, tokens))
+
+    lines = ["=== PORTFÓLIO DO USUÁRIO (com preços atuais) ===\n"]
+
+    grand_invested      = 0.0
+    grand_cur_value     = 0.0
+    grand_realized_pnl  = 0.0
+    grand_unrealized_pnl = 0.0
+    positions_in_profit  = 0
+    positions_total      = 0
+
+    for tok in enriched:
+        ticker        = tok.get("ticker", "")
+        trades        = tok.get("trades", [])
+        cur_price     = tok.get("current_price")
         if not trades:
             continue
 
-        total_qty = 0.0
-        total_invested = 0.0
-        sell_proceeds = 0.0
+        total_buy_qty   = 0.0
+        total_invested  = 0.0
+        sell_proceeds   = 0.0
+        total_qty       = 0.0
+        sell_cost_basis = 0.0
         buys = []
         sells = []
 
         for tr in trades:
-            qty = tr.get("qty", 0)
+            qty   = tr.get("qty", 0)
             price = tr.get("price_paid", 0)
-            date = tr.get("date", "")
+            date  = tr.get("date", "")
             total_qty += qty
             if qty > 0:
+                total_buy_qty  += qty
                 total_invested += qty * price
                 buys.append({"qty": qty, "price": price, "date": date})
-                all_trades_flat.append({"ticker": ticker, "type": "compra", "qty": qty, "price": price, "date": date, "invested": qty * price})
             else:
                 sell_proceeds += abs(qty) * price
                 sells.append({"qty": abs(qty), "price": price, "date": date})
-                all_trades_flat.append({"ticker": ticker, "type": "venda", "qty": abs(qty), "price": price, "date": date, "proceeds": abs(qty) * price})
 
-        avg_price = total_invested / total_qty if total_qty > 0 else 0
-        realized_pnl = sell_proceeds - sum(s["qty"] * avg_price for s in sells) if sells else 0
+        avg_buy_price = total_invested / total_buy_qty if total_buy_qty > 0 else 0
+
+        # Realized P&L: sell proceeds minus the cost basis of what was sold
+        sell_cost_basis = sum(s["qty"] * avg_buy_price for s in sells)
+        realized_pnl    = sell_proceeds - sell_cost_basis
+
+        # Unrealized P&L: current value of remaining position vs. its cost basis
+        cost_basis_held  = total_qty * avg_buy_price if total_qty > 0 else 0
+        cur_value        = total_qty * cur_price if (cur_price and total_qty > 0) else 0
+        unrealized_pnl   = cur_value - cost_basis_held if cur_price else None
+
+        total_pnl = realized_pnl + (unrealized_pnl if unrealized_pnl is not None else 0)
 
         lines.append(f"Ativo: {ticker}")
         lines.append(f"  Quantidade atual: {total_qty:.6g}")
-        lines.append(f"  Total investido (compras): ${total_invested:.2f}")
-        if avg_price:
-            lines.append(f"  Preço médio de compra: ${avg_price:.6g}")
+        lines.append(f"  Preço atual: ${cur_price:.6g}" if cur_price else "  Preço atual: indisponível")
+        lines.append(f"  Preço médio de compra: ${avg_buy_price:.6g}" if avg_buy_price else "")
+        lines.append(f"  Total investido em compras: ${total_invested:.2f}")
+        lines.append(f"  Valor atual da posição: ${cur_value:.2f}" if cur_price else "  Valor atual da posição: indisponível")
+        lines.append(f"  P&L não-realizado: ${unrealized_pnl:+.2f}" if unrealized_pnl is not None else "  P&L não-realizado: indisponível")
         if sells:
-            lines.append(f"  P&L realizado (vendas): ${realized_pnl:+.2f}")
+            lines.append(f"  P&L realizado (vendas fechadas): ${realized_pnl:+.2f}")
+        lines.append(f"  P&L total (realizado + não-realizado): ${total_pnl:+.2f}")
+
         for b in buys:
             lines.append(f"  Compra: {b['qty']:.6g} @ ${b['price']:.6g}" + (f" em {b['date']}" if b['date'] else ""))
         for s in sells:
             lines.append(f"  Venda: {s['qty']:.6g} @ ${s['price']:.6g}" + (f" em {s['date']}" if s['date'] else ""))
         lines.append("")
-        grand_invested += total_invested
-        grand_pnl += realized_pnl
 
-    lines.append(f"=== RESUMO GERAL ===")
-    lines.append(f"Total investido (compras): ${grand_invested:.2f}")
-    lines.append(f"P&L realizado total: ${grand_pnl:+.2f}")
+        grand_invested       += total_invested
+        grand_cur_value      += cur_value
+        grand_realized_pnl   += realized_pnl
+        grand_unrealized_pnl += (unrealized_pnl if unrealized_pnl is not None else 0)
 
-    total_buy_trades = sum(1 for t in all_trades_flat if t["type"] == "compra")
-    total_sell_trades = sum(1 for t in all_trades_flat if t["type"] == "venda")
-    lines.append(f"Total de compras registradas: {total_buy_trades}")
-    lines.append(f"Total de vendas registradas: {total_sell_trades}")
+        if total_qty > 0:
+            positions_total += 1
+            if unrealized_pnl is not None and unrealized_pnl > 0:
+                positions_in_profit += 1
+
+    grand_total_pnl = grand_realized_pnl + grand_unrealized_pnl
+    grand_total_pct = (grand_total_pnl / grand_invested * 100) if grand_invested > 0 else 0
+    win_rate = (positions_in_profit / positions_total * 100) if positions_total > 0 else 0
+
+    lines.append("=== RESUMO GERAL ===")
+    lines.append(f"Total investido em compras: ${grand_invested:.2f}")
+    lines.append(f"Valor atual total do portfólio: ${grand_cur_value:.2f}")
+    lines.append(f"P&L realizado total: ${grand_realized_pnl:+.2f}")
+    lines.append(f"P&L não-realizado total: ${grand_unrealized_pnl:+.2f}")
+    lines.append(f"P&L total (realizado + não-realizado): ${grand_total_pnl:+.2f} ({grand_total_pct:+.2f}%)")
+    lines.append(f"Win rate (posições abertas em lucro): {win_rate:.1f}% ({positions_in_profit}/{positions_total})")
 
     return "\n".join(lines)
 
