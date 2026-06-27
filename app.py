@@ -671,7 +671,7 @@ def get_history():
     if not sym:
         return jsonify({"error": "no symbol"}), 400
 
-    period_conf = {"1D": ("1h", 24), "1W": ("4h", 42), "1M": ("1d", 30), "3M": ("1d", 90)}
+    period_conf = {"1D": ("1h", 24), "1W": ("4h", 42), "1M": ("1d", 30), "3M": ("1d", 90), "1Y": ("1d", 365), "ALL": ("1d", 1095)}
     interval, count = period_conf.get(period, ("1h", 24))
     interval_ms     = {"1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
     now_ms   = int(time.time() * 1000)

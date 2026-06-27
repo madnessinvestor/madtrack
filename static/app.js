@@ -586,7 +586,8 @@ function closeDetailSheet() {
   sheet.classList.remove("open");
   document.body.style.overflow = "";
   setTimeout(() => sheet.classList.add("hidden"), 300);
-  _detailSym = null;
+  _detailSym   = null;
+  _chartState  = null;
 }
 
 function renderDetailStats(asset) {
@@ -635,36 +636,30 @@ async function loadDetailChart(sym, period) {
   }
 }
 
-function drawSparkline(canvas, candles) {
-  if (!candles || candles.length < 2) return;
+// ─── Chart state (for crosshair) ─────────────────────────────────────────────
+let _chartState = null;
 
-  const dpr = window.devicePixelRatio || 1;
-  const W   = canvas.offsetWidth;
-  const H   = canvas.offsetHeight;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-
-  const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
-
+function _computeChartGeo(W, H, candles) {
   const closes = candles.map(c => c.c).filter(v => v != null);
-  if (closes.length < 2) return;
-
-  const minV  = Math.min(...closes);
-  const maxV  = Math.max(...closes);
-  const range = maxV - minV || 1;
-  const isUp  = closes[closes.length - 1] >= closes[0];
-
-  const pad    = { top: 12, bottom: 8, left: 2, right: 2 };
+  if (closes.length < 2) return null;
+  const minV   = Math.min(...closes);
+  const maxV   = Math.max(...closes);
+  const range  = maxV - minV || 1;
+  const isUp   = closes[closes.length - 1] >= closes[0];
+  const pad    = { top: 28, bottom: 8, left: 2, right: 2 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
-
-  const pts = closes.map((v, i) => ({
+  const pts    = closes.map((v, i) => ({
     x: pad.left + (i / (closes.length - 1)) * chartW,
     y: pad.top  + (1 - (v - minV) / range) * chartH
   }));
+  return { closes, minV, maxV, range, isUp, pad, W, H, pts };
+}
 
-  const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+function _drawChartBase(ctx, geo) {
+  const { isUp, pad, W, H, pts } = geo;
+  const color = isUp ? "#00e676" : "#ff4d4d";
+  const grad  = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
   grad.addColorStop(0, isUp ? "rgba(0,230,118,0.32)" : "rgba(255,77,77,0.32)");
   grad.addColorStop(1, isUp ? "rgba(0,230,118,0.02)" : "rgba(255,77,77,0.02)");
 
@@ -680,11 +675,144 @@ function drawSparkline(canvas, candles) {
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.strokeStyle = isUp ? "#00e676" : "#ff4d4d";
+  ctx.strokeStyle = color;
   ctx.lineWidth   = 2;
   ctx.lineJoin    = "round";
   ctx.lineCap     = "round";
   ctx.stroke();
+}
+
+function _drawChartCrosshair(ctx, geo, candles, idx) {
+  const pt     = geo.pts[idx];
+  const candle = candles[idx];
+  const color  = geo.isUp ? "#00e676" : "#ff4d4d";
+  const { pad, W, H } = geo;
+
+  // Dashed vertical line
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pt.x, pad.top);
+  ctx.lineTo(pt.x, H - pad.bottom);
+  ctx.strokeStyle = "rgba(200,200,200,0.28)";
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([3, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Dot
+  ctx.beginPath();
+  ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  // Label: price + date
+  const skip  = isForexPair(_detailSym);
+  const price = formatPrice(candle.c, skip);
+  const date  = _fmtChartDate(candle.t, _detailPeriod);
+  const label = `${price}   ${date}`;
+
+  ctx.font = "bold 11px -apple-system,BlinkMacSystemFont,sans-serif";
+  const tw = ctx.measureText(label).width;
+  const lx = Math.min(Math.max(pt.x - tw / 2 - 7, 2), W - tw - 18);
+  const ly = 4;
+
+  ctx.fillStyle = "rgba(24,24,24,0.88)";
+  const r = 4;
+  const bx = lx, by = ly, bw = tw + 14, bh = 20;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bw - r, by);
+  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+  ctx.lineTo(bx + bw, by + bh - r);
+  ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+  ctx.lineTo(bx + r, by + bh);
+  ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#f0f0f0";
+  ctx.fillText(label, lx + 7, ly + 14);
+  ctx.restore();
+}
+
+function _fmtChartDate(ts, period) {
+  if (!ts) return "";
+  const d   = new Date(ts);
+  const p2  = n => String(n).padStart(2, "0");
+  const MON = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  if (period === "1D")                  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  if (period === "1W")                  return `${p2(d.getDate())}/${p2(d.getMonth()+1)} ${p2(d.getHours())}h`;
+  if (period === "1M" || period === "3M") return `${p2(d.getDate())}/${p2(d.getMonth()+1)}`;
+  return `${p2(d.getDate())} ${MON[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function _redrawChart(canvas) {
+  if (!_chartState) return;
+  const { geo, dpr, W, H } = _chartState;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  _drawChartBase(ctx, geo);
+}
+
+function drawSparkline(canvas, candles) {
+  if (!candles || candles.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth;
+  const H   = canvas.offsetHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+
+  const geo = _computeChartGeo(W, H, candles);
+  if (!geo) return;
+
+  _chartState = { candles, geo, dpr, W, H };
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  _drawChartBase(ctx, geo);
+}
+
+function updateChartCrosshair(canvas, clientX) {
+  if (!_chartState) return;
+  const { candles, geo, dpr, W, H } = _chartState;
+  const rect = canvas.getBoundingClientRect();
+  const x    = (clientX - rect.left) * (W / rect.width);
+
+  let nearestIdx = 0, minDist = Infinity;
+  geo.pts.forEach((pt, i) => {
+    const d = Math.abs(pt.x - x);
+    if (d < minDist) { minDist = d; nearestIdx = i; }
+  });
+
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  _drawChartBase(ctx, geo);
+  _drawChartCrosshair(ctx, geo, candles, nearestIdx);
+}
+
+function _initChartInteraction() {
+  const canvas = document.getElementById("detail-chart");
+  if (!canvas) return;
+  canvas.addEventListener("mousemove", e => updateChartCrosshair(canvas, e.clientX));
+  canvas.addEventListener("mouseleave", () => _redrawChart(canvas));
+  canvas.addEventListener("touchstart", e => {
+    e.preventDefault();
+    updateChartCrosshair(canvas, e.touches[0].clientX);
+  }, { passive: false });
+  canvas.addEventListener("touchmove", e => {
+    e.preventDefault();
+    updateChartCrosshair(canvas, e.touches[0].clientX);
+  }, { passive: false });
+  canvas.addEventListener("touchend", () => _redrawChart(canvas));
 }
 
 function detailAddToPortfolio() {
@@ -716,3 +844,4 @@ updateCurrencyBtn();
 applyColumns(trackerColumns);
 loadAssets();
 setInterval(loadAssets, 60000);
+_initChartInteraction();
