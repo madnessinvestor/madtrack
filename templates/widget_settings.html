@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widget Settings</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg:      #0f0f14;
+    --surface: #1a1a24;
+    --border:  rgba(255,255,255,0.08);
+    --text:    #e8e8e8;
+    --muted:   #888;
+    --accent:  #00e676;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Roboto', sans-serif;
+    font-size: 15px;
+    min-height: 100%;
+  }
+
+  .page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 0 40px;
+  }
+
+  /* ── Header ─── */
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 4px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* ── Section label ─── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 18px 20px 6px;
+  }
+
+  /* ── Setting row ─── */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .setting-row:active { background: rgba(255,255,255,0.04); }
+
+  .setting-info { flex: 1; min-width: 0; }
+  .setting-title { font-size: 15px; font-weight: 500; color: var(--text); }
+  .setting-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Toggle switch */
+  .toggle-wrap { flex-shrink: 0; }
+  .toggle { position: relative; width: 46px; height: 26px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.12);
+    border-radius: 26px;
+    transition: background 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--accent); }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 20px; height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(20px); }
+
+  /* Pill selector (inline) */
+  .pill-sel {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .pill-sel button {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .pill-sel button.active {
+    background: rgba(0,230,118,0.18);
+    color: var(--accent);
+  }
+  .pill-sel button:not(:last-child) { border-right: 1px solid var(--border); }
+
+  /* Preview strip */
+  .preview-wrap {
+    margin: 16px 20px 0;
+    background: rgba(8,10,20,0.85);
+    border-radius: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+  }
+  .preview-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .preview-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    padding: 2px 0;
+    color: #e4e4e4;
+  }
+  .preview-row .pv-chg { font-weight: 600; }
+  .pos { color: #4dff8e; }
+  .neg { color: #ff4d4d; }
+  .neu { color: #888; }
+
+  /* Open widget button */
+  .open-btn {
+    display: block;
+    width: calc(100% - 40px);
+    margin: 24px 20px 0;
+    padding: 14px;
+    background: var(--accent);
+    color: #000;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .open-btn:active { opacity: 0.8; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <button class="back-btn" onclick="goWidget()">←</button>
+    <span class="page-title">Configurar Widget</span>
+  </div>
+
+  <!-- Live preview -->
+  <div class="preview-wrap">
+    <div class="preview-label">Pré-visualização</div>
+    <div class="preview-row">
+      <span>BTC</span>
+      <span id="pv-price">$59,960.50</span>
+      <span class="pv-chg pos" id="pv-chg">+1.15%</span>
+    </div>
+    <div class="preview-row">
+      <span>ETH</span>
+      <span id="pv-price2">$1,576.25</span>
+      <span class="pv-chg neg" id="pv-chg2">-0.03%</span>
+    </div>
+  </div>
+
+  <!-- DISPLAY -->
+  <div class="section-label">Exibição</div>
+
+  <div class="setting-row">
+    <div class="setting-info">
+      <div class="setting-title">Moeda</div>
+      <div class="setting-desc">Converter preços para a moeda selecionada</div>
+    </div>
+    <div class="pill-sel" id="ccy-sel">
+      <button data-v="USD" onclick="set('ccy','USD')">$ USD</button>
+      <button data-v="BRL" onclick="set('ccy','BRL')">R$ BRL</button>
+      <button data-v="EUR" onclick="set('ccy','EUR')">€ EUR</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <div class="setting-info">
+      <div class="setting-title">Variação</div>
+      <div class="setting-desc">Exibir variação em percentual ou valor</div>
+    </div>
+    <div class="pill-sel" id="chg-sel">
+      <button data-v="pct" onclick="set('chg','pct')">%</button>
+      <button data-v="val" onclick="set('chg','val')">Valor</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <div class="setting-info">
+      <div class="setting-title">Número de colunas</div>
+      <div class="setting-desc">Quantas colunas de ativos exibir</div>
+    </div>
+    <div class="pill-sel" id="cols-sel">
+      <button data-v="1" onclick="set('cols','1')">1</button>
+      <button data-v="2" onclick="set('cols','2')">2</button>
+    </div>
+  </div>
+
+  <!-- TEXTO -->
+  <div class="section-label">Texto</div>
+
+  <div class="setting-row">
+    <div class="setting-info">
+      <div class="setting-title">Tamanho do texto</div>
+      <div class="setting-desc">Tamanho da fonte nos ativos</div>
+    </div>
+    <div class="pill-sel" id="fs-sel">
+      <button data-v="sm" onclick="set('fontSize','sm')">P</button>
+      <button data-v="md" onclick="set('fontSize','md')">M</button>
+      <button data-v="lg" onclick="set('fontSize','lg')">G</button>
+    </div>
+  </div>
+
+  <div class="setting-row" onclick="toggle('bold')">
+    <div class="setting-info">
+      <div class="setting-title">Negrito</div>
+      <div class="setting-desc">Exibir preços e variação em negrito</div>
+    </div>
+    <div class="toggle-wrap">
+      <label class="toggle" onclick="event.stopPropagation()">
+        <input type="checkbox" id="chk-bold" onchange="toggle('bold')">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-row" onclick="toggle('showCcy')">
+    <div class="setting-info">
+      <div class="setting-title">Mostrar símbolo da moeda</div>
+      <div class="setting-desc">Exibe $ / R$ / € antes do preço</div>
+    </div>
+    <div class="toggle-wrap">
+      <label class="toggle" onclick="event.stopPropagation()">
+        <input type="checkbox" id="chk-showCcy" onchange="toggle('showCcy')">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="section-label">Layout</div>
+
+  <div class="setting-row" onclick="toggle('showHeader')">
+    <div class="setting-info">
+      <div class="setting-title">Mostrar cabeçalho</div>
+      <div class="setting-desc">Exibe "Last fetch: HH:MM" no topo</div>
+    </div>
+    <div class="toggle-wrap">
+      <label class="toggle" onclick="event.stopPropagation()">
+        <input type="checkbox" id="chk-showHeader" onchange="toggle('showHeader')">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-row" onclick="toggle('autoSort')">
+    <div class="setting-info">
+      <div class="setting-title">Ordenar por variação</div>
+      <div class="setting-desc">Ativos ordenados do maior ao menor % de variação</div>
+    </div>
+    <div class="toggle-wrap">
+      <label class="toggle" onclick="event.stopPropagation()">
+        <input type="checkbox" id="chk-autoSort" onchange="toggle('autoSort')">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-row" onclick="toggle('showRefresh')">
+    <div class="setting-info">
+      <div class="setting-title">Mostrar botão de atualizar</div>
+      <div class="setting-desc">Exibe ↻ no cabeçalho para forçar atualização</div>
+    </div>
+    <div class="toggle-wrap">
+      <label class="toggle" onclick="event.stopPropagation()">
+        <input type="checkbox" id="chk-showRefresh" onchange="toggle('showRefresh')">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-row" onclick="toggle('showControls')">
+    <div class="setting-info">
+      <div class="setting-title">Mostrar controles rápidos</div>
+      <div class="setting-desc">Botões de moeda e % no topo do widget</div>
+    </div>
+    <div class="toggle-wrap">
+      <label class="toggle" onclick="event.stopPropagation()">
+        <input type="checkbox" id="chk-showControls" onchange="toggle('showControls')">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+  <a class="open-btn" onclick="goWidget()">← Abrir Widget</a>
+
+</div>
+<script>
+  // ── Default config ──────────────────────────────────────────
+  const DEFAULTS = {
+    ccy: "USD", chg: "pct", cols: "2", fontSize: "md",
+    bold: false, showCcy: true, showHeader: true,
+    autoSort: false, showRefresh: false, showControls: true
+  };
+
+  function loadCfg() {
+    const c = {};
+    for (const [k, def] of Object.entries(DEFAULTS)) {
+      const raw = localStorage.getItem("w_" + k);
+      if (raw === null) c[k] = def;
+      else if (typeof def === "boolean") c[k] = raw === "1";
+      else c[k] = raw;
+    }
+    return c;
+  }
+
+  function saveCfg(cfg) {
+    for (const [k, v] of Object.entries(cfg)) {
+      localStorage.setItem("w_" + k, typeof v === "boolean" ? (v ? "1" : "0") : v);
+    }
+  }
+
+  let cfg = loadCfg();
+
+  function set(key, val) {
+    cfg[key] = val;
+    saveCfg(cfg);
+    applyUI();
+    updatePreview();
+  }
+
+  function toggle(key) {
+    cfg[key] = !cfg[key];
+    saveCfg(cfg);
+    applyUI();
+    updatePreview();
+  }
+
+  // ── Apply UI state ──────────────────────────────────────────
+  function applyUI() {
+    // pill selectors
+    [["ccy-sel","ccy"],["chg-sel","chg"],["cols-sel","cols"],["fs-sel","fontSize"]].forEach(([id, key]) => {
+      document.querySelectorAll(`#${id} button`).forEach(b =>
+        b.classList.toggle("active", b.dataset.v === String(cfg[key])));
+    });
+    // toggles
+    [["chk-bold","bold"],["chk-showCcy","showCcy"],["chk-showHeader","showHeader"],
+     ["chk-autoSort","autoSort"],["chk-showRefresh","showRefresh"],["chk-showControls","showControls"]
+    ].forEach(([id, key]) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!cfg[key];
+    });
+  }
+
+  // ── Live preview ────────────────────────────────────────────
+  const RATES = { USD: 1, BRL: 5.70, EUR: 0.92 };
+  const SYM   = { USD: "$", BRL: "R$", EUR: "€" };
+
+  function fmtP(p) {
+    const cv = p * (RATES[cfg.ccy] || 1);
+    const sym = cfg.showCcy ? SYM[cfg.ccy] : "";
+    if (cv >= 10000) return sym + cv.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (cv >= 1)     return sym + cv.toFixed(2);
+    return sym + cv.toFixed(4);
+  }
+
+  function fmtC(p, pct, cls) {
+    if (cfg.chg === "pct") {
+      const s = pct >= 0 ? "+" : "";
+      return { text: s + pct.toFixed(2) + "%", cls: pct > 0 ? "pos" : "neg" };
+    } else {
+      const prev = p / (1 + pct / 100);
+      const abs  = (p - prev) * (RATES[cfg.ccy] || 1);
+      const sym  = cfg.showCcy ? SYM[cfg.ccy] : "";
+      const s    = abs >= 0 ? "+" : "-";
+      return { text: s + sym + Math.abs(abs).toFixed(2), cls: abs >= 0 ? "pos" : "neg" };
+    }
+  }
+
+  function updatePreview() {
+    const fs = cfg.fontSize === "sm" ? "11px" : cfg.fontSize === "lg" ? "15px" : "13px";
+    const fw = cfg.bold ? "700" : "400";
+    document.querySelectorAll(".preview-row").forEach(r => {
+      r.style.fontSize = fs;
+      r.querySelector(".pv-chg").style.fontWeight = cfg.bold ? "700" : "600";
+      r.querySelectorAll("span:not(.pv-chg)").forEach(s => s.style.fontWeight = fw);
+    });
+
+    const btc = fmtC(59960, 1.15);
+    const eth = fmtC(1576, -0.03);
+    document.getElementById("pv-price").textContent  = fmtP(59960);
+    document.getElementById("pv-price2").textContent = fmtP(1576);
+    const pc1 = document.getElementById("pv-chg");
+    pc1.textContent = btc.text; pc1.className = "pv-chg " + btc.cls;
+    const pc2 = document.getElementById("pv-chg2");
+    pc2.textContent = eth.text; pc2.className = "pv-chg " + eth.cls;
+  }
+
+  function goWidget() {
+    window.location.href = "/widget";
+  }
+
+  // ── Init ────────────────────────────────────────────────────
+  // fetch real rates for preview
+  fetch("/api/rates").then(r => r.json()).then(d => {
+    if (d.BRL) RATES.BRL = d.BRL;
+    if (d.EUR) RATES.EUR = d.EUR;
+    updatePreview();
+  }).catch(() => {});
+
+  applyUI();
+  updatePreview();
+</script>
+</body>
+</html>

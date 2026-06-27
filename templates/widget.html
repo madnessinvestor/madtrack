@@ -22,18 +22,18 @@
     padding: 5px 10px 4px;
     display: flex;
     flex-direction: column;
-    gap: 0;
     background: rgba(8, 10, 20, 0.75);
     border-radius: 16px;
   }
 
-  /* ── Top bar ─────────────────────────────────────────────── */
+  /* ── Top bar ──────────────────────────────────────────────── */
   .widget-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 4px;
     gap: 6px;
+    flex-shrink: 0;
   }
 
   .widget-header {
@@ -41,15 +41,43 @@
     color: #aaaaaa;
     white-space: nowrap;
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
+  .refresh-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .refresh-btn:active { color: #4dff8e; }
+
+  .settings-btn {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .settings-btn:active { color: #4dff8e; }
+
+  /* quick controls */
   .widget-controls {
     display: flex;
     gap: 4px;
     align-items: center;
+    flex-shrink: 0;
   }
 
-  /* pill group */
   .pill-group {
     display: flex;
     border: 1px solid rgba(255,255,255,0.15);
@@ -70,17 +98,13 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-
   .pill.active {
-    background: rgba(0, 210, 100, 0.25);
+    background: rgba(0,210,100,0.25);
     color: #4dff8e;
   }
+  .pill:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.15); }
 
-  .pill:not(:last-child) {
-    border-right: 1px solid rgba(255,255,255,0.15);
-  }
-
-  /* ── Data columns ────────────────────────────────────────── */
+  /* ── Data area ────────────────────────────────────────────── */
   .widget-cols {
     display: flex;
     gap: 10px;
@@ -89,6 +113,7 @@
     overflow: hidden;
   }
 
+  /* Each column is its own CSS grid → perfect alignment per column */
   .widget-col {
     flex: 1;
     display: grid;
@@ -98,10 +123,7 @@
     overflow: hidden;
   }
 
-  .w-ticker,
-  .w-price,
-  .w-chg {
-    font-size: 12px;
+  .w-ticker, .w-price, .w-chg {
     padding: 2px 0;
     line-height: 1.35;
     white-space: nowrap;
@@ -111,7 +133,6 @@
   .w-ticker {
     color: #e4e4e4;
     text-overflow: ellipsis;
-    font-weight: 400;
   }
 
   .w-price {
@@ -120,7 +141,6 @@
   }
 
   .w-chg {
-    font-weight: 600;
     text-align: right;
     min-width: 48px;
   }
@@ -132,104 +152,99 @@
 </head>
 <body>
 <div class="widget">
-  <div class="widget-topbar">
-    <span class="widget-header" id="wh">Carregando...</span>
-    <div class="widget-controls">
-      <!-- Currency -->
+  <!-- Top bar (conditionally shown) -->
+  <div class="widget-topbar" id="topbar">
+    <span class="widget-header" id="wh">
+      <span id="wh-text">Carregando...</span>
+      <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Atualizar">↻</button>
+    </span>
+    <div class="widget-controls" id="controls">
       <div class="pill-group" id="ccy-group">
         <button class="pill" data-ccy="USD" onclick="setCcy('USD')">$</button>
         <button class="pill" data-ccy="BRL" onclick="setCcy('BRL')">R$</button>
         <button class="pill" data-ccy="EUR" onclick="setCcy('EUR')">€</button>
       </div>
-      <!-- Change mode -->
       <div class="pill-group" id="chg-group">
         <button class="pill" data-chg="pct"  onclick="setChg('pct')">%</button>
-        <button class="pill" data-chg="val"  onclick="setChg('val')">±$</button>
+        <button class="pill" data-chg="val"  onclick="setChg('val')" id="chg-val-btn">±$</button>
       </div>
     </div>
+    <button class="settings-btn" onclick="openSettings()" title="Configurar">⚙</button>
   </div>
-  <div class="widget-cols">
+
+  <div class="widget-cols" id="widget-cols">
     <div class="widget-col" id="wc1"></div>
     <div class="widget-col" id="wc2"></div>
   </div>
 </div>
 
 <script>
-  // ── Persistent settings ─────────────────────────────────────
-  let cfg = {
-    ccy: localStorage.getItem("w_ccy") || "USD",
-    chg: localStorage.getItem("w_chg") || "pct"
+  // ── Config defaults ─────────────────────────────────────────
+  const DEFAULTS = {
+    ccy: "USD", chg: "pct", cols: "2", fontSize: "md",
+    bold: false, showCcy: true, showHeader: true,
+    autoSort: false, showRefresh: false, showControls: true
   };
 
-  // USD→other rates (fetched once, refreshed with data)
-  let rates = { BRL: 5.70, EUR: 0.92 };
-
-  function setCcy(v) {
-    cfg.ccy = v;
-    localStorage.setItem("w_ccy", v);
-    applyPillState();
-    renderLast();
+  function readCfg() {
+    const c = {};
+    for (const [k, def] of Object.entries(DEFAULTS)) {
+      const raw = localStorage.getItem("w_" + k);
+      if (raw === null) c[k] = def;
+      else if (typeof def === "boolean") c[k] = raw === "1";
+      else c[k] = raw;
+    }
+    return c;
   }
 
-  function setChg(v) {
-    cfg.chg = v;
-    localStorage.setItem("w_chg", v);
-    applyPillState();
-    renderLast();
+  function writeCfg(key, val) {
+    localStorage.setItem("w_" + key, typeof val === "boolean" ? (val ? "1" : "0") : val);
+    cfg[key] = val;
   }
 
-  function applyPillState() {
-    document.querySelectorAll("#ccy-group .pill").forEach(b =>
-      b.classList.toggle("active", b.dataset.ccy === cfg.ccy));
-    document.querySelectorAll("#chg-group .pill").forEach(b =>
-      b.classList.toggle("active", b.dataset.chg === cfg.chg));
-    // Update ±$ label to reflect chosen currency
-    const chgBtn = document.querySelector("[data-chg='val']");
-    const sym = cfg.ccy === "BRL" ? "R$" : cfg.ccy === "EUR" ? "€" : "$";
-    if (chgBtn) chgBtn.textContent = "±" + sym;
-  }
+  let cfg = readCfg();
+
+  // ── Rate data ───────────────────────────────────────────────
+  let rates  = { BRL: 5.70, EUR: 0.92 };
+  let lastData = [];
+
+  const CCY_SYM  = { USD: "$", BRL: "R$", EUR: "€" };
+  function ccyRate() { return { USD: 1, BRL: rates.BRL, EUR: rates.EUR }[cfg.ccy] || 1; }
 
   // ── Formatting ──────────────────────────────────────────────
-  const CCY_SYM  = { USD: "$", BRL: "R$", EUR: "€" };
-  const CCY_RATE = () => ({ USD: 1, BRL: rates.BRL, EUR: rates.EUR });
+  const FS_MAP = { sm: "10.5px", md: "12px", lg: "14px" };
 
-  function convertPrice(usdPrice) {
-    if (usdPrice == null) return null;
-    return usdPrice * CCY_RATE()[cfg.ccy];
+  function fmtPrice(usdP) {
+    if (usdP == null) return "—";
+    const p   = usdP * ccyRate();
+    const sym = cfg.showCcy ? CCY_SYM[cfg.ccy] : "";
+    const a   = Math.abs(p);
+    if (a >= 10000) return sym + p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (a >= 1)     return sym + p.toFixed(2);
+    if (a >= 0.01)  return sym + p.toFixed(4);
+    return sym + p.toPrecision(3);
   }
 
-  function fmtNum(p) {
-    if (p == null) return "—";
-    const a = Math.abs(p);
-    const sign = p < 0 ? "-" : "";
-    if (a >= 10000) return sign + a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (a >= 1)     return sign + a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (a >= 0.01)  return sign + a.toFixed(4);
-    if (a >= 0.0001)return sign + a.toFixed(5);
-    return sign + a.toPrecision(3);
-  }
-
-  function fmtPrice(usdPrice) {
-    const p = convertPrice(usdPrice);
-    if (p == null) return "—";
-    return CCY_SYM[cfg.ccy] + fmtNum(p);
-  }
-
-  function fmtChange(usdPrice, pct) {
+  function fmtChg(usdP, pct) {
     if (cfg.chg === "pct") {
       if (pct == null) return { text: "—", cls: "neu" };
-      const sign = pct >= 0 ? "+" : "";
-      const cls  = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
-      return { text: sign + pct.toFixed(2) + "%", cls };
+      const s   = pct >= 0 ? "+" : "";
+      const cls = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
+      return { text: s + pct.toFixed(2) + "%", cls };
     } else {
-      if (usdPrice == null || pct == null) return { text: "—", cls: "neu" };
-      const prev    = usdPrice / (1 + pct / 100);
-      const absUSD  = usdPrice - prev;
-      const abs     = absUSD * CCY_RATE()[cfg.ccy];
-      const sign    = abs >= 0 ? "+" : "";
-      const cls     = abs > 0.000005 ? "pos" : abs < -0.000005 ? "neg" : "neu";
-      const sym     = CCY_SYM[cfg.ccy];
-      return { text: sign + sym + fmtNum(Math.abs(abs)), cls };
+      if (usdP == null || pct == null) return { text: "—", cls: "neu" };
+      const prev = usdP / (1 + pct / 100);
+      const abs  = (usdP - prev) * ccyRate();
+      const sym  = cfg.showCcy ? CCY_SYM[cfg.ccy] : "";
+      const s    = abs >= 0 ? "+" : "-";
+      const cls  = abs > 0.000005 ? "pos" : abs < -0.000005 ? "neg" : "neu";
+      const a    = Math.abs(abs);
+      let num;
+      if (a >= 100) num = a.toFixed(2);
+      else if (a >= 1) num = a.toFixed(2);
+      else if (a >= 0.01) num = a.toFixed(4);
+      else num = a.toPrecision(2);
+      return { text: s + sym + num, cls };
     }
   }
 
@@ -239,28 +254,83 @@
 
   function cellsHtml(a) {
     if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
-    const { text: chg, cls } = fmtChange(a.price, a.change24h);
+    const { text: chg, cls } = fmtChg(a.price, a.change24h);
+    const fw = cfg.bold ? "font-weight:700;" : "";
     return `<span class="w-ticker">${trunc(a.symbol, 12)}</span>` +
-           `<span class="w-price">${fmtPrice(a.price)}</span>` +
-           `<span class="w-chg ${cls}">${chg}</span>`;
+           `<span class="w-price" style="${fw}">${fmtPrice(a.price)}</span>` +
+           `<span class="w-chg ${cls}" style="${fw}">${chg}</span>`;
   }
 
-  // ── Data ────────────────────────────────────────────────────
-  let lastData = [];
+  // ── Render ──────────────────────────────────────────────────
+  function applyLayout() {
+    cfg = readCfg(); // re-read in case settings changed
 
-  function renderLast() {
-    if (!lastData.length) return;
-    const half = Math.ceil(lastData.length / 2);
-    document.getElementById("wc1").innerHTML = lastData.slice(0, half).map(cellsHtml).join("");
-    document.getElementById("wc2").innerHTML = lastData.slice(half).map(cellsHtml).join("");
+    // Font size
+    const fs = FS_MAP[cfg.fontSize] || "12px";
+    document.querySelectorAll(".w-ticker,.w-price,.w-chg").forEach(el => el.style.fontSize = fs);
+    document.getElementById("widget-cols").style.setProperty("font-size", fs);
+
+    // Columns: 1 or 2
+    const wc2 = document.getElementById("wc2");
+    wc2.style.display = cfg.cols === "1" ? "none" : "";
+
+    // Show/hide topbar
+    const topbar = document.getElementById("topbar");
+    topbar.style.display = (cfg.showHeader || cfg.showControls) ? "" : "none";
+
+    // Show/hide header text
+    document.getElementById("wh").style.display = cfg.showHeader ? "" : "none";
+
+    // Show/hide refresh button
+    document.getElementById("refresh-btn").style.display = cfg.showRefresh ? "" : "none";
+
+    // Show/hide quick controls
+    document.getElementById("controls").style.display = cfg.showControls ? "" : "none";
+
+    // Update pill active states
+    document.querySelectorAll("#ccy-group .pill").forEach(b =>
+      b.classList.toggle("active", b.dataset.ccy === cfg.ccy));
+    document.querySelectorAll("#chg-group .pill").forEach(b =>
+      b.classList.toggle("active", b.dataset.chg === cfg.chg));
+
+    // Update ±$ label symbol
+    const sym = cfg.showCcy ? CCY_SYM[cfg.ccy] : "";
+    const vb = document.getElementById("chg-val-btn");
+    if (vb) vb.textContent = "±" + (cfg.showCcy ? CCY_SYM[cfg.ccy] : "$");
   }
 
+  function render() {
+    applyLayout();
+    let data = [...lastData];
+
+    // Auto-sort by % change descending
+    if (cfg.autoSort) {
+      data.sort((a, b) => (b.change24h || 0) - (a.change24h || 0));
+    }
+
+    const fs = FS_MAP[cfg.fontSize] || "12px";
+    const half = cfg.cols === "1" ? data.length : Math.ceil(data.length / 2);
+    const col1 = data.slice(0, half);
+    const col2 = cfg.cols === "1" ? [] : data.slice(half);
+
+    const mk = (arr) => arr.map(a => {
+      const html = cellsHtml(a);
+      // apply font size inline since grid cells are spans
+      return html.replace(/class="w-/g, `style="font-size:${fs};" class="w-`);
+    }).join("");
+
+    document.getElementById("wc1").innerHTML = mk(col1);
+    document.getElementById("wc2").innerHTML = mk(col2);
+  }
+
+  // ── Quick-control handlers ──────────────────────────────────
+  function setCcy(v) { writeCfg("ccy", v); render(); }
+  function setChg(v) { writeCfg("chg", v); render(); }
+
+  // ── Data fetch ──────────────────────────────────────────────
   async function load() {
     try {
-      const [ra, rr] = await Promise.all([
-        fetch("/api/assets"),
-        fetch("/api/rates")
-      ]);
+      const [ra, rr] = await Promise.all([fetch("/api/assets"), fetch("/api/rates")]);
       const data  = await ra.json();
       const rdata = await rr.json();
       if (rdata.BRL) rates.BRL = rdata.BRL;
@@ -270,16 +340,20 @@
       const now = new Date();
       const hh  = now.getHours().toString().padStart(2, "0");
       const mm  = now.getMinutes().toString().padStart(2, "0");
-      document.getElementById("wh").textContent = "Last fetch: " + hh + ":" + mm;
+      document.getElementById("wh-text").textContent = "Last fetch: " + hh + ":" + mm;
 
-      renderLast();
+      render();
     } catch(e) {
-      document.getElementById("wh").textContent = "Erro ao carregar";
+      document.getElementById("wh-text").textContent = "Erro ao carregar";
     }
   }
 
+  function openSettings() {
+    window.location.href = "/widget/settings";
+  }
+
   // ── Init ────────────────────────────────────────────────────
-  applyPillState();
+  applyLayout();
   load();
   setInterval(load, 60000);
 </script>

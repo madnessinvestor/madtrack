@@ -529,6 +529,10 @@ def index():
 def widget():
     return render_template("widget.html")
 
+@app.route("/widget/settings")
+def widget_settings():
+    return render_template("widget_settings.html")
+
 @app.route("/favicon.ico")
 def favicon():
     return send_file("static/icons/icon-192.png", mimetype="image/png")
