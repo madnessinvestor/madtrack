@@ -19,21 +19,68 @@
   .widget {
     width: 100%;
     height: 100%;
-    padding: 6px 10px 4px;
+    padding: 5px 10px 4px;
     display: flex;
     flex-direction: column;
+    gap: 0;
     background: rgba(8, 10, 20, 0.75);
     border-radius: 16px;
+  }
+
+  /* ── Top bar ─────────────────────────────────────────────── */
+  .widget-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 6px;
   }
 
   .widget-header {
     font-size: 11px;
     color: #aaaaaa;
-    margin-bottom: 5px;
-    letter-spacing: 0.01em;
+    white-space: nowrap;
+    flex: 1;
   }
 
-  /* Two columns side by side */
+  .widget-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  /* pill group */
+  .pill-group {
+    display: flex;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  .pill {
+    font-family: inherit;
+    font-size: 9.5px;
+    font-weight: 600;
+    color: #888;
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .pill.active {
+    background: rgba(0, 210, 100, 0.25);
+    color: #4dff8e;
+  }
+
+  .pill:not(:last-child) {
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+
+  /* ── Data columns ────────────────────────────────────────── */
   .widget-cols {
     display: flex;
     gap: 10px;
@@ -42,25 +89,18 @@
     overflow: hidden;
   }
 
-  /*
-   * Each column is a CSS grid with 3 named areas:
-   *   ticker | price | pct
-   * All rows share the same column template → guaranteed alignment.
-   */
   .widget-col {
     flex: 1;
     display: grid;
-    /* ticker flexible, price right-aligned fixed, pct right-aligned fixed */
     grid-template-columns: 1fr max-content max-content;
     column-gap: 6px;
     align-content: start;
     overflow: hidden;
   }
 
-  /* Each "cell" in the grid — 3 cells = one row */
   .w-ticker,
   .w-price,
-  .w-pct {
+  .w-chg {
     font-size: 12px;
     padding: 2px 0;
     line-height: 1.35;
@@ -79,10 +119,10 @@
     text-align: right;
   }
 
-  .w-pct {
+  .w-chg {
     font-weight: 600;
     text-align: right;
-    min-width: 44px;
+    min-width: 48px;
   }
 
   .pos { color: #4dff8e; }
@@ -92,7 +132,22 @@
 </head>
 <body>
 <div class="widget">
-  <div class="widget-header" id="wh">Carregando...</div>
+  <div class="widget-topbar">
+    <span class="widget-header" id="wh">Carregando...</span>
+    <div class="widget-controls">
+      <!-- Currency -->
+      <div class="pill-group" id="ccy-group">
+        <button class="pill" data-ccy="USD" onclick="setCcy('USD')">$</button>
+        <button class="pill" data-ccy="BRL" onclick="setCcy('BRL')">R$</button>
+        <button class="pill" data-ccy="EUR" onclick="setCcy('EUR')">€</button>
+      </div>
+      <!-- Change mode -->
+      <div class="pill-group" id="chg-group">
+        <button class="pill" data-chg="pct"  onclick="setChg('pct')">%</button>
+        <button class="pill" data-chg="val"  onclick="setChg('val')">±$</button>
+      </div>
+    </div>
+  </div>
   <div class="widget-cols">
     <div class="widget-col" id="wc1"></div>
     <div class="widget-col" id="wc2"></div>
@@ -100,58 +155,131 @@
 </div>
 
 <script>
-  function fmtPrice(p) {
-    if (p == null) return "—";
-    if (p >= 10000) return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (p >= 1)     return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (p >= 0.01)  return p.toFixed(4);
-    return p.toPrecision(3);
+  // ── Persistent settings ─────────────────────────────────────
+  let cfg = {
+    ccy: localStorage.getItem("w_ccy") || "USD",
+    chg: localStorage.getItem("w_chg") || "pct"
+  };
+
+  // USD→other rates (fetched once, refreshed with data)
+  let rates = { BRL: 5.70, EUR: 0.92 };
+
+  function setCcy(v) {
+    cfg.ccy = v;
+    localStorage.setItem("w_ccy", v);
+    applyPillState();
+    renderLast();
   }
 
-  function fmtPct(pct) {
-    if (pct == null) return { text: "—", cls: "neu" };
-    const sign = pct >= 0 ? "+" : "";
-    const text = sign + pct.toFixed(2) + "%";
-    const cls = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
-    return { text, cls };
+  function setChg(v) {
+    cfg.chg = v;
+    localStorage.setItem("w_chg", v);
+    applyPillState();
+    renderLast();
+  }
+
+  function applyPillState() {
+    document.querySelectorAll("#ccy-group .pill").forEach(b =>
+      b.classList.toggle("active", b.dataset.ccy === cfg.ccy));
+    document.querySelectorAll("#chg-group .pill").forEach(b =>
+      b.classList.toggle("active", b.dataset.chg === cfg.chg));
+    // Update ±$ label to reflect chosen currency
+    const chgBtn = document.querySelector("[data-chg='val']");
+    const sym = cfg.ccy === "BRL" ? "R$" : cfg.ccy === "EUR" ? "€" : "$";
+    if (chgBtn) chgBtn.textContent = "±" + sym;
+  }
+
+  // ── Formatting ──────────────────────────────────────────────
+  const CCY_SYM  = { USD: "$", BRL: "R$", EUR: "€" };
+  const CCY_RATE = () => ({ USD: 1, BRL: rates.BRL, EUR: rates.EUR });
+
+  function convertPrice(usdPrice) {
+    if (usdPrice == null) return null;
+    return usdPrice * CCY_RATE()[cfg.ccy];
+  }
+
+  function fmtNum(p) {
+    if (p == null) return "—";
+    const a = Math.abs(p);
+    const sign = p < 0 ? "-" : "";
+    if (a >= 10000) return sign + a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (a >= 1)     return sign + a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (a >= 0.01)  return sign + a.toFixed(4);
+    if (a >= 0.0001)return sign + a.toFixed(5);
+    return sign + a.toPrecision(3);
+  }
+
+  function fmtPrice(usdPrice) {
+    const p = convertPrice(usdPrice);
+    if (p == null) return "—";
+    return CCY_SYM[cfg.ccy] + fmtNum(p);
+  }
+
+  function fmtChange(usdPrice, pct) {
+    if (cfg.chg === "pct") {
+      if (pct == null) return { text: "—", cls: "neu" };
+      const sign = pct >= 0 ? "+" : "";
+      const cls  = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
+      return { text: sign + pct.toFixed(2) + "%", cls };
+    } else {
+      if (usdPrice == null || pct == null) return { text: "—", cls: "neu" };
+      const prev    = usdPrice / (1 + pct / 100);
+      const absUSD  = usdPrice - prev;
+      const abs     = absUSD * CCY_RATE()[cfg.ccy];
+      const sign    = abs >= 0 ? "+" : "";
+      const cls     = abs > 0.000005 ? "pos" : abs < -0.000005 ? "neg" : "neu";
+      const sym     = CCY_SYM[cfg.ccy];
+      return { text: sign + sym + fmtNum(Math.abs(abs)), cls };
+    }
   }
 
   function trunc(sym, n) {
     return sym.length > n ? sym.slice(0, n - 3) + "..." : sym;
   }
 
-  /* Returns 3 span elements (cells in the shared grid) */
   function cellsHtml(a) {
-    if (!a) {
-      return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-pct"></span>`;
-    }
-    const { text: pct, cls } = fmtPct(a.change24h);
+    if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
+    const { text: chg, cls } = fmtChange(a.price, a.change24h);
     return `<span class="w-ticker">${trunc(a.symbol, 12)}</span>` +
            `<span class="w-price">${fmtPrice(a.price)}</span>` +
-           `<span class="w-pct ${cls}">${pct}</span>`;
+           `<span class="w-chg ${cls}">${chg}</span>`;
+  }
+
+  // ── Data ────────────────────────────────────────────────────
+  let lastData = [];
+
+  function renderLast() {
+    if (!lastData.length) return;
+    const half = Math.ceil(lastData.length / 2);
+    document.getElementById("wc1").innerHTML = lastData.slice(0, half).map(cellsHtml).join("");
+    document.getElementById("wc2").innerHTML = lastData.slice(half).map(cellsHtml).join("");
   }
 
   async function load() {
     try {
-      const r = await fetch("/api/assets");
-      const data = await r.json();
+      const [ra, rr] = await Promise.all([
+        fetch("/api/assets"),
+        fetch("/api/rates")
+      ]);
+      const data  = await ra.json();
+      const rdata = await rr.json();
+      if (rdata.BRL) rates.BRL = rdata.BRL;
+      if (rdata.EUR) rates.EUR = rdata.EUR;
+      lastData = data;
 
       const now = new Date();
-      const hh = now.getHours().toString().padStart(2, "0");
-      const mm = now.getMinutes().toString().padStart(2, "0");
+      const hh  = now.getHours().toString().padStart(2, "0");
+      const mm  = now.getMinutes().toString().padStart(2, "0");
       document.getElementById("wh").textContent = "Last fetch: " + hh + ":" + mm;
 
-      const half = Math.ceil(data.length / 2);
-      const col1 = data.slice(0, half);
-      const col2 = data.slice(half);
-
-      document.getElementById("wc1").innerHTML = col1.map(cellsHtml).join("");
-      document.getElementById("wc2").innerHTML = col2.map(cellsHtml).join("");
+      renderLast();
     } catch(e) {
       document.getElementById("wh").textContent = "Erro ao carregar";
     }
   }
 
+  // ── Init ────────────────────────────────────────────────────
+  applyPillState();
   load();
   setInterval(load, 60000);
 </script>
