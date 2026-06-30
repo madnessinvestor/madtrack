@@ -228,6 +228,7 @@ function setTradeMode(mode) {
   document.getElementById("trade-row-investment").classList.toggle("hidden", mode === "total");
   document.getElementById("trade-total-preview").classList.add("hidden");
   document.getElementById("trade-derived-preview").classList.add("hidden");
+  document.getElementById("trade-pnl-preview").classList.add("hidden");
   const sym = typeof currSym === "function" ? currSym() : "$";
   document.getElementById("trade-totalpaid-label").textContent =
     t("totalpaid_label") + " (" + sym + ")";
@@ -694,13 +695,31 @@ function updateTradePreview() {
     const totalPaid = parseFloat(document.getElementById("trade-total-paid").value);
     document.getElementById("trade-total-preview").classList.add("hidden");
     const derived   = document.getElementById("trade-derived-preview");
+    const pnlPrev   = document.getElementById("trade-pnl-preview");
     if (!isNaN(qty) && !isNaN(totalPaid) && qty > 0 && totalPaid > 0) {
       const rate      = typeof getRate === "function" ? getRate() : 1;
-      const priceUsd  = (totalPaid / rate) / qty;
+      const costUsd   = totalPaid / rate;
+      const priceUsd  = costUsd / qty;
       document.getElementById("trade-derived-val").textContent = formatUSD(priceUsd, true);
       derived.classList.remove("hidden");
+
+      // P&L vs current market price
+      if (tradeFetchedPrice) {
+        const curValue = qty * tradeFetchedPrice;
+        const pnl      = curValue - costUsd;
+        const pnlPct   = (pnl / costUsd) * 100;
+        const sign     = pnl >= 0 ? "+" : "";
+        const cls      = pnl >= 0 ? "pnl-up" : "pnl-down";
+        const arrow    = pnl >= 0 ? "▲" : "▼";
+        document.getElementById("trade-pnl-val").innerHTML =
+          `<span class="${cls}">${arrow} ${sign}${formatUSD(pnl, true)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
+        pnlPrev.classList.remove("hidden");
+      } else {
+        pnlPrev.classList.add("hidden");
+      }
     } else {
       derived.classList.add("hidden");
+      pnlPrev.classList.add("hidden");
     }
   }
 }
