@@ -228,7 +228,7 @@ function setTradeMode(mode) {
   document.getElementById("trade-row-investment").classList.toggle("hidden", mode === "total");
   document.getElementById("trade-total-preview").classList.add("hidden");
   document.getElementById("trade-derived-preview").classList.add("hidden");
-  document.getElementById("trade-pnl-preview").classList.add("hidden");
+  document.getElementById("trade-pnl-preview")?.classList.add("hidden");
   const sym = typeof currSym === "function" ? currSym() : "$";
   document.getElementById("trade-totalpaid-label").textContent =
     t("totalpaid_label") + " (" + sym + ")";
@@ -711,15 +711,15 @@ function updateTradePreview() {
         const sign     = pnl >= 0 ? "+" : "";
         const cls      = pnl >= 0 ? "pnl-up" : "pnl-down";
         const arrow    = pnl >= 0 ? "▲" : "▼";
-        document.getElementById("trade-pnl-val").innerHTML =
-          `<span class="${cls}">${arrow} ${sign}${formatUSD(pnl, true)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
-        pnlPrev.classList.remove("hidden");
+        const pnlValEl = document.getElementById("trade-pnl-val");
+        if (pnlValEl) pnlValEl.innerHTML = `<span class="${cls}">${arrow} ${sign}${formatUSD(pnl, true)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
+        pnlPrev?.classList.remove("hidden");
       } else {
-        pnlPrev.classList.add("hidden");
+        pnlPrev?.classList.add("hidden");
       }
     } else {
-      derived.classList.add("hidden");
-      pnlPrev.classList.add("hidden");
+      derived?.classList.add("hidden");
+      pnlPrev?.classList.add("hidden");
     }
   }
 }
