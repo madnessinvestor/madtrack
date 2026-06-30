@@ -544,6 +544,7 @@ function openTradeModal(prefillTicker) {
   _add("trade-price-preview",  "hidden");
   _add("trade-total-preview",  "hidden");
   _add("trade-derived-preview","hidden");
+  _add("trade-pnl-preview",   "hidden");
   _rm ("trade-col-price",      "hidden");
   _add("trade-col-totalpaid",  "hidden");
   _rm ("trade-row-investment", "hidden");
@@ -712,14 +713,15 @@ function updateTradePreview() {
         const cls      = pnl >= 0 ? "pnl-up" : "pnl-down";
         const arrow    = pnl >= 0 ? "▲" : "▼";
         const pnlValEl = document.getElementById("trade-pnl-val");
-        if (pnlValEl) pnlValEl.innerHTML = `<span class="${cls}">${arrow} ${sign}${formatUSD(pnl, true)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
-        pnlPrev?.classList.remove("hidden");
+        if (pnlValEl) pnlValEl.innerHTML = `<span class="${cls}">${arrow} ${sign}${formatUSD(pnl)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
+        if (pnlPrev) pnlPrev.classList.remove("hidden");
       } else {
-        pnlPrev?.classList.add("hidden");
+        if (pnlPrev) pnlPrev.classList.add("hidden");
       }
+
     } else {
-      derived?.classList.add("hidden");
-      pnlPrev?.classList.add("hidden");
+      if (derived) derived.classList.add("hidden");
+      if (pnlPrev) pnlPrev.classList.add("hidden");
     }
   }
 }
