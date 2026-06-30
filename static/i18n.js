@@ -4,6 +4,7 @@ const TRANSLATIONS = {
   pt: {
     btn_add:          "Adicionar",
     btn_trade:        "Trade",
+    btn_alert:        "Alerta",
     btn_refresh:      "Atualizar",
     tab_tracker:      "Tracker",
     tab_trade:        "Trade",
@@ -106,6 +107,7 @@ const TRANSLATIONS = {
   en: {
     btn_add:          "Add",
     btn_trade:        "Trade",
+    btn_alert:        "Alert",
     btn_refresh:      "Refresh",
     tab_tracker:      "Tracker",
     tab_trade:        "Trade",

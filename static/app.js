@@ -988,6 +988,18 @@ function detailRemove() {
   setTimeout(() => deleteAsset(sym), 310);
 }
 
+function detailCreateAlert() {
+  const sym = _detailSym;
+  closeDetailSheet();
+  setTimeout(() => {
+    if (typeof openAlertsModal === "function") {
+      openAlertsModal();
+      const inp = document.getElementById("alert-ticker");
+      if (inp && sym) inp.value = sym;
+    }
+  }, 350);
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 fetchRates();

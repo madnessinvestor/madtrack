@@ -566,6 +566,26 @@ main {
   border-top: 1px solid var(--border);
 }
 
+/* Inline alert button inside detail sheet */
+.btn-alert-inline {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  background: none;
+  border: 1px solid var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+  font-size: 0.75rem;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-alert-inline:active {
+  background: var(--accent, #2563eb);
+  color: #fff;
+}
+
 /* Inline remove button inside expanded card */
 .btn-delete-inline {
   grid-column: 1 / -1;
