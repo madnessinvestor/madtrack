@@ -515,16 +515,15 @@ if ("serviceWorker" in navigator) {
 
 // ─── Column layout ────────────────────────────────────────────────────────────
 
-let trackerColumns = parseInt(localStorage.getItem("trackerColumns") || "1");
+let trackerColumns = Math.min(2, parseInt(localStorage.getItem("trackerColumns") || "1"));
 
 function applyColumns(n) {
   trackerColumns = n;
   localStorage.setItem("trackerColumns", n);
   const list = document.getElementById("asset-list");
   if (list) {
-    list.classList.remove("cols-2", "cols-3");
+    list.classList.remove("cols-2");
     if (n === 2) list.classList.add("cols-2");
-    if (n === 3) list.classList.add("cols-3");
   }
   document.querySelectorAll(".col-btn").forEach(b => {
     b.classList.toggle("active", parseInt(b.dataset.cols) === n);
