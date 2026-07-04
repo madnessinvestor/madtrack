@@ -374,6 +374,7 @@ function renderPortfolio(tokens) {
 
   list.innerHTML = tokens.map(tok => portfolioCardHTML(tok)).join("");
   loadPortfolioIcons(tokens);
+  if (typeof updateCardAlertBadges === "function") updateCardAlertBadges();
 }
 
 function portfolioCardHTML(tok) {
@@ -422,6 +423,7 @@ function portfolioCardHTML(tok) {
         <div class="asset-name-wrap">
           <div class="asset-symbol">${sym}</div>
           <div class="asset-source">${fmtQty(total_qty)} ${sym}</div>
+          <div class="card-alert-badges" data-sym="${sym}"></div>
         </div>
       </div>
       <div class="asset-right">
