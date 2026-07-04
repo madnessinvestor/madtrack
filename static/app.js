@@ -579,6 +579,36 @@ function openDetailSheet(sym) {
   }
 
   loadDetailChart(sym, _detailPeriod);
+  renderDetailAlerts(sym);
+}
+
+function renderDetailAlerts(sym) {
+  const el = document.getElementById("detail-alerts");
+  if (!el) return;
+  const ticker = ((sym || _detailSym) || "").toUpperCase();
+  if (!ticker) { el.innerHTML = ""; return; }
+
+  const all = (typeof alertsData !== "undefined" ? alertsData : []);
+  const mine = all.filter(a => a.ticker.toUpperCase() === ticker);
+
+  if (!mine.length) { el.innerHTML = ""; return; }
+
+  const rows = mine.map(a => {
+    const arrow    = a.direction === "above" ? "↑" : "↓";
+    const dirLabel = a.direction === "above" ? t("alert_above") : t("alert_below");
+    const isFired  = a.triggered;
+    const cls      = isFired ? "triggered" : "active";
+    return `<div class="detail-alert-item ${cls}">
+      <span class="detail-alert-desc">${dirLabel} ${formatUSD(a.target, true)} ${arrow}</span>
+      <div class="detail-alert-actions">
+        ${isFired ? `<span class="detail-alert-fired">${t("alert_triggered")}</span>` : ""}
+        ${isFired ? `<button class="alert-btn reset" onclick="resetAlertById('${a.id}')" title="${t('alert_reset')}">↺</button>` : ""}
+        <button class="alert-btn del" onclick="deleteAlertById('${a.id}')" title="${t('alert_delete')}">✕</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  el.innerHTML = `<div class="detail-alerts-header">🔔 ${t("alerts_title") || "Alertas"}</div>${rows}`;
 }
 
 function closeDetailSheet() {
