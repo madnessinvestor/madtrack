@@ -143,6 +143,7 @@ async function loadAssets() {
       list.innerHTML = assets.map(a => cardHTML(a)).join("");
       loadIcons(assets);
       initSortable();
+      updateCardAlertBadges();
     }
 
     const now = new Date();
@@ -158,6 +159,7 @@ function rerenderAssets() {
   list.innerHTML = cachedAssets.map(a => cardHTML(a)).join("");
   loadIcons(cachedAssets);
   initSortable();
+  updateCardAlertBadges();
 }
 
 let _sortable = null;
@@ -198,6 +200,7 @@ function cardHTML(a) {
         <div class="asset-name-wrap">
           <div class="asset-symbol">${a.symbol}</div>
           <div class="asset-source">${a.source || ""}</div>
+          <div class="card-alert-badges" data-sym="${a.symbol}"></div>
         </div>
       </div>
       <div class="asset-right">
@@ -579,6 +582,47 @@ function openDetailSheet(sym) {
 
   loadDetailChart(sym, _detailPeriod);
   renderDetailAlerts(sym);
+}
+
+function updateCardAlertBadges() {
+  const all = (typeof alertsData !== "undefined" ? alertsData : []);
+  const byTicker = {};
+  for (const a of all) {
+    const k = a.ticker.toUpperCase();
+    if (!byTicker[k]) byTicker[k] = [];
+    byTicker[k].push(a);
+  }
+
+  const fmtCompact = v => {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000)     return `$${(v / 1_000).toFixed(0)}k`;
+    return `$${v % 1 === 0 ? v : v.toFixed(2)}`;
+  };
+
+  document.querySelectorAll(".card-alert-badges[data-sym]").forEach(el => {
+    const ticker  = el.dataset.sym.toUpperCase();
+    const alerts  = byTicker[ticker] || [];
+    if (!alerts.length) { el.innerHTML = ""; return; }
+
+    const active    = alerts.filter(a => !a.triggered);
+    const triggered = alerts.filter(a => a.triggered);
+    const parts     = [];
+
+    const shown = active.slice(0, 2);
+    const extra = active.length - shown.length;
+    for (const a of shown) {
+      const arrow = a.direction === "above" ? "↑" : "↓";
+      parts.push(`<span class="cab-item">${arrow}${fmtCompact(a.target)}</span>`);
+    }
+    if (extra > 0) parts.push(`<span class="cab-more">+${extra}</span>`);
+    if (triggered.length && !active.length) {
+      parts.push(`<span class="cab-triggered">🔔${triggered.length > 1 ? " " + triggered.length : ""}</span>`);
+    } else if (triggered.length) {
+      parts.push(`<span class="cab-triggered">+${triggered.length}✓</span>`);
+    }
+
+    el.innerHTML = parts.join("");
+  });
 }
 
 function renderDetailAlerts(sym) {

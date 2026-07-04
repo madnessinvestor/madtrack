@@ -49,6 +49,7 @@ async function loadAlerts() {
   renderAlertsList();
   updateBellBadge();
   if (typeof renderDetailAlerts === "function") renderDetailAlerts();
+  if (typeof updateCardAlertBadges === "function") updateCardAlertBadges();
 }
 
 // ─── Submit new alert ─────────────────────────────────────────────────────────

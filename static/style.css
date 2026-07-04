@@ -456,6 +456,39 @@ main {
   gap: 8px;
 }
 
+/* ─── Card alert badges ──────────────────────────────────────────────────────── */
+.card-alert-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+.cab-item {
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 3px;
+  padding: 1px 4px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+.cab-more {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--muted2);
+  padding: 1px 2px;
+  line-height: 1.5;
+}
+.cab-triggered {
+  font-size: 0.6rem;
+  color: var(--muted2);
+  opacity: 0.65;
+  padding: 1px 2px;
+  line-height: 1.5;
+}
+
 .asset-left {
   display: flex;
   align-items: center;
