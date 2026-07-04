@@ -117,13 +117,13 @@
   .widget-col {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr max-content max-content max-content;
+    grid-template-columns: 1fr max-content max-content;
     column-gap: 6px;
     align-content: start;
     overflow: hidden;
   }
 
-  .w-ticker, .w-price, .w-chg, .w-alert {
+  .w-ticker, .w-price, .w-chg {
     padding: 2px 0;
     line-height: 1.35;
     white-space: nowrap;
@@ -145,13 +145,13 @@
     min-width: 48px;
   }
 
-  .w-alert {
-    text-align: right;
-    cursor: pointer;
-    opacity: 0.85;
-    text-decoration: none;
+  .w-bell {
+    color: #f59e0b;
+    font-size: 0.75em;
+    margin-left: 3px;
+    vertical-align: middle;
+    line-height: 1;
   }
-  .w-alert:hover { opacity: 1; }
 
   .pos { color: #4dff8e; }
   .neg { color: #ff4d4d; }
