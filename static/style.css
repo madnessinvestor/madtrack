@@ -1228,6 +1228,7 @@ section.hidden { display: none; }
   gap: 4px;
   flex-direction: unset;
   align-items: start;
+  align-content: start;
 }
 
 /* 2-col: compact cards */
