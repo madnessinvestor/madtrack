@@ -290,6 +290,7 @@
   --muted: #555;
   --muted2: #888;
   --radius: 14px;
+  --bar-bg: rgba(10,10,10,0.96);
 }
 
 [data-theme="light"] {
@@ -302,6 +303,7 @@
   --text: #111111;
   --muted: #aaa;
   --muted2: #777;
+  --bar-bg: rgba(244,244,244,0.96);
 }
 
 body {
@@ -675,7 +677,7 @@ main {
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  background: rgba(10,10,10,0.96);
+  background: var(--bar-bg);
   border-top: 1px solid var(--border);
   padding: 9px 16px;
   display: flex;
