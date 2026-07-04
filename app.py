@@ -671,7 +671,7 @@ def _is_forex(sym):
     return len(s) == 6 and s[:3] in _FOREX_CURRENCIES and s[3:] in _FOREX_CURRENCIES
 
 def _candles_forex(sym, period):
-    """Fetch OHLC candles for a forex pair via brapi.dev (Yahoo Finance backend)."""
+    """Fetch OHLC candles for a forex pair via Yahoo Finance v8 API."""
     s = sym.upper()
     range_map = {
         "1D":  ("1d",  "60m"),
@@ -682,25 +682,40 @@ def _candles_forex(sym, period):
         "ALL": ("5y",  "1wk"),
     }
     rng, interval = range_map.get(period, ("1mo", "1d"))
-    data = http_get(
-        f"https://brapi.dev/api/quote/{s}=X"
-        f"?range={rng}&interval={interval}&fundamental=false", timeout=10)
-    if not data or not data.get("results"):
-        return None
-    hist = data["results"][0].get("historicalDataPrice") or []
-    out = []
-    for c in hist:
-        ts = c.get("date")
-        if ts is None:
+    data = None
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        url = f"https://{host}/v8/finance/chart/{s}=X?range={rng}&interval={interval}"
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json",
+            })
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = json.loads(r.read().decode())
+            break
+        except Exception:
             continue
-        # brapi returns seconds; convert to ms
-        t_ms = int(ts) * 1000 if int(ts) < 9_999_999_999 else int(ts)
-        o = c.get("open") or c.get("close")
-        h = c.get("high") or c.get("close")
-        l = c.get("low")  or c.get("close")
-        cl = c.get("close") or c.get("adjustedClose")
-        if cl is not None:
-            out.append({"t": t_ms, "o": o, "h": h, "l": l, "c": cl})
+    if not data:
+        return None
+    try:
+        result = data["chart"]["result"][0]
+        timestamps = result["timestamp"]
+        quote  = result["indicators"]["quote"][0]
+        opens  = quote.get("open",  [])
+        highs  = quote.get("high",  [])
+        lows   = quote.get("low",   [])
+        closes = quote.get("close", [])
+    except (KeyError, IndexError, TypeError):
+        return None
+    out = []
+    for i, ts in enumerate(timestamps):
+        cl = closes[i] if i < len(closes) else None
+        if cl is None:
+            continue
+        o = (opens[i] if i < len(opens) else None) or cl
+        h = (highs[i] if i < len(highs) else None) or cl
+        l = (lows[i]  if i < len(lows)  else None) or cl
+        out.append({"t": int(ts) * 1000, "o": o, "h": h, "l": l, "c": cl})
     return out if len(out) >= 2 else None
 
 @app.route("/api/history")
