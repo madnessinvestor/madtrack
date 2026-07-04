@@ -1,1 +1,1 @@
-[{"id": "c7401d46", "ticker": "BTC", "target": 65000.0, "direction": "above", "triggered": false, "repeat_interval": 0, "last_fired_at": null}, {"id": "40cc378e", "ticker": "BTC", "target": 58000.0, "direction": "below", "triggered": false, "repeat_interval": 0, "last_fired_at": null}]
+[{"id": "1e545572", "ticker": "BTC", "target": 65000.0, "direction": "above", "triggered": false, "repeat_interval": 0, "last_fired_at": null}]
