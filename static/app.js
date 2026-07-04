@@ -4,6 +4,14 @@ function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   const btn = document.getElementById("btn-theme");
   if (btn) btn.textContent = theme === "light" ? "🌙" : "☀️";
+  const color = theme === "light" ? "#f4f4f4" : "#0f0f0f";
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute("name", "theme-color");
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute("content", color);
 }
 
 function toggleTheme() {
