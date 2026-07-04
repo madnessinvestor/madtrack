@@ -117,13 +117,13 @@
   .widget-col {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr max-content max-content;
+    grid-template-columns: 1fr max-content max-content max-content;
     column-gap: 6px;
     align-content: start;
     overflow: hidden;
   }
 
-  .w-ticker, .w-price, .w-chg {
+  .w-ticker, .w-price, .w-chg, .w-alert {
     padding: 2px 0;
     line-height: 1.35;
     white-space: nowrap;
@@ -144,6 +144,14 @@
     text-align: right;
     min-width: 48px;
   }
+
+  .w-alert {
+    text-align: right;
+    cursor: pointer;
+    opacity: 0.85;
+    text-decoration: none;
+  }
+  .w-alert:hover { opacity: 1; }
 
   .pos { color: #4dff8e; }
   .neg { color: #ff4d4d; }
@@ -205,8 +213,9 @@
   let cfg = readCfg();
 
   // ── Rate data ───────────────────────────────────────────────
-  let rates  = { BRL: 5.70, EUR: 0.92 };
+  let rates    = { BRL: 5.70, EUR: 0.92 };
   let lastData = [];
+  let alertsByTicker = {};
 
   const CCY_SYM  = { USD: "$", BRL: "R$", EUR: "€" };
   function ccyRate() { return { USD: 1, BRL: rates.BRL, EUR: rates.EUR }[cfg.ccy] || 1; }
@@ -253,12 +262,18 @@
   }
 
   function cellsHtml(a) {
-    if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
+    if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span><span class="w-alert"></span>`;
     const { text: chg, cls } = fmtChg(a.price, a.change24h);
     const fw = cfg.bold ? "font-weight:700;" : "";
+    const tickerAlerts = alertsByTicker[a.symbol.toUpperCase()] || [];
+    const activeAlerts = tickerAlerts.filter(al => !al.triggered);
+    const alertHtml = activeAlerts.length
+      ? `<a class="w-alert" href="/" target="_blank" title="${activeAlerts.map(al => (al.direction === 'above' ? '↑' : '↓') + ' $' + al.target.toLocaleString('en-US')).join(' • ')}">🔔</a>`
+      : `<span class="w-alert"></span>`;
     return `<span class="w-ticker">${trunc(a.symbol, 12)}</span>` +
            `<span class="w-price" style="${fw}">${fmtPrice(a.price)}</span>` +
-           `<span class="w-chg ${cls}" style="${fw}">${chg}</span>`;
+           `<span class="w-chg ${cls}" style="${fw}">${chg}</span>` +
+           alertHtml;
   }
 
   // ── Render ──────────────────────────────────────────────────
@@ -267,7 +282,7 @@
 
     // Font size
     const fs = FS_MAP[cfg.fontSize] || "12px";
-    document.querySelectorAll(".w-ticker,.w-price,.w-chg").forEach(el => el.style.fontSize = fs);
+    document.querySelectorAll(".w-ticker,.w-price,.w-chg,.w-alert").forEach(el => el.style.fontSize = fs);
     document.getElementById("widget-cols").style.setProperty("font-size", fs);
 
     // Columns: 1 or 2
@@ -330,12 +345,19 @@
   // ── Data fetch ──────────────────────────────────────────────
   async function load() {
     try {
-      const [ra, rr] = await Promise.all([fetch("/api/assets"), fetch("/api/rates")]);
+      const [ra, rr, ral] = await Promise.all([fetch("/api/assets"), fetch("/api/rates"), fetch("/api/alerts")]);
       const data  = await ra.json();
       const rdata = await rr.json();
+      const alData = await ral.json().catch(() => []);
       if (rdata.BRL) rates.BRL = rdata.BRL;
       if (rdata.EUR) rates.EUR = rdata.EUR;
       lastData = data;
+      alertsByTicker = {};
+      for (const al of (Array.isArray(alData) ? alData : [])) {
+        const k = al.ticker.toUpperCase();
+        if (!alertsByTicker[k]) alertsByTicker[k] = [];
+        alertsByTicker[k].push(al);
+      }
 
       const now = new Date();
       const hh  = now.getHours().toString().padStart(2, "0");
