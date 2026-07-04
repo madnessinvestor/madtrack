@@ -593,10 +593,9 @@ function updateCardAlertBadges() {
     byTicker[k].push(a);
   }
 
-  const fmtCompact = v => {
-    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000)     return `$${(v / 1_000).toFixed(0)}k`;
-    return `$${v % 1 === 0 ? v : v.toFixed(2)}`;
+  const fmtFull = v => {
+    if (v >= 100) return `$${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
   };
 
   document.querySelectorAll(".card-alert-badges[data-sym]").forEach(el => {
@@ -606,22 +605,15 @@ function updateCardAlertBadges() {
 
     const active    = alerts.filter(a => !a.triggered);
     const triggered = alerts.filter(a => a.triggered);
-    const parts     = [];
+    const toShow    = active.length ? active : triggered;
+    const isFired   = active.length === 0;
 
-    const shown = active.slice(0, 2);
-    const extra = active.length - shown.length;
-    for (const a of shown) {
-      const arrow = a.direction === "above" ? "↑" : "↓";
-      parts.push(`<span class="cab-item">${arrow}${fmtCompact(a.target)}</span>`);
-    }
-    if (extra > 0) parts.push(`<span class="cab-more">+${extra}</span>`);
-    if (triggered.length && !active.length) {
-      parts.push(`<span class="cab-triggered">🔔${triggered.length > 1 ? " " + triggered.length : ""}</span>`);
-    } else if (triggered.length) {
-      parts.push(`<span class="cab-triggered">+${triggered.length}✓</span>`);
-    }
+    const parts = toShow.map(a => {
+      const dir = a.direction === "above" ? t("alert_above") : t("alert_below");
+      return `${dir} ${fmtFull(a.target)}`;
+    });
 
-    el.innerHTML = parts.join("");
+    el.innerHTML = `<span class="cab-line${isFired ? " cab-fired" : ""}">🔔 ${parts.join(" • ")}</span>`;
   });
 }
 
