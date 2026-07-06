@@ -2235,3 +2235,108 @@ section.hidden { display: none; }
   padding: 6px 12px 8px;
   line-height: 1.4;
 }
+
+/* ── Wallet card: expandable ─────────────────────────────────────────────── */
+.dwc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  gap: 10px;
+}
+.dwc-header:hover { background: var(--surface2); border-radius: var(--radius); }
+.dwc-header-left  { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dwc-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.dwc-chevron  { font-size: 0.65rem; color: var(--muted); width: 12px; flex-shrink: 0; }
+.dwc-info     { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dwc-label    { font-size: 0.88rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.dwc-addr     { font-size: 0.73rem; color: var(--muted); font-family: monospace; }
+.dwc-total    { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.dwc-btns     { display: flex; gap: 4px; }
+.dwc-body     { border-top: 1px solid var(--border); }
+
+/* ── Wallet card: tab bar ────────────────────────────────────────────────── */
+.dwc-tabbar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.dwc-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: color 0.15s, border-color 0.15s;
+}
+.dwc-tab:hover  { color: var(--text); }
+.dwc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.dwc-tab-badge  { font-size: 0.68rem; font-weight: 400; color: inherit; opacity: 0.8; }
+
+/* ── DeFi rows ───────────────────────────────────────────────────────────── */
+.defi-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.defi-row:last-child { border-bottom: none; }
+.defi-proto-logo {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.defi-type-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: rgba(139,92,246,0.15);
+  color: #a78bfa;
+  white-space: nowrap;
+  display: block;
+  margin-bottom: 2px;
+}
+.defi-tok-list  { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.defi-tok-chip  {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: var(--surface2); border-radius: 4px;
+  padding: 2px 6px; font-size: 0.7rem; color: var(--text);
+}
+.defi-tok-chip-img { width: 12px; height: 12px; border-radius: 50%; }
+.defi-tok-chip-usd { color: var(--muted); font-size: 0.66rem; }
+.defi-debt-line { font-size: 0.72rem; color: var(--red); display: block; margin-top: 2px; }
+
+/* ── Perps rows ──────────────────────────────────────────────────────────── */
+.perp-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.perp-row:last-child { border-bottom: none; }
+.perp-side-badge {
+  font-size: 0.62rem; font-weight: 700;
+  padding: 1px 6px; border-radius: 20px;
+  display: inline-block; margin-top: 2px;
+}
+.perp-long  { background: rgba(16,185,129,0.15); color: #10b981; }
+.perp-short { background: rgba(239,68,68,0.15);  color: #ef4444; }
+.perp-spot  { background: rgba(139,92,246,0.15); color: #a78bfa; }
+.perp-pnl   { font-size: 0.73rem; display: block; margin-top: 1px; }
+.perp-pnl-pos { color: var(--green); }
+.perp-pnl-neg { color: var(--red); }

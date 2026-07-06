@@ -1776,41 +1776,62 @@ def delete_dash_wallet(address):
     save_dash_wallets(wallets)
     return jsonify({"ok": True})
 
+def _jumper_get(path, params, timeout=25):
+    JUMPER_HDR = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept":     "application/json",
+        "Origin":     "https://jumper.exchange",
+        "Referer":    "https://jumper.exchange/",
+    }
+    req = urllib.request.Request(
+        f"https://api.jumper.xyz/v1/portfolio/{path}?{params}",
+        headers=JUMPER_HDR, method="GET"
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+def _hl_post(payload, timeout=15):
+    req = urllib.request.Request(
+        "https://api.hyperliquid.xyz/info",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
 @app.route("/api/dashboard/wallets/<address>/refresh", methods=["POST"])
 def refresh_dash_wallet(address):
     wallets = load_dash_wallets()
     wallet  = next((w for w in wallets if w["address"] == address.lower()), None)
     if not wallet:
         return jsonify({"error": "Carteira não encontrada"}), 404
+
+    params = f"evm={address}"
+    svm = wallet.get("svm_address", "").strip()
+    if svm:
+        params += f"&svm={svm}"
+
+    errors  = []
+    tokens  = []
+    defi    = []
+    perps   = []
+
+    # ── 1. Tokens (Jumper /tokens) ──────────────────────────────────────────────
     try:
-        params = f"evm={address}"
-        svm = wallet.get("svm_address", "").strip()
-        if svm:
-            params += f"&svm={svm}"
-        req = urllib.request.Request(
-            f"https://api.jumper.xyz/v1/portfolio/tokens?{params}",
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept":     "application/json",
-                "Origin":     "https://jumper.exchange",
-                "Referer":    "https://jumper.exchange/",
-            },
-            method="GET"
-        )
-        with urllib.request.urlopen(req, timeout=25) as r:
-            result = json.loads(r.read().decode())
-        balances = result.get("data", {}).get("balances", [])
-        tokens = []
-        for b in balances:
+        result = _jumper_get("tokens", params)
+        for b in result.get("data", {}).get("balances", []):
             try:
-                raw   = int(b.get("amount", "0") or "0")
-                dec   = int(b.get("decimals", 18) or 18)
-                bal   = raw / (10 ** dec)
+                raw = int(b.get("amount", "0") or "0")
+                dec = int(b.get("decimals", 18) or 18)
+                bal = raw / (10 ** dec)
             except Exception:
                 continue
             if bal < 1e-12:
                 continue
             val       = float(b.get("amountUSD", 0) or 0)
+            if val < 0.001:
+                continue
             price_usd = (val / bal) if bal > 0 else 0
             chain_key = (b.get("chain") or {}).get("chainKey", "")
             tokens.append({
@@ -1821,22 +1842,130 @@ def refresh_dash_wallet(address):
                 "balance":    bal,
                 "price_usd":  price_usd,
                 "value_usd":  val,
-                "thumbnail":  "",
+                "thumbnail":  b.get("logo", ""),
                 "contract":   b.get("address", ""),
             })
         tokens.sort(key=lambda x: x["value_usd"], reverse=True)
-        from datetime import datetime
-        for w in wallets:
-            if w["address"] == address.lower():
-                w["tokens"]       = tokens
-                w["last_updated"] = datetime.utcnow().isoformat()
-                break
-        save_dash_wallets(wallets)
-        return jsonify({"ok": True, "count": len(tokens)})
-    except urllib.error.HTTPError as e:
-        return jsonify({"error": f"Erro {e.code} ao buscar saldos: {e.read().decode()[:200]}"}), 502
     except Exception as ex:
-        return jsonify({"error": str(ex)}), 502
+        errors.append(f"tokens: {ex}")
+
+    # ── 2. DeFi positions (Jumper /positions) ───────────────────────────────────
+    try:
+        result = _jumper_get("positions", params)
+        for p in result.get("data", []):
+            net_usd = float(p.get("netUsd", 0) or 0)
+            if abs(net_usd) < 0.01:
+                continue
+            proto     = p.get("protocol") or {}
+            chain_key = (p.get("chain") or {}).get("chainKey", "")
+
+            def _tok_list(key):
+                out = []
+                for t in (p.get(key) or []):
+                    amt_usd = float(t.get("amountUSD", 0) or 0)
+                    if amt_usd < 0.0001:
+                        continue
+                    try:
+                        raw = int(t.get("amount", "0") or "0")
+                        dec = int(t.get("decimals", 18) or 18)
+                        bal = raw / (10 ** dec)
+                    except Exception:
+                        bal = 0
+                    out.append({"symbol": t.get("symbol", ""), "balance": bal,
+                                "value_usd": amt_usd, "logo": t.get("logo", "")})
+                return out
+
+            defi.append({
+                "protocol":      proto.get("name", p.get("name", "")),
+                "protocol_logo": proto.get("logo", ""),
+                "protocol_url":  proto.get("url", ""),
+                "type":          p.get("type", ""),
+                "description":   p.get("description", ""),
+                "network":       chain_key,
+                "asset_usd":     float(p.get("assetUsd", 0) or 0),
+                "debt_usd":      float(p.get("debtUsd",  0) or 0),
+                "net_usd":       net_usd,
+                "supply_tokens": _tok_list("supplyTokens"),
+                "reward_tokens": _tok_list("rewardTokens"),
+                "borrow_tokens": _tok_list("borrowTokens"),
+            })
+        defi.sort(key=lambda x: x["net_usd"], reverse=True)
+    except Exception as ex:
+        errors.append(f"defi: {ex}")
+
+    # ── 3. Hyperliquid (spot + perps) ───────────────────────────────────────────
+    try:
+        # Spot prices via spotMetaAndAssetCtxs
+        hl_prices = {s: 1.0 for s in ["USDC","USDT","USDE","USDT0","USDH","FDUSD"]}
+        try:
+            mc = _hl_post({"type": "spotMetaAndAssetCtxs"}, timeout=10)
+            for i, market in enumerate(mc[0].get("universe", [])):
+                if i < len(mc[1]):
+                    mid  = mc[1][i].get("midPx")
+                    name = market.get("name", "")
+                    if mid and "/" in name:
+                        base = name.split("/")[0]
+                        try:
+                            hl_prices[base] = float(mid)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # Spot balances
+        spot = _hl_post({"type": "spotClearinghouseState", "user": address})
+        for b in spot.get("balances", []):
+            coin  = b.get("coin", "")
+            total = float(b.get("total", "0") or "0")
+            if total < 1e-9 or not coin or coin.startswith("+") or coin.startswith("o"):
+                continue
+            price     = hl_prices.get(coin, 0)
+            value_usd = total * price if price else float(b.get("entryNtl", 0) or 0)
+            if value_usd < 0.01:
+                continue
+            perps.append({
+                "kind":      "spot",
+                "symbol":    coin,
+                "balance":   total,
+                "price_usd": price,
+                "value_usd": value_usd,
+                "pnl":       None,
+                "side":      None,
+            })
+
+        # Perp positions
+        cs = _hl_post({"type": "clearinghouseState", "user": address})
+        for ap in cs.get("assetPositions", []):
+            pos  = ap.get("position", {})
+            coin = pos.get("coin", "")
+            szi  = float(pos.get("szi", "0") or "0")
+            if abs(szi) < 1e-12:
+                continue
+            perps.append({
+                "kind":      "perp",
+                "symbol":    coin,
+                "balance":   abs(szi),
+                "price_usd": float(pos.get("entryPx",        0) or 0),
+                "value_usd": abs(float(pos.get("positionValue", 0) or 0)),
+                "pnl":       float(pos.get("unrealizedPnl",  0) or 0),
+                "side":      "LONG" if szi > 0 else "SHORT",
+            })
+
+        perps.sort(key=lambda x: x["value_usd"], reverse=True)
+    except Exception as ex:
+        errors.append(f"perps: {ex}")
+
+    from datetime import datetime
+    for w in wallets:
+        if w["address"] == address.lower():
+            w["tokens"]       = tokens
+            w["defi"]         = defi
+            w["perps"]        = perps
+            w["last_updated"] = datetime.utcnow().isoformat()
+            break
+    save_dash_wallets(wallets)
+    return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
+                    "perps": len(perps), "errors": errors})
 
 @app.route("/api/dashboard/manual", methods=["GET"])
 def get_dash_manual():

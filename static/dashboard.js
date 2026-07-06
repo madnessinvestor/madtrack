@@ -1,8 +1,10 @@
 // ─── Dashboard (on-chain wallets) ─────────────────────────────────────────────
 
-let dashWallets = [];
-let dashManual  = [];
-let dashLoaded  = false;
+let dashWallets      = [];
+let dashManual       = [];
+let dashLoaded       = false;
+const dashExpanded   = new Set();
+const dashActiveTab  = {};
 
 const CHAIN_META = {
   // Jumper chain keys
@@ -74,8 +76,12 @@ function renderDashboard() {
   const el = document.getElementById("dash-content");
   if (!el) return;
 
-  const totalWalletUsd = dashWallets.reduce((s, w) =>
-    s + (w.tokens || []).reduce((ts, t) => ts + (t.value_usd || 0), 0), 0);
+  const totalWalletUsd = dashWallets.reduce((s, w) => {
+    const tok   = (w.tokens || []).reduce((ts, t) => ts + (t.value_usd || 0), 0);
+    const dfi   = (w.defi   || []).reduce((ts, d) => ts + (d.net_usd   || 0), 0);
+    const prps  = (w.perps  || []).reduce((ts, p) => ts + (p.value_usd || 0), 0);
+    return s + tok + dfi + prps;
+  }, 0);
   const totalManualUsd = dashManual.reduce((s, a) =>
     s + (a.balance || 0) * (a.price_usd || 0), 0);
   const grandTotal = totalWalletUsd + totalManualUsd;
@@ -102,51 +108,7 @@ function renderDashboard() {
     </div>`;
   } else {
     for (const w of dashWallets) {
-      const totalUsd  = (w.tokens || []).reduce((s, t) => s + (t.value_usd || 0), 0);
-      const label     = w.label || shortAddr(w.address);
-      const updatedAt = w.last_updated
-        ? new Date(w.last_updated + "Z").toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-        : null;
-      const tokenCount = (w.tokens || []).length;
-
-      html += `<div class="dash-wallet-card" id="dwc-${w.address}">
-        <div class="dash-wallet-header">
-          <div class="dash-wallet-info">
-            <span class="dash-wallet-label">${escHtml(label)}</span>
-            <span class="dash-wallet-addr" title="${w.address}">${shortAddr(w.address)}</span>
-          </div>
-          <div class="dash-wallet-meta">
-            <span class="dash-wallet-total">${fmtDashUsd(totalUsd)}</span>
-            ${updatedAt ? `<span class="dash-wallet-time">${tokenCount} ativos · ${updatedAt}</span>` : `<span class="dash-wallet-time">não carregado</span>`}
-          </div>
-          <div class="dash-wallet-btns">
-            <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${w.address}')" title="Atualizar">↻</button>
-            <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${w.address}')" title="Remover">✕</button>
-          </div>
-        </div>`;
-
-      if (!w.last_updated) {
-        html += `<div class="dash-unloaded">
-          <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">Carregar ativos desta carteira</button>
-        </div>`;
-      } else if (!w.tokens || w.tokens.length === 0) {
-        html += `<div class="dash-token-empty">Nenhum ativo encontrado nesta carteira.</div>`;
-      } else {
-        const networks = [...new Set(w.tokens.map(t => t.network))];
-        html += `<div class="dash-net-filter" id="dnf-${w.address}">`;
-        html += `<button class="dash-net-pill active" data-net="all" onclick="filterDashNet('${w.address}','all',this)">Todas</button>`;
-        for (const net of networks) {
-          const cm = chainMeta(net);
-          html += `<button class="dash-net-pill" data-net="${net}" onclick="filterDashNet('${w.address}','${net}',this)" style="--nc:${cm.color}">${cm.name}</button>`;
-        }
-        html += `</div>`;
-        html += `<div class="dash-token-list" id="dtl-${w.address}">`;
-        for (const t of w.tokens) {
-          html += tokenRowHtml(t);
-        }
-        html += `</div>`;
-      }
-      html += `</div>`;
+      html += walletCardHtml(w);
     }
   }
 
@@ -191,6 +153,119 @@ function renderDashboard() {
   el.innerHTML = html;
 }
 
+// ── Wallet card ────────────────────────────────────────────────────────────────
+
+function walletCardHtml(w) {
+  const tokens  = w.tokens  || [];
+  const defi    = w.defi    || [];
+  const perps   = w.perps   || [];
+
+  const tokUsd  = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
+  const defiUsd = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
+  const perpsUsd= perps.reduce((s, p)  => s + (p.value_usd || 0), 0);
+  const totalUsd= tokUsd + defiUsd + perpsUsd;
+
+  const label    = w.label || shortAddr(w.address);
+  const isLoaded = !!w.last_updated;
+  const isOpen   = dashExpanded.has(w.address);
+  const activeTab= dashActiveTab[w.address] || "tokens";
+
+  const chevron  = isOpen ? "▼" : "▶";
+
+  let html = `<div class="dash-wallet-card" id="dwc-${w.address}">
+    <div class="dwc-header" onclick="toggleWalletCard('${w.address}')">
+      <div class="dwc-header-left">
+        <span class="dwc-chevron" id="dwc-chev-${w.address}">${chevron}</span>
+        <div class="dwc-info">
+          <span class="dwc-label">${escHtml(label)}</span>
+          <span class="dwc-addr" title="${w.address}">${shortAddr(w.address)}</span>
+        </div>
+      </div>
+      <div class="dwc-header-right">
+        <span class="dwc-total">${fmtDashUsd(totalUsd)}</span>
+        <div class="dwc-btns" onclick="event.stopPropagation()">
+          <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${w.address}')" title="Atualizar">↻</button>
+          <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${w.address}')" title="Remover">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="dwc-body" id="dwc-body-${w.address}" style="${isOpen ? '' : 'display:none'}">`;
+
+  if (!isLoaded) {
+    html += `<div class="dash-unloaded">
+      <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">Carregar ativos desta carteira</button>
+    </div>`;
+  } else {
+    const tabs = [
+      { id: "tokens", label: "Tokens", count: tokens.length, usd: tokUsd },
+      { id: "defi",   label: "DeFi",   count: defi.length,   usd: defiUsd },
+      { id: "perps",  label: "Perps",  count: perps.length,  usd: perpsUsd },
+    ];
+
+    html += `<div class="dwc-tabbar" id="dwc-tabbar-${w.address}">`;
+    for (const tab of tabs) {
+      const active = activeTab === tab.id ? " active" : "";
+      html += `<button class="dwc-tab${active}" onclick="switchWalletTab('${w.address}','${tab.id}',this)">
+        ${tab.label}
+        <span class="dwc-tab-badge">${tab.count > 0 ? tab.count + " · " + fmtDashUsd(tab.usd) : "—"}</span>
+      </button>`;
+    }
+    html += `</div>`;
+
+    // Tokens tab
+    html += `<div class="dwc-tab-pane" id="dwc-pane-tokens-${w.address}" style="${activeTab === 'tokens' ? '' : 'display:none'}">`;
+    if (tokens.length === 0) {
+      html += `<div class="dash-token-empty">Nenhum token on-chain encontrado.</div>`;
+    } else {
+      for (const t of tokens) html += tokenRowHtml(t);
+    }
+    html += `</div>`;
+
+    // DeFi tab
+    html += `<div class="dwc-tab-pane" id="dwc-pane-defi-${w.address}" style="${activeTab === 'defi' ? '' : 'display:none'}">`;
+    if (defi.length === 0) {
+      html += `<div class="dash-token-empty">Nenhuma posição DeFi encontrada.</div>`;
+    } else {
+      for (const d of defi) html += defiRowHtml(d);
+    }
+    html += `</div>`;
+
+    // Perps tab
+    html += `<div class="dwc-tab-pane" id="dwc-pane-perps-${w.address}" style="${activeTab === 'perps' ? '' : 'display:none'}">`;
+    if (perps.length === 0) {
+      html += `<div class="dash-token-empty">Nenhuma posição Hyperliquid encontrada.</div>`;
+    } else {
+      for (const p of perps) html += perpRowHtml(p);
+    }
+    html += `</div>`;
+  }
+
+  html += `</div></div>`;
+  return html;
+}
+
+function toggleWalletCard(address) {
+  const body   = document.getElementById(`dwc-body-${address}`);
+  const chev   = document.getElementById(`dwc-chev-${address}`);
+  if (!body) return;
+  const opening = body.style.display === "none";
+  body.style.display = opening ? "" : "none";
+  if (chev) chev.textContent = opening ? "▼" : "▶";
+  if (opening) dashExpanded.add(address); else dashExpanded.delete(address);
+}
+
+function switchWalletTab(address, tab, btn) {
+  ["tokens","defi","perps"].forEach(t => {
+    const pane = document.getElementById(`dwc-pane-${t}-${address}`);
+    if (pane) pane.style.display = (t === tab) ? "" : "none";
+  });
+  const bar = document.getElementById(`dwc-tabbar-${address}`);
+  if (bar) bar.querySelectorAll(".dwc-tab").forEach(b => b.classList.toggle("active", b === btn));
+  dashActiveTab[address] = tab;
+}
+
+// ── Row renderers ──────────────────────────────────────────────────────────────
+
 function tokenRowHtml(t) {
   const cm  = chainMeta(t.network);
   const img = t.thumbnail
@@ -214,14 +289,69 @@ function tokenRowHtml(t) {
   </div>`;
 }
 
-function filterDashNet(address, net, btn) {
-  const list = document.getElementById(`dtl-${address}`);
-  if (!list) return;
-  list.querySelectorAll(".dash-token-row").forEach(row => {
-    row.style.display = (net === "all" || row.dataset.net === net) ? "" : "none";
-  });
-  const bar = document.getElementById(`dnf-${address}`);
-  if (bar) bar.querySelectorAll(".dash-net-pill").forEach(p => p.classList.toggle("active", p === btn));
+function defiRowHtml(d) {
+  const cm      = chainMeta(d.network);
+  const logoEl  = d.protocol_logo
+    ? `<img class="defi-proto-logo" src="${escHtml(d.protocol_logo)}" onerror="this.style.display='none'" />`
+    : `<span class="dash-tok-icon-fb">${(d.protocol||"?")[0]}</span>`;
+  const typeBadge = d.type ? `<span class="defi-type-badge">${escHtml(d.type)}</span>` : "";
+  const netBadge  = d.network ? `<span class="dash-net-badge" style="--nc:${cm.color}">${cm.name}</span>` : "";
+
+  let supplyHtml = "";
+  const allToks = [...(d.supply_tokens||[]), ...(d.reward_tokens||[])];
+  if (allToks.length) {
+    supplyHtml = `<div class="defi-tok-list">` +
+      allToks.map(t => `<span class="defi-tok-chip">
+        ${t.logo ? `<img class="defi-tok-chip-img" src="${escHtml(t.logo)}" onerror="this.style.display='none'" />` : ""}
+        ${fmtDashBal(t.balance)} ${escHtml(t.symbol)}
+        <span class="defi-tok-chip-usd">${fmtDashUsd(t.value_usd)}</span>
+      </span>`).join("") +
+    `</div>`;
+  }
+
+  const debtHtml = d.debt_usd > 0
+    ? `<span class="defi-debt-line">Dívida: ${fmtDashUsd(d.debt_usd)}</span>` : "";
+
+  return `<div class="defi-row">
+    <div class="dash-tok-left">
+      ${logoEl}
+      <div class="dash-tok-info">
+        <span class="dash-tok-sym">${escHtml(d.protocol)}</span>
+        <span class="dash-tok-name">${escHtml(d.description || d.type || "")}</span>
+        ${supplyHtml}
+      </div>
+    </div>
+    <div class="dash-tok-mid">${typeBadge}${netBadge}</div>
+    <div class="dash-tok-right">
+      <span class="dash-tok-val">${fmtDashUsd(d.net_usd)}</span>
+      ${debtHtml}
+    </div>
+  </div>`;
+}
+
+function perpRowHtml(p) {
+  const isPerp  = p.kind === "perp";
+  const sideEl  = isPerp
+    ? `<span class="perp-side-badge ${p.side === 'LONG' ? 'perp-long' : 'perp-short'}">${p.side}</span>`
+    : `<span class="perp-side-badge perp-spot">SPOT</span>`;
+  const pnlEl   = (isPerp && p.pnl != null)
+    ? `<span class="perp-pnl ${p.pnl >= 0 ? 'perp-pnl-pos' : 'perp-pnl-neg'}">${p.pnl >= 0 ? "+" : ""}${fmtDashUsd(p.pnl)}</span>`
+    : "";
+  return `<div class="perp-row">
+    <div class="dash-tok-left">
+      <span class="dash-tok-icon-fb">${(p.symbol||"?")[0]}</span>
+      <div class="dash-tok-info">
+        <span class="dash-tok-sym">${escHtml(p.symbol)}</span>
+        ${sideEl}
+      </div>
+    </div>
+    <div class="dash-tok-mid"></div>
+    <div class="dash-tok-right">
+      <span class="dash-tok-val">${fmtDashUsd(p.value_usd)}</span>
+      <span class="dash-tok-bal">${fmtDashBal(p.balance)} ${escHtml(p.symbol)}</span>
+      ${pnlEl}
+    </div>
+  </div>`;
 }
 
 function escHtml(s) {
