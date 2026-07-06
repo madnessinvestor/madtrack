@@ -56,11 +56,20 @@ function chainMeta(id) {
 
 function fmtDashUsd(v) {
   if (v == null || isNaN(v) || v === 0) return "—";
-  if (v >= 1e6)  return "$" + (v / 1e6).toFixed(2) + "M";
-  if (v >= 1000) return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1)    return "$" + v.toFixed(2);
-  if (v >= 0.001) return "$" + v.toFixed(4);
-  return "$" + v.toPrecision(3);
+  // Use the same currency / rate as the rest of the app
+  const rate = (typeof getRate  === "function") ? getRate()  : 1;
+  const sym  = (typeof currSym  === "function") ? currSym()  : "$";
+  v = v * rate;
+  const neg = v < 0;
+  const abs = Math.abs(v);
+  const sign = neg ? "-" : "";
+  let fmt;
+  if (abs >= 1e6)   fmt = sym + (abs / 1e6).toFixed(2) + "M";
+  else if (abs >= 1000) fmt = sym + abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  else if (abs >= 1)    fmt = sym + abs.toFixed(2);
+  else if (abs >= 0.001) fmt = sym + abs.toFixed(4);
+  else                  fmt = sym + abs.toPrecision(3);
+  return sign + fmt;
 }
 
 function fmtDashBal(b) {
@@ -105,21 +114,21 @@ function renderDashboard() {
 
   if (grandTotal > 0) {
     html += `<div class="dash-total-bar">
-      <span class="dash-total-label">Total On-Chain</span>
+      <span class="dash-total-label">${t("dash_total_label")}</span>
       <span class="dash-total-val">${fmtDashUsd(grandTotal)}</span>
     </div>`;
   }
 
   // ── Wallets section ────────────────────────────────────────────────────────
   html += `<div class="dash-section-header">
-    <span class="dash-section-title">🔗 Carteiras On-Chain</span>
-    <button class="dash-add-btn" onclick="openDashWalletModal()">+ Carteira</button>
+    <span class="dash-section-title">${t("dash_wallets_title")}</span>
+    <button class="dash-add-btn" onclick="openDashWalletModal()">${t("dash_add_wallet")}</button>
   </div>`;
 
   if (dashWallets.length === 0) {
     html += `<div class="dash-empty">
       <div class="dash-empty-icon">🦊</div>
-      <p>Adicione o endereço público de uma carteira EVM (e opcionalmente Solana).<br>Serão listados todos os ativos em cada rede.</p>
+      <p>${t("dash_wallet_empty")}</p>
     </div>`;
   } else {
     for (const w of dashWallets) {
@@ -129,14 +138,14 @@ function renderDashboard() {
 
   // ── Manual assets section ──────────────────────────────────────────────────
   html += `<div class="dash-section-header" style="margin-top:18px">
-    <span class="dash-section-title">📝 Ativos Manuais</span>
-    <button class="dash-add-btn" onclick="openDashManualModal()">+ Ativo</button>
+    <span class="dash-section-title">${t("dash_manual_title")}</span>
+    <button class="dash-add-btn" onclick="openDashManualModal()">${t("dash_add_manual")}</button>
   </div>`;
 
   if (dashManual.length === 0) {
     html += `<div class="dash-empty">
       <div class="dash-empty-icon">📋</div>
-      <p>Adicione ativos on-chain manualmente com rede, saldo e preço.</p>
+      <p>${t("dash_manual_empty")}</p>
     </div>`;
   } else {
     html += `<div class="dash-token-list">`;
@@ -159,7 +168,7 @@ function renderDashboard() {
           <span class="dash-tok-val">${fmtDashUsd(val)}</span>
           <span class="dash-tok-bal">${fmtDashBal(a.balance)} ${escHtml(a.symbol)}</span>
         </div>
-        <button class="dash-del-inline" onclick="deleteManualAsset('${a.id}')" title="Remover">✕</button>
+        <button class="dash-del-inline" onclick="deleteManualAsset('${a.id}')" title="${t('dash_remove_title')}">✕</button>
       </div>`;
     }
     html += `</div>`;
@@ -199,8 +208,8 @@ function walletCardHtml(w) {
       <div class="dwc-header-right">
         <span class="dwc-total">${fmtDashUsd(totalUsd)}</span>
         <div class="dwc-btns" onclick="event.stopPropagation()">
-          <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${w.address}')" title="Atualizar">↻</button>
-          <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${w.address}')" title="Remover">✕</button>
+          <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${w.address}')" title="${t('dash_refresh_title')}">↻</button>
+          <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${w.address}')" title="${t('dash_remove_title')}">✕</button>
         </div>
       </div>
     </div>
@@ -208,13 +217,13 @@ function walletCardHtml(w) {
 
   if (!isLoaded) {
     html += `<div class="dash-unloaded">
-      <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">Carregar ativos desta carteira</button>
+      <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">${t("dash_load_btn")}</button>
     </div>`;
   } else {
     const tabs = [
-      { id: "tokens", label: "Tokens", count: tokens.length, usd: tokUsd },
-      { id: "defi",   label: "DeFi",   count: defi.length,   usd: defiUsd },
-      { id: "perps",  label: "Perps",  count: perps.length,  usd: perpsUsd },
+      { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
+      { id: "defi",   label: t("dash_tab_defi"),   count: defi.length,   usd: defiUsd },
+      { id: "perps",  label: t("dash_tab_perps"),  count: perps.length,  usd: perpsUsd },
     ];
 
     html += `<div class="dwc-tabbar" id="dwc-tabbar-${w.address}">`;
@@ -230,7 +239,7 @@ function walletCardHtml(w) {
     // Tokens tab
     html += `<div class="dwc-tab-pane" id="dwc-pane-tokens-${w.address}" style="${activeTab === 'tokens' ? '' : 'display:none'}">`;
     if (tokens.length === 0) {
-      html += `<div class="dash-token-empty">Nenhum token on-chain encontrado.</div>`;
+      html += `<div class="dash-token-empty">${t("dash_empty_tokens")}</div>`;
     } else {
       html += tokensGroupedHtml(tokens, w.address);
     }
@@ -239,7 +248,7 @@ function walletCardHtml(w) {
     // DeFi tab
     html += `<div class="dwc-tab-pane" id="dwc-pane-defi-${w.address}" style="${activeTab === 'defi' ? '' : 'display:none'}">`;
     if (defi.length === 0) {
-      html += `<div class="dash-token-empty">Nenhuma posição DeFi encontrada.</div>`;
+      html += `<div class="dash-token-empty">${t("dash_empty_defi")}</div>`;
     } else {
       for (const d of defi) html += defiRowHtml(d);
     }
@@ -248,7 +257,7 @@ function walletCardHtml(w) {
     // Perps tab
     html += `<div class="dwc-tab-pane" id="dwc-pane-perps-${w.address}" style="${activeTab === 'perps' ? '' : 'display:none'}">`;
     if (perps.length === 0) {
-      html += `<div class="dash-token-empty">Nenhuma posição de trading encontrada (Hyperliquid, Polymarket…).</div>`;
+      html += `<div class="dash-token-empty">${t("dash_empty_perps")}</div>`;
     } else {
       for (const p of perps) html += defiRowHtml(p);
     }
@@ -415,7 +424,7 @@ function defiRowHtml(d) {
   }
 
   const debtHtml = d.debt_usd > 0
-    ? `<span class="defi-debt-line">Dívida: ${fmtDashUsd(d.debt_usd)}</span>` : "";
+    ? `<span class="defi-debt-line">${t("dash_debt")} ${fmtDashUsd(d.debt_usd)}</span>` : "";
 
   return `<div class="defi-row">
     <div class="dash-tok-left">
@@ -459,18 +468,18 @@ async function submitDashWallet() {
   const svm     = document.getElementById("dwm-svm").value.trim();
   const label   = document.getElementById("dwm-label").value.trim();
   const errEl   = document.getElementById("dwm-err");
-  if (!address) { errEl.textContent = "Informe o endereço EVM da carteira."; return; }
+  if (!address) { errEl.textContent = t("dash_err_evm_required"); return; }
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
-    errEl.textContent = "Endereço EVM inválido (0x + 40 caracteres hex).";
+    errEl.textContent = t("dash_err_evm_invalid");
     return;
   }
   if (svm && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(svm)) {
-    errEl.textContent = "Endereço Solana inválido (base58, 32-44 chars).";
+    errEl.textContent = t("dash_err_sol_invalid");
     return;
   }
   errEl.textContent = "";
   const btn = document.getElementById("dwm-submit");
-  btn.disabled = true; btn.textContent = "Adicionando…";
+  btn.disabled = true; btn.textContent = t("dash_adding");
   try {
     const r = await fetch("/api/dashboard/wallets", {
       method: "POST",
@@ -478,11 +487,11 @@ async function submitDashWallet() {
       body: JSON.stringify({ address, svm_address: svm, label })
     });
     const d = await r.json();
-    if (!r.ok) { errEl.textContent = d.error || "Erro ao adicionar."; return; }
+    if (!r.ok) { errEl.textContent = d.error || t("dash_err_add"); return; }
     closeDashWalletModal();
     await refreshWallet(address.toLowerCase());
   } finally {
-    btn.disabled = false; btn.textContent = "Adicionar";
+    btn.disabled = false; btn.textContent = t("dash_add_btn");
   }
 }
 
@@ -508,7 +517,7 @@ async function submitDashManual() {
   const balance   = parseFloat(document.getElementById("dmm-bal").value)   || 0;
   const price_usd = parseFloat(document.getElementById("dmm-price").value) || 0;
   const errEl = document.getElementById("dmm-err");
-  if (!symbol) { errEl.textContent = "Símbolo obrigatório."; return; }
+  if (!symbol) { errEl.textContent = t("dash_err_symbol"); return; }
   errEl.textContent = "";
   const btn = document.getElementById("dmm-submit");
   btn.disabled = true;
@@ -519,7 +528,7 @@ async function submitDashManual() {
       body: JSON.stringify({ symbol, name, network, balance, price_usd })
     });
     const d = await r.json();
-    if (!r.ok) { errEl.textContent = d.error || "Erro."; return; }
+    if (!r.ok) { errEl.textContent = d.error || t("dash_err_generic"); return; }
     closeDashManualModal();
     await loadDashboard();
   } finally {
@@ -533,17 +542,17 @@ async function refreshWallet(address) {
   const refBtn  = document.getElementById(`dwc-ref-${address}`);
   const loadBtn = document.getElementById(`dwc-load-${address}`);
   if (refBtn)  { refBtn.style.opacity = "0.4"; refBtn.style.pointerEvents = "none"; }
-  if (loadBtn) { loadBtn.textContent = "Carregando…"; loadBtn.disabled = true; }
+  if (loadBtn) { loadBtn.textContent = t("dash_loading"); loadBtn.disabled = true; }
   try {
     const r = await fetch(`/api/dashboard/wallets/${address}/refresh`, { method: "POST" });
     const d = await r.json();
     if (!r.ok) {
-      showDashError(address, d.error || "Erro ao carregar carteira.");
+      showDashError(address, d.error || t("dash_err_load"));
       if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
       return;
     }
   } catch (e) {
-    showDashError(address, "Erro de rede ao carregar carteira.");
+    showDashError(address, t("dash_err_network"));
     if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
     return;
   }
@@ -584,7 +593,7 @@ function showDashError(address, msg) {
 }
 
 async function deleteWallet(address) {
-  if (!confirm("Remover esta carteira do Dashboard?")) return;
+  if (!confirm(t("dash_confirm_remove"))) return;
   await fetch(`/api/dashboard/wallets/${address}`, { method: "DELETE" });
   await loadDashboard();
 }

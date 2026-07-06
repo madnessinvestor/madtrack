@@ -103,6 +103,36 @@ const TRANSLATIONS = {
     ai_empty:           "Clique em <b>Analisar meus Trades</b> ou faça uma pergunta sobre seu portfólio.",
     ai_input_ph:        "Pergunte sobre seu portfólio...",
     ai_no_key:          "⚠️ API Key não configurada. Adicione OPENROUTER_API_KEY nos Secrets do Replit.",
+    // dashboard
+    dash_wallets_title: "🔗 Carteiras On-Chain",
+    dash_add_wallet:    "+ Carteira",
+    dash_manual_title:  "📝 Ativos Manuais",
+    dash_add_manual:    "+ Ativo",
+    dash_total_label:   "Total On-Chain",
+    dash_load_btn:      "Carregar ativos desta carteira",
+    dash_loading:       "Carregando…",
+    dash_tab_tokens:    "Tokens",
+    dash_tab_defi:      "DeFi",
+    dash_tab_perps:     "Perps",
+    dash_empty_tokens:  "Nenhum token on-chain encontrado.",
+    dash_empty_defi:    "Nenhuma posição DeFi encontrada.",
+    dash_empty_perps:   "Nenhuma posição de trading encontrada (Hyperliquid, Polymarket…).",
+    dash_debt:          "Dívida:",
+    dash_wallet_empty:  "Adicione o endereço público de uma carteira EVM (e opcionalmente Solana).<br>Serão listados todos os ativos em cada rede.",
+    dash_manual_empty:  "Adicione ativos on-chain manualmente com rede, saldo e preço.",
+    dash_adding:        "Adicionando…",
+    dash_add_btn:       "Adicionar",
+    dash_refresh_title:      "Atualizar",
+    dash_remove_title:       "Remover",
+    dash_err_evm_required:   "Informe o endereço EVM da carteira.",
+    dash_err_evm_invalid:    "Endereço EVM inválido (0x + 40 caracteres hex).",
+    dash_err_sol_invalid:    "Endereço Solana inválido (base58, 32-44 chars).",
+    dash_err_add:            "Erro ao adicionar.",
+    dash_err_generic:        "Erro.",
+    dash_err_load:           "Erro ao carregar carteira.",
+    dash_err_network:        "Erro de rede ao carregar carteira.",
+    dash_err_symbol:         "Símbolo obrigatório.",
+    dash_confirm_remove:     "Remover esta carteira do Dashboard?",
   },
   en: {
     btn_add:          "Add",
@@ -206,6 +236,36 @@ const TRANSLATIONS = {
     ai_empty:           "Click <b>Analyze my Trades</b> or ask a question about your portfolio.",
     ai_input_ph:        "Ask about your portfolio...",
     ai_no_key:          "⚠️ API Key not configured. Add OPENROUTER_API_KEY to Replit Secrets.",
+    // dashboard
+    dash_wallets_title: "🔗 On-Chain Wallets",
+    dash_add_wallet:    "+ Wallet",
+    dash_manual_title:  "📝 Manual Assets",
+    dash_add_manual:    "+ Asset",
+    dash_total_label:   "Total On-Chain",
+    dash_load_btn:      "Load assets from this wallet",
+    dash_loading:       "Loading…",
+    dash_tab_tokens:    "Tokens",
+    dash_tab_defi:      "DeFi",
+    dash_tab_perps:     "Perps",
+    dash_empty_tokens:  "No on-chain tokens found.",
+    dash_empty_defi:    "No DeFi positions found.",
+    dash_empty_perps:   "No trading positions found (Hyperliquid, Polymarket…).",
+    dash_debt:          "Debt:",
+    dash_wallet_empty:  "Add the public address of an EVM wallet (and optionally Solana).<br>All assets on each network will be listed.",
+    dash_manual_empty:  "Add on-chain assets manually with network, balance and price.",
+    dash_adding:        "Adding…",
+    dash_add_btn:       "Add",
+    dash_refresh_title:      "Refresh",
+    dash_remove_title:       "Remove",
+    dash_err_evm_required:   "Enter the EVM wallet address.",
+    dash_err_evm_invalid:    "Invalid EVM address (0x + 40 hex chars).",
+    dash_err_sol_invalid:    "Invalid Solana address (base58, 32-44 chars).",
+    dash_err_add:            "Error adding wallet.",
+    dash_err_generic:        "Error.",
+    dash_err_load:           "Error loading wallet.",
+    dash_err_network:        "Network error loading wallet.",
+    dash_err_symbol:         "Symbol required.",
+    dash_confirm_remove:     "Remove this wallet from Dashboard?",
   }
 };
 
@@ -241,10 +301,11 @@ function applyLang() {
   if (aiInput) aiInput.placeholder = t("ai_input_ph");
 
   // Re-render lists to pick up translated strings
-  if (typeof rerenderAssets === "function") rerenderAssets();
+  if (typeof rerenderAssets   === "function") rerenderAssets();
   if (typeof cachedPortfolio !== "undefined" && cachedPortfolio.length) {
     if (typeof renderPortfolio === "function") renderPortfolio(cachedPortfolio);
   }
+  if (typeof renderDashboard  === "function") renderDashboard();
 }
 
 function toggleLang() {
