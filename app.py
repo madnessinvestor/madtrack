@@ -1747,6 +1747,10 @@ def save_dash_manual(data):
     with open(DASH_MANUAL_FILE, "w") as f:
         json.dump(data, f)
 
+@app.route("/api/dashboard/status", methods=["GET"])
+def get_dash_status():
+    return jsonify({"ankr_configured": bool(os.environ.get("ANKR_API_KEY", "").strip())})
+
 @app.route("/api/dashboard/wallets", methods=["GET"])
 def get_dash_wallets():
     return jsonify(load_dash_wallets())
@@ -1773,6 +1777,9 @@ def delete_dash_wallet(address):
 
 @app.route("/api/dashboard/wallets/<address>/refresh", methods=["POST"])
 def refresh_dash_wallet(address):
+    ankr_key = os.environ.get("ANKR_API_KEY", "").strip()
+    if not ankr_key:
+        return jsonify({"error": "ANKR_API_KEY não configurada. Crie uma chave gratuita em ankr.com/rpc e adicione como secret no Replit."}), 503
     try:
         payload = json.dumps({
             "jsonrpc": "2.0",
@@ -1785,7 +1792,7 @@ def refresh_dash_wallet(address):
             "id": 1
         }).encode()
         req = urllib.request.Request(
-            "https://rpc.ankr.com/multichain/",
+            f"https://rpc.ankr.com/multichain/{ankr_key}",
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST"

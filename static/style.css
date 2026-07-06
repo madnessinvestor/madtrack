@@ -2204,3 +2204,34 @@ section.hidden { display: none; }
   cursor: pointer;
 }
 .dash-modal-actions .btn-confirm:disabled { opacity: 0.5; }
+
+.dash-ankr-warn {
+  display: flex;
+  gap: 12px;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.35);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+.dash-ankr-warn-icon { font-size: 1.4rem; flex-shrink: 0; }
+.dash-ankr-warn-body a { color: #f59e0b; }
+.dash-ankr-warn-body code {
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.78em;
+}
+.dash-load-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.dash-wallet-err {
+  font-size: 0.78rem;
+  color: var(--red);
+  padding: 6px 12px 8px;
+  line-height: 1.4;
+}

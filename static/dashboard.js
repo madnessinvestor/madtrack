@@ -1,8 +1,9 @@
 // ─── Dashboard (on-chain wallets) ─────────────────────────────────────────────
 
-let dashWallets = [];
-let dashManual  = [];
-let dashLoaded  = false;
+let dashWallets      = [];
+let dashManual       = [];
+let dashLoaded       = false;
+let dashAnkrOk       = false;
 
 const CHAIN_META = {
   eth:        { name: "Ethereum",   color: "#627eea" },
@@ -51,13 +52,16 @@ function shortAddr(addr) {
 }
 
 async function loadDashboard() {
-  const [wr, mr] = await Promise.all([
+  const [sr, wr, mr] = await Promise.all([
+    fetch("/api/dashboard/status"),
     fetch("/api/dashboard/wallets"),
     fetch("/api/dashboard/manual")
   ]);
-  dashWallets = await wr.json();
-  dashManual  = await mr.json();
-  dashLoaded  = true;
+  const status = await sr.json();
+  dashAnkrOk   = status.ankr_configured;
+  dashWallets  = await wr.json();
+  dashManual   = await mr.json();
+  dashLoaded   = true;
   renderDashboard();
 }
 
@@ -72,6 +76,18 @@ function renderDashboard() {
   const grandTotal = totalWalletUsd + totalManualUsd;
 
   let html = "";
+
+  if (!dashAnkrOk) {
+    html += `<div class="dash-ankr-warn">
+      <div class="dash-ankr-warn-icon">🔑</div>
+      <div class="dash-ankr-warn-body">
+        <b>Chave Ankr não configurada</b> — necessária para buscar saldos on-chain.<br>
+        1. Crie uma conta gratuita em <a href="https://www.ankr.com/rpc/" target="_blank">ankr.com/rpc</a><br>
+        2. Gere uma API key (Free tier) e adicione como secret <code>ANKR_API_KEY</code> no Replit.<br>
+        <span style="opacity:0.7">Ativos manuais funcionam sem a chave.</span>
+      </div>
+    </div>`;
+  }
 
   if (grandTotal > 0) {
     html += `<div class="dash-total-bar">
@@ -118,9 +134,9 @@ function renderDashboard() {
 
       if (!w.last_updated) {
         html += `<div class="dash-unloaded">
-          <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">
-            Carregar ativos desta carteira
-          </button>
+          ${dashAnkrOk
+            ? `<button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">Carregar ativos desta carteira</button>`
+            : `<span class="dash-load-hint">Configure ANKR_API_KEY para carregar</span>`}
         </div>`;
       } else if (!w.tokens || w.tokens.length === 0) {
         html += `<div class="dash-token-empty">Nenhum ativo encontrado nesta carteira.</div>`;
@@ -309,22 +325,34 @@ async function submitDashManual() {
 async function refreshWallet(address) {
   const refBtn  = document.getElementById(`dwc-ref-${address}`);
   const loadBtn = document.getElementById(`dwc-load-${address}`);
-  if (refBtn)  { refBtn.style.opacity = "0.4"; refBtn.style.pointerEvents = "none"; refBtn.textContent = "↻"; }
+  if (refBtn)  { refBtn.style.opacity = "0.4"; refBtn.style.pointerEvents = "none"; }
   if (loadBtn) { loadBtn.textContent = "Carregando…"; loadBtn.disabled = true; }
   try {
     const r = await fetch(`/api/dashboard/wallets/${address}/refresh`, { method: "POST" });
     const d = await r.json();
     if (!r.ok) {
-      alert(d.error || "Erro ao carregar carteira.");
+      showDashError(address, d.error || "Erro ao carregar carteira.");
+      if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
       return;
     }
   } catch (e) {
-    alert("Erro de rede ao carregar carteira.");
-    return;
-  } finally {
+    showDashError(address, "Erro de rede ao carregar carteira.");
     if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
+    return;
   }
   await loadDashboard();
+}
+
+function showDashError(address, msg) {
+  const card = document.getElementById(`dwc-${address}`);
+  if (!card) return;
+  let errEl = card.querySelector(".dash-wallet-err");
+  if (!errEl) {
+    errEl = document.createElement("div");
+    errEl.className = "dash-wallet-err";
+    card.appendChild(errEl);
+  }
+  errEl.textContent = "⚠️ " + msg;
 }
 
 async function deleteWallet(address) {
