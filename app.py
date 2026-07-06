@@ -1830,7 +1830,7 @@ def refresh_dash_wallet(address):
             if bal < 1e-12:
                 continue
             val       = float(b.get("amountUSD", 0) or 0)
-            if val < 0.001:
+            if val < 1.0:
                 continue
             price_usd = (val / bal) if bal > 0 else 0
             chain_key = (b.get("chain") or {}).get("chainKey", "")

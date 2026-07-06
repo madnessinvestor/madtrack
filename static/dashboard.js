@@ -5,6 +5,7 @@ let dashManual       = [];
 let dashLoaded       = false;
 const dashExpanded   = new Set();
 const dashActiveTab  = {};
+const tokGroupExpanded = new Set();
 
 const CHAIN_META = {
   // Jumper chain keys
@@ -231,7 +232,7 @@ function walletCardHtml(w) {
     if (tokens.length === 0) {
       html += `<div class="dash-token-empty">Nenhum token on-chain encontrado.</div>`;
     } else {
-      for (const t of tokens) html += tokenRowHtml(t);
+      html += tokensGroupedHtml(tokens, w.address);
     }
     html += `</div>`;
 
@@ -280,22 +281,111 @@ function switchWalletTab(address, tab, btn) {
 
 // ── Row renderers ──────────────────────────────────────────────────────────────
 
-function tokenRowHtml(t) {
+function tokensGroupedHtml(tokens, walletAddr) {
+  const groups = {};
+  for (const t of tokens) {
+    const key = t.symbol;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  }
+  const sorted = Object.entries(groups).sort((a, b) => {
+    const ta = a[1].reduce((s, t) => s + (t.value_usd || 0), 0);
+    const tb = b[1].reduce((s, t) => s + (t.value_usd || 0), 0);
+    return tb - ta;
+  });
+  let html = `<div class="dash-token-list">`;
+  for (const [sym, items] of sorted) {
+    html += tokenGroupHtml(sym, items, walletAddr);
+  }
+  html += `</div>`;
+  return html;
+}
+
+function groupKeyToId(groupKey) {
+  return "tgb-" + groupKey.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+function tokenGroupHtml(sym, items, walletAddr) {
+  const groupKey  = `${walletAddr}::${sym}`;
+  const elemId    = groupKeyToId(groupKey);
+  const isOpen    = tokGroupExpanded.has(groupKey);
+  const isMulti   = items.length > 1;
+  const totalVal  = items.reduce((s, t) => s + (t.value_usd || 0), 0);
+  const totalBal  = items.reduce((s, t) => s + (t.balance   || 0), 0);
+
+  const icon = tokenIconUrl(items[0]);
+  const imgEl = icon
+    ? `<img class="dash-tok-icon" src="${escHtml(icon)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="dash-tok-icon-fb" style="display:none">${(sym||"?")[0]}</span>`
+    : `<span class="dash-tok-icon-fb">${(sym||"?")[0]}</span>`;
+
+  const netDots = items.map(t => {
+    const cm = chainMeta(t.network);
+    return `<span class="dash-chain-dot" style="background:${cm.color}" title="${cm.name}"></span>`;
+  }).join("");
+
+  const chevron   = isMulti ? `<span class="dash-tok-chev">${isOpen ? "▼" : "▶"}</span>` : "";
+  const clickAttr = isMulti
+    ? `onclick="toggleTokGroup('${escHtml(groupKey)}')" style="cursor:pointer"`
+    : "";
+
+  let html = `<div class="dash-tok-group">
+    <div class="dash-token-row dash-tok-group-hdr" ${clickAttr}>
+      <div class="dash-tok-left">
+        ${imgEl}
+        <div class="dash-tok-info">
+          <span class="dash-tok-sym">${escHtml(sym)}</span>
+          <div class="dash-chain-dots">${netDots}</div>
+        </div>
+      </div>
+      <div class="dash-tok-right">
+        <span class="dash-tok-val">${fmtDashUsd(totalVal)}</span>
+        <span class="dash-tok-bal">${fmtDashBal(totalBal)} ${escHtml(sym)}</span>
+      </div>
+      ${chevron}
+    </div>`;
+
+  if (isMulti) {
+    html += `<div class="dash-tok-group-body" id="${elemId}" style="${isOpen ? "" : "display:none"}">`;
+    for (const t of items) html += tokenRowHtml(t, true);
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function toggleTokGroup(groupKey) {
+  const elemId = groupKeyToId(groupKey);
+  const body   = document.getElementById(elemId);
+  const hdr    = body ? body.previousElementSibling : null;
+  const chev   = hdr  ? hdr.querySelector(".dash-tok-chev") : null;
+  if (!body) return;
+  const opening = body.style.display === "none";
+  body.style.display = opening ? "" : "none";
+  if (chev) chev.textContent = opening ? "▼" : "▶";
+  if (opening) tokGroupExpanded.add(groupKey);
+  else         tokGroupExpanded.delete(groupKey);
+}
+
+function tokenRowHtml(t, subRow = false) {
   const cm   = chainMeta(t.network);
-  const icon = tokenIconUrl(t);
-  const img  = icon
+  const icon = subRow ? null : tokenIconUrl(t);
+  const img  = !subRow ? (icon
     ? `<img class="dash-tok-icon" src="${escHtml(icon)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="dash-tok-icon-fb" style="display:none">${(t.symbol||"?")[0]}</span>`
-    : `<span class="dash-tok-icon-fb">${(t.symbol||"?")[0]}</span>`;
-  return `<div class="dash-token-row" data-net="${t.network}">
+    : `<span class="dash-tok-icon-fb">${(t.symbol||"?")[0]}</span>`)
+    : `<span class="dash-chain-dot dash-chain-dot-lg" style="background:${cm.color}" title="${cm.name}"></span>`;
+  return `<div class="dash-token-row${subRow ? " dash-tok-sub" : ""}" data-net="${t.network}">
     <div class="dash-tok-left">
       ${img}
       <div class="dash-tok-info">
-        <span class="dash-tok-sym">${escHtml(t.symbol)}</span>
-        ${t.name ? `<span class="dash-tok-name">${escHtml(t.name)}</span>` : ""}
+        ${subRow
+          ? `<span class="dash-tok-sym dash-tok-sym-sub">${cm.name}</span>`
+          : `<span class="dash-tok-sym">${escHtml(t.symbol)}</span>${t.name ? `<span class="dash-tok-name">${escHtml(t.name)}</span>` : ""}`
+        }
       </div>
     </div>
     <div class="dash-tok-mid">
-      <span class="dash-net-badge" style="--nc:${cm.color}">${cm.name}</span>
+      ${!subRow ? `<span class="dash-net-badge" style="--nc:${cm.color}">${cm.name}</span>` : ""}
     </div>
     <div class="dash-tok-right">
       <span class="dash-tok-val">${fmtDashUsd(t.value_usd)}</span>

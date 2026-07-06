@@ -2110,6 +2110,49 @@ section.hidden { display: none; }
 }
 .dash-del-inline:hover { color: var(--red); }
 
+/* Grouped token rows */
+.dash-tok-group { display: flex; flex-direction: column; }
+.dash-tok-group-hdr { border-bottom: 1px solid var(--border); }
+.dash-tok-group-hdr:last-child { border-bottom: none; }
+.dash-tok-group-hdr:hover { background: var(--surface2); }
+.dash-chain-dots {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 3px;
+}
+.dash-chain-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.dash-chain-dot-lg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.dash-tok-chev {
+  font-size: 9px;
+  color: var(--muted);
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+.dash-tok-group-body .dash-token-row {
+  padding-left: 24px;
+  background: rgba(0,0,0,0.12);
+  border-bottom: 1px solid var(--border);
+}
+.dash-tok-group-body .dash-token-row:last-child { border-bottom: none; }
+.dash-tok-sub .dash-tok-sym-sub {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted2);
+}
+
 /* Dashboard modals */
 .dash-modal {
   position: fixed;
