@@ -1,1 +1,1 @@
-[{"id": "9994d7af", "ticker": "BTC", "target": 80000.0, "direction": "above", "triggered": false, "repeat_interval": 0, "last_fired_at": null}, {"id": "ff288d05", "ticker": "BTC", "target": 50000.0, "direction": "below", "triggered": false, "repeat_interval": 0, "last_fired_at": null}]
+[]
