@@ -53,10 +53,23 @@ def http_post(url, data, timeout=8):
     except Exception:
         return None
 
+import re as _re
+_SYMBOL_RE = _re.compile(r'^[A-Z0-9.\-]{1,20}$')
+
+def valid_symbol(sym: str) -> bool:
+    return bool(_SYMBOL_RE.match(sym))
+
 def safe_float(v):
     try:
         f = float(v)
         return f if f > 0 else None
+    except Exception:
+        return None
+
+def signed_float(v):
+    """Like safe_float but allows negative values (e.g. daily change %)."""
+    try:
+        return float(v)
     except Exception:
         return None
 
@@ -325,7 +338,7 @@ def api_brapi(sym):
         if price:
             return {
                 "price": price,
-                "change24h": safe_float(r.get("regularMarketChangePercent")),
+                "change24h": signed_float(r.get("regularMarketChangePercent")),
                 "high24h": safe_float(r.get("regularMarketDayHigh")),
                 "low24h": safe_float(r.get("regularMarketDayLow")),
                 "volume24h": safe_float(r.get("regularMarketVolume")),
@@ -348,7 +361,7 @@ def api_forex(sym):
         if price:
             return {
                 "price": price,
-                "change24h": safe_float(r.get("regularMarketChangePercent")),
+                "change24h": signed_float(r.get("regularMarketChangePercent")),
                 "high24h": safe_float(r.get("regularMarketDayHigh")),
                 "low24h": safe_float(r.get("regularMarketDayLow")),
                 "volume24h": None, "market_cap": None, "source": "Câmbio"
@@ -467,7 +480,7 @@ def get_portfolio():
 
 @app.route("/api/portfolio", methods=["POST"])
 def add_portfolio_trade():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     sym = data.get("ticker", "").strip().upper()
     if not sym:
         return jsonify({"ok": False, "error": "no ticker"}), 400
@@ -508,7 +521,7 @@ def delete_portfolio_trade(ticker, idx):
 
 @app.route("/api/portfolio/<ticker>", methods=["PUT"])
 def rename_portfolio_token(ticker):
-    data = request.json
+    data = request.get_json(silent=True) or {}
     new_ticker = data.get("ticker", "").strip().upper()
     if not new_ticker:
         return jsonify({"ok": False}), 400
@@ -589,10 +602,10 @@ def get_assets():
 
 @app.route("/api/assets", methods=["POST"])
 def add_asset():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     sym = data.get("symbol", "").strip().upper()
-    if not sym:
-        return jsonify({"ok": False}), 400
+    if not sym or not valid_symbol(sym):
+        return jsonify({"ok": False, "error": "invalid symbol"}), 400
     assets = load_assets()
     if not any(a["symbol"] == sym for a in assets):
         assets.append({"symbol": sym})
@@ -607,9 +620,16 @@ def delete_asset(symbol):
 
 @app.route("/api/assets/order", methods=["PUT"])
 def reorder_assets():
-    symbols = request.json.get("symbols", [])
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "invalid request body"}), 400
+    symbols = body.get("symbols")
+    if not isinstance(symbols, list) or len(symbols) == 0:
+        return jsonify({"ok": False, "error": "symbols must be a non-empty list"}), 400
     current = {a["symbol"].upper(): a for a in load_assets()}
-    ordered = [current[s.upper()] for s in symbols if s.upper() in current]
+    ordered = [current[s.upper()] for s in symbols if isinstance(s, str) and s.upper() in current]
+    if not ordered:
+        return jsonify({"ok": False, "error": "no valid symbols matched"}), 400
     save_assets(ordered)
     return jsonify({"ok": True})
 
