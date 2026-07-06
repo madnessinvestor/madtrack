@@ -305,7 +305,16 @@ function switchTab(tab) {
   if (refreshBar) refreshBar.classList.toggle("hidden", isAi || isDashboard);
 
   if (isTrade && !cachedPortfolio.length) loadPortfolio();
-  if (isDashboard && !dashLoaded) loadDashboard();
+  if (isDashboard) {
+    if (!dashLoaded) {
+      loadDashboard();
+    } else {
+      // Refresh all loaded wallets when switching back to dashboard
+      for (const w of dashWallets) {
+        if (w.last_updated) refreshWallet(w.address).catch(() => {});
+      }
+    }
+  }
 }
 
 // ─── Portfolio loading ────────────────────────────────────────────────────────

@@ -480,8 +480,7 @@ async function submitDashWallet() {
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || "Erro ao adicionar."; return; }
     closeDashWalletModal();
-    await loadDashboard();
-    refreshWallet(address.toLowerCase());
+    await refreshWallet(address.toLowerCase());
   } finally {
     btn.disabled = false; btn.textContent = "Adicionar";
   }
@@ -548,8 +547,29 @@ async function refreshWallet(address) {
     if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
     return;
   }
+  // Auto-expand the card so data is visible immediately after refresh
+  dashExpanded.add(address);
   await loadDashboard();
 }
+
+// ── Auto-refresh all wallets every 3 minutes when dashboard is visible ─────────
+let _dashRefreshTimer = null;
+
+function startDashAutoRefresh() {
+  if (_dashRefreshTimer) return;
+  _dashRefreshTimer = setInterval(async () => {
+    const dashSection = document.getElementById("section-dashboard");
+    if (!dashSection || dashSection.classList.contains("hidden")) return;
+    for (const w of dashWallets) {
+      if (w.last_updated) {
+        // fire-and-forget; refreshWallet already calls loadDashboard when done
+        refreshWallet(w.address).catch(() => {});
+      }
+    }
+  }, 3 * 60 * 1000); // every 3 minutes
+}
+
+startDashAutoRefresh();
 
 function showDashError(address, msg) {
   const card = document.getElementById(`dwc-${address}`);
