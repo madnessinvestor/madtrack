@@ -1923,114 +1923,29 @@ def refresh_dash_wallet(address):
     except Exception as ex:
         errors.append(f"positions: {ex}")
 
-    # ── 4. Hyperliquid L1 (perps + native spot) — direct API, real-time ─────────
-    # Jumper covers HyperEVM (chainKey="hyp") but NOT Hyperliquid L1 native
-    # balances and perpetual positions, so we call the HL API directly.
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as _ex:
-            _f_cs  = _ex.submit(_hl_post, {"type": "clearinghouseState",     "user": address})
-            _f_ss  = _ex.submit(_hl_post, {"type": "spotClearinghouseState", "user": address})
-            _f_mid = _ex.submit(_hl_post, {"type": "allMids"})
-        hl_cs  = _f_cs.result()  or {}
-        hl_ss  = _f_ss.result()  or {}
-        hl_mid = _f_mid.result() or {}
+    # ── 4. Deduplicate receipt tokens ────────────────────────────────────────────
+    # Jumper's /tokens returns ALL wallet token balances, including protocol
+    # receipt tokens (e.g. kHYPE for Kinetiq staking, UETH for ETH vaults).
+    # Those same tokens appear as supply_tokens inside /positions (DeFi/perps),
+    # so they get double-counted. Remove any wallet token whose symbol + value
+    # closely matches a supply_token already accounted for in a position.
+    supply_sym_values: dict = {}
+    for pos in defi + perps:
+        for t in pos.get("supply_tokens", []) + pos.get("reward_tokens", []):
+            sym = t.get("symbol", "").upper()
+            supply_sym_values[sym] = supply_sym_values.get(sym, 0) + float(t.get("value_usd", 0) or 0)
 
-        # ── perps positions ──────────────────────────────────────────────────
-        # Remove any Jumper-sourced Hyperliquid entry to avoid double-counting
-        perps = [p for p in perps if p.get("protocol", "").lower() != "hyperliquid"]
-
-        margin     = hl_cs.get("marginSummary", {})
-        acct_value = safe_float(margin.get("accountValue")) or 0.0
-        positions  = hl_cs.get("assetPositions", [])
-
-        if positions:
-            for ap in positions:
-                pos  = ap.get("position", {})
-                coin = pos.get("coin", "")
-                szi  = float(pos.get("szi", 0) or 0)
-                if abs(szi) < 1e-12:
-                    continue
-                unrealized = float(pos.get("unrealizedPnl", 0) or 0)
-                pos_value  = float(pos.get("positionValue",  0) or 0)
-                entry_px   = safe_float(pos.get("entryPx"))
-                cur_px     = safe_float(hl_mid.get(coin))
-                side       = "Long" if szi > 0 else "Short"
-                desc_parts = [f"{coin} {side}"]
-                if entry_px:
-                    desc_parts.append(f"Entry ${entry_px:,.4f}")
-                if cur_px:
-                    desc_parts.append(f"Mark ${cur_px:,.4f}")
-                perps.append({
-                    "protocol":      "Hyperliquid",
-                    "protocol_logo": "https://app.hyperliquid.xyz/favicon.ico",
-                    "protocol_url":  "https://app.hyperliquid.xyz",
-                    "type":          f"{side} Perp",
-                    "description":   " · ".join(desc_parts),
-                    "network":       "hyp",
-                    "asset_usd":     abs(pos_value),
-                    "debt_usd":      0.0,
-                    "net_usd":       unrealized,
-                    "supply_tokens": [{"symbol": coin, "balance": abs(szi),
-                                       "value_usd": abs(pos_value), "logo": ""}],
-                    "reward_tokens": [],
-                    "borrow_tokens": [],
-                })
-        elif acct_value > 0.01:
-            # No open positions but cash in the margin account
-            perps.append({
-                "protocol":      "Hyperliquid",
-                "protocol_logo": "https://app.hyperliquid.xyz/favicon.ico",
-                "protocol_url":  "https://app.hyperliquid.xyz",
-                "type":          "Margin Account",
-                "description":   "Sem posições abertas",
-                "network":       "hyp",
-                "asset_usd":     acct_value,
-                "debt_usd":      0.0,
-                "net_usd":       acct_value,
-                "supply_tokens": [{"symbol": "USDC", "balance": acct_value,
-                                   "value_usd": acct_value, "logo": ""}],
-                "reward_tokens": [],
-                "borrow_tokens": [],
-            })
-
-        perps.sort(key=lambda x: abs(x["net_usd"]), reverse=True)
-
-        # ── HL L1 native spot balances ───────────────────────────────────────
-        # These live on HL L1, not HyperEVM — Jumper misses them entirely.
-        existing_hl_syms = {t["symbol"].upper() for t in tokens if t.get("network") == "hyp"}
-        for b in hl_ss.get("balances", []):
-            coin = b.get("coin", "")
-            bal  = float(b.get("total", 0) or 0)
-            if bal < 1e-12:
+    deduped: list = []
+    for tok in tokens:
+        sym     = tok["symbol"].upper()
+        tok_val = tok["value_usd"]
+        pos_val = supply_sym_values.get(sym, 0)
+        if pos_val > 1.0 and tok_val > 1.0:
+            ratio = abs(tok_val - pos_val) / max(tok_val, pos_val)
+            if ratio < 0.25:   # within 25% → almost certainly the same asset
                 continue
-            # USDC price is always 1.0; others use perp mid as proxy
-            if coin.upper() == "USDC":
-                px = 1.0
-            else:
-                px = safe_float(hl_mid.get(coin))
-            if not px:
-                continue
-            val = bal * px
-            if val < 1.0:
-                continue
-            # Skip if already in tokens from HyperEVM (same symbol + network)
-            if coin.upper() in existing_hl_syms:
-                continue
-            tokens.append({
-                "symbol":     coin,
-                "name":       coin,
-                "network":    "hyp",
-                "chain_type": "HL",
-                "balance":    bal,
-                "price_usd":  px,
-                "value_usd":  val,
-                "thumbnail":  "",
-                "contract":   "",
-            })
-        tokens.sort(key=lambda x: x["value_usd"], reverse=True)
-
-    except Exception as ex:
-        errors.append(f"hyperliquid: {ex}")
+        deduped.append(tok)
+    tokens = deduped
 
     from datetime import datetime
     for w in wallets:
