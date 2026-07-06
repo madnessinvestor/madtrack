@@ -127,9 +127,7 @@ function renderDashboard() {
 
       if (!w.last_updated) {
         html += `<div class="dash-unloaded">
-          ${dashAnkrOk
-            ? `<button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">Carregar ativos desta carteira</button>`
-            : `<span class="dash-load-hint">Configure ANKR_API_KEY para carregar</span>`}
+          <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">Carregar ativos desta carteira</button>
         </div>`;
       } else if (!w.tokens || w.tokens.length === 0) {
         html += `<div class="dash-token-empty">Nenhum ativo encontrado nesta carteira.</div>`;
