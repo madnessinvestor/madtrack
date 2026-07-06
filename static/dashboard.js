@@ -8,32 +8,46 @@ const dashActiveTab  = {};
 
 const CHAIN_META = {
   // Jumper chain keys
-  eth:        { name: "Ethereum",   color: "#627eea" },
-  bsc:        { name: "BNB Chain",  color: "#f0b90b" },
-  pol:        { name: "Polygon",    color: "#8247e5" },
-  arb:        { name: "Arbitrum",   color: "#28a0f0" },
-  opt:        { name: "Optimism",   color: "#ff0420" },
-  avax:       { name: "Avalanche",  color: "#e84142" },
-  ftm:        { name: "Fantom",     color: "#1969ff" },
-  base:       { name: "Base",       color: "#0052ff" },
-  gnosis:     { name: "Gnosis",     color: "#04795b" },
-  linea:      { name: "Linea",      color: "#61dfff" },
-  scrl:       { name: "Scroll",     color: "#eebb6a" },
-  era:        { name: "zkSync Era", color: "#8c8dfc" },
-  cro:        { name: "Cronos",     color: "#002d74" },
-  celo:       { name: "Celo",       color: "#35d07f" },
-  mnt:        { name: "Mantle",     color: "#50e3c2" },
-  blast:      { name: "Blast",      color: "#fcfc03" },
-  mode:       { name: "Mode",       color: "#dffe00" },
-  sol:        { name: "Solana",     color: "#9945ff" },
+  eth:        { name: "Ethereum",   color: "#627eea", id: 1 },
+  bsc:        { name: "BNB Chain",  color: "#f0b90b", id: 56 },
+  pol:        { name: "Polygon",    color: "#8247e5", id: 137 },
+  arb:        { name: "Arbitrum",   color: "#28a0f0", id: 42161 },
+  opt:        { name: "Optimism",   color: "#ff0420", id: 10 },
+  avax:       { name: "Avalanche",  color: "#e84142", id: 43114 },
+  ftm:        { name: "Fantom",     color: "#1969ff", id: 250 },
+  base:       { name: "Base",       color: "#0052ff", id: 8453 },
+  bas:        { name: "Base",       color: "#0052ff", id: 8453 },
+  gnosis:     { name: "Gnosis",     color: "#04795b", id: 100 },
+  linea:      { name: "Linea",      color: "#61dfff", id: 59144 },
+  scrl:       { name: "Scroll",     color: "#eebb6a", id: 534352 },
+  era:        { name: "zkSync Era", color: "#8c8dfc", id: 324 },
+  cro:        { name: "Cronos",     color: "#002d74", id: 25 },
+  celo:       { name: "Celo",       color: "#35d07f", id: 42220 },
+  mnt:        { name: "Mantle",     color: "#50e3c2", id: 5000 },
+  blast:      { name: "Blast",      color: "#fcfc03", id: 81457 },
+  mode:       { name: "Mode",       color: "#dffe00", id: 34443 },
+  sol:        { name: "Solana",     color: "#9945ff", id: null },
+  hyp:        { name: "HyperEVM",   color: "#00c27c", id: 999 },
   // legacy / alternate aliases
-  polygon:    { name: "Polygon",    color: "#8247e5" },
-  arbitrum:   { name: "Arbitrum",   color: "#28a0f0" },
-  optimism:   { name: "Optimism",   color: "#ff0420" },
-  avalanche:  { name: "Avalanche",  color: "#e84142" },
-  scroll:     { name: "Scroll",     color: "#eebb6a" },
-  zksync:     { name: "zkSync",     color: "#8c8dfc" },
+  polygon:    { name: "Polygon",    color: "#8247e5", id: 137 },
+  arbitrum:   { name: "Arbitrum",   color: "#28a0f0", id: 42161 },
+  optimism:   { name: "Optimism",   color: "#ff0420", id: 10 },
+  avalanche:  { name: "Avalanche",  color: "#e84142", id: 43114 },
+  scroll:     { name: "Scroll",     color: "#eebb6a", id: 534352 },
+  zksync:     { name: "zkSync",     color: "#8c8dfc", id: 324 },
 };
+
+function tokenIconUrl(token) {
+  if (token.thumbnail) return token.thumbnail;
+  const contract = (token.contract || "").toLowerCase();
+  const netKey   = (token.network  || "").toLowerCase();
+  const meta     = CHAIN_META[netKey];
+  const chainId  = meta ? meta.id : null;
+  if (contract && contract !== "0x0000000000000000000000000000000000000000" && chainId) {
+    return `https://token-icons.llamao.fi/icons/tokens/${chainId}/${contract}?h=64&w=64`;
+  }
+  return null;
+}
 
 function chainMeta(id) {
   return CHAIN_META[(id || "").toLowerCase()] || { name: (id || "?").toUpperCase(), color: "#888" };
@@ -79,7 +93,7 @@ function renderDashboard() {
   const totalWalletUsd = dashWallets.reduce((s, w) => {
     const tok   = (w.tokens || []).reduce((ts, t) => ts + (t.value_usd || 0), 0);
     const dfi   = (w.defi   || []).reduce((ts, d) => ts + (d.net_usd   || 0), 0);
-    const prps  = (w.perps  || []).reduce((ts, p) => ts + (p.value_usd || 0), 0);
+    const prps  = (w.perps  || []).reduce((ts, p) => ts + (p.net_usd   || 0), 0);
     return s + tok + dfi + prps;
   }, 0);
   const totalManualUsd = dashManual.reduce((s, a) =>
@@ -267,9 +281,10 @@ function switchWalletTab(address, tab, btn) {
 // ── Row renderers ──────────────────────────────────────────────────────────────
 
 function tokenRowHtml(t) {
-  const cm  = chainMeta(t.network);
-  const img = t.thumbnail
-    ? `<img class="dash-tok-icon" src="${escHtml(t.thumbnail)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="dash-tok-icon-fb" style="display:none">${(t.symbol||"?")[0]}</span>`
+  const cm   = chainMeta(t.network);
+  const icon = tokenIconUrl(t);
+  const img  = icon
+    ? `<img class="dash-tok-icon" src="${escHtml(icon)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="dash-tok-icon-fb" style="display:none">${(t.symbol||"?")[0]}</span>`
     : `<span class="dash-tok-icon-fb">${(t.symbol||"?")[0]}</span>`;
   return `<div class="dash-token-row" data-net="${t.network}">
     <div class="dash-tok-left">
