@@ -162,7 +162,7 @@ function walletCardHtml(w) {
 
   const tokUsd  = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
   const defiUsd = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
-  const perpsUsd= perps.reduce((s, p)  => s + (p.value_usd || 0), 0);
+  const perpsUsd= perps.reduce((s, p)  => s + (p.net_usd   || 0), 0);
   const totalUsd= tokUsd + defiUsd + perpsUsd;
 
   const label    = w.label || shortAddr(w.address);
