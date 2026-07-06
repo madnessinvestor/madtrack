@@ -33,6 +33,9 @@
     <button class="tab-btn active" id="tab-tracker" onclick="switchTab('tracker')">
       📊 <span data-i18n="tab_tracker">Tracker</span>
     </button>
+    <button class="tab-btn" id="tab-dashboard" onclick="switchTab('dashboard')">
+      ⛓️ <span>Dashboard</span>
+    </button>
     <button class="tab-btn" id="tab-trade" onclick="switchTab('trade')">
       💼 <span data-i18n="tab_trade">Trade</span>
     </button>
@@ -53,6 +56,13 @@
     <main id="asset-list">
       <div class="loading" data-i18n="loading">Carregando...</div>
     </main>
+  </section>
+
+  <!-- Dashboard section -->
+  <section id="section-dashboard" class="hidden">
+    <div id="dash-content">
+      <div class="loading">Carregando...</div>
+    </div>
   </section>
 
   <!-- Trade section -->
@@ -375,11 +385,83 @@
     </div>
   </div>
 
+  <!-- Dashboard: Add Wallet modal -->
+  <div class="dash-modal hidden" id="dash-wallet-modal" onclick="if(event.target===this)closeDashWalletModal()">
+    <div class="dash-modal-box">
+      <div class="dash-modal-title">🔗 Adicionar Carteira EVM</div>
+      <p class="dash-modal-sub">Cole o endereço público (0x…). Somente leitura — nenhuma chave privada é solicitada.</p>
+      <div>
+        <label for="dwm-address">Endereço da carteira</label>
+        <input id="dwm-address" type="text" placeholder="0x742d35Cc6634C053..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+      </div>
+      <div>
+        <label for="dwm-label">Apelido (opcional)</label>
+        <input id="dwm-label" type="text" placeholder="Ex: Minha MetaMask" autocomplete="off" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+      </div>
+      <div class="dash-modal-err" id="dwm-err"></div>
+      <div class="dash-modal-actions">
+        <button class="btn-cancel" onclick="closeDashWalletModal()">Cancelar</button>
+        <button class="btn-confirm" id="dwm-submit" onclick="submitDashWallet()">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard: Add Manual Asset modal -->
+  <div class="dash-modal hidden" id="dash-manual-modal" onclick="if(event.target===this)closeDashManualModal()">
+    <div class="dash-modal-box">
+      <div class="dash-modal-title">📝 Ativo Manual</div>
+      <div class="dash-modal-row2">
+        <div>
+          <label for="dmm-sym">Símbolo *</label>
+          <input id="dmm-sym" type="text" placeholder="ETH" autocomplete="off" style="text-transform:uppercase" />
+        </div>
+        <div>
+          <label for="dmm-name">Nome</label>
+          <input id="dmm-name" type="text" placeholder="Ethereum" autocomplete="off" />
+        </div>
+      </div>
+      <div>
+        <label for="dmm-net">Rede</label>
+        <select id="dmm-net">
+          <option value="">— selecione —</option>
+          <option value="eth">Ethereum</option>
+          <option value="bsc">BNB Chain</option>
+          <option value="polygon">Polygon</option>
+          <option value="arbitrum">Arbitrum</option>
+          <option value="optimism">Optimism</option>
+          <option value="avalanche">Avalanche</option>
+          <option value="base">Base</option>
+          <option value="fantom">Fantom</option>
+          <option value="gnosis">Gnosis</option>
+          <option value="zksync">zkSync</option>
+          <option value="linea">Linea</option>
+          <option value="scroll">Scroll</option>
+        </select>
+      </div>
+      <div class="dash-modal-row2">
+        <div>
+          <label for="dmm-bal">Saldo</label>
+          <input id="dmm-bal" type="number" placeholder="1.5" step="any" min="0" />
+        </div>
+        <div>
+          <label for="dmm-price">Preço USD</label>
+          <input id="dmm-price" type="number" placeholder="3200.00" step="any" min="0" />
+        </div>
+      </div>
+      <div class="dash-modal-err" id="dmm-err"></div>
+      <div class="dash-modal-actions">
+        <button class="btn-cancel" onclick="closeDashManualModal()">Cancelar</button>
+        <button class="btn-confirm" id="dmm-submit" onclick="submitDashManual()">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/trade.js"></script>
   <script src="/static/alerts.js"></script>
   <script src="/static/madai.js"></script>
+  <script src="/static/dashboard.js"></script>
 </body>
 </html>

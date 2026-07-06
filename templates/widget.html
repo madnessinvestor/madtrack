@@ -262,18 +262,17 @@
   }
 
   function cellsHtml(a) {
-    if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span><span class="w-alert"></span>`;
+    if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
     const { text: chg, cls } = fmtChg(a.price, a.change24h);
     const fw = cfg.bold ? "font-weight:700;" : "";
     const tickerAlerts = alertsByTicker[a.symbol.toUpperCase()] || [];
     const activeAlerts = tickerAlerts.filter(al => !al.triggered);
-    const alertHtml = activeAlerts.length
-      ? `<a class="w-alert" href="/" target="_blank" title="${activeAlerts.map(al => (al.direction === 'above' ? '↑' : '↓') + ' $' + al.target.toLocaleString('en-US')).join(' • ')}">🔔</a>`
-      : `<span class="w-alert"></span>`;
-    return `<span class="w-ticker">${trunc(a.symbol, 12)}</span>` +
+    const bell = activeAlerts.length
+      ? `<span class="w-bell" title="${activeAlerts.map(al => (al.direction === 'above' ? '↑' : '↓') + ' $' + al.target.toLocaleString('en-US')).join(' • ')}">🔔</span>`
+      : "";
+    return `<span class="w-ticker">${trunc(a.symbol, 12)}${bell}</span>` +
            `<span class="w-price" style="${fw}">${fmtPrice(a.price)}</span>` +
-           `<span class="w-chg ${cls}" style="${fw}">${chg}</span>` +
-           alertHtml;
+           `<span class="w-chg ${cls}" style="${fw}">${chg}</span>`;
   }
 
   // ── Render ──────────────────────────────────────────────────

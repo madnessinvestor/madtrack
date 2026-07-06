@@ -1722,6 +1722,140 @@ def ai_chat():
         return jsonify({"error": f"Erro ao chamar IA: {str(ex)}"}), 502
 
 
+# ─── Dashboard (on-chain wallets) ─────────────────────────────────────────────
+
+DASH_WALLETS_FILE = "dashboard_wallets.json"
+DASH_MANUAL_FILE  = "dashboard_manual.json"
+
+def load_dash_wallets():
+    if not os.path.exists(DASH_WALLETS_FILE):
+        return []
+    with open(DASH_WALLETS_FILE) as f:
+        return json.load(f)
+
+def save_dash_wallets(data):
+    with open(DASH_WALLETS_FILE, "w") as f:
+        json.dump(data, f)
+
+def load_dash_manual():
+    if not os.path.exists(DASH_MANUAL_FILE):
+        return []
+    with open(DASH_MANUAL_FILE) as f:
+        return json.load(f)
+
+def save_dash_manual(data):
+    with open(DASH_MANUAL_FILE, "w") as f:
+        json.dump(data, f)
+
+@app.route("/api/dashboard/wallets", methods=["GET"])
+def get_dash_wallets():
+    return jsonify(load_dash_wallets())
+
+@app.route("/api/dashboard/wallets", methods=["POST"])
+def add_dash_wallet():
+    body    = request.get_json() or {}
+    address = body.get("address", "").strip().lower()
+    label   = body.get("label",   "").strip()
+    if not address:
+        return jsonify({"error": "Endereço inválido"}), 400
+    wallets = load_dash_wallets()
+    if any(w["address"] == address for w in wallets):
+        return jsonify({"error": "Carteira já adicionada"}), 409
+    wallets.append({"address": address, "label": label, "tokens": [], "last_updated": None})
+    save_dash_wallets(wallets)
+    return jsonify({"ok": True})
+
+@app.route("/api/dashboard/wallets/<address>", methods=["DELETE"])
+def delete_dash_wallet(address):
+    wallets = [w for w in load_dash_wallets() if w["address"] != address.lower()]
+    save_dash_wallets(wallets)
+    return jsonify({"ok": True})
+
+@app.route("/api/dashboard/wallets/<address>/refresh", methods=["POST"])
+def refresh_dash_wallet(address):
+    try:
+        payload = json.dumps({
+            "jsonrpc": "2.0",
+            "method": "ankr_getAccountBalance",
+            "params": {
+                "walletAddress": address,
+                "onlyWhitelisted": False,
+                "pageSize": 100
+            },
+            "id": 1
+        }).encode()
+        req = urllib.request.Request(
+            "https://rpc.ankr.com/multichain/",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=25) as r:
+            result = json.loads(r.read().decode())
+        assets = result.get("result", {}).get("assets", [])
+        tokens = []
+        for a in assets:
+            bal = float(a.get("balance", 0) or 0)
+            if bal < 1e-9:
+                continue
+            tokens.append({
+                "symbol":     a.get("tokenSymbol", ""),
+                "name":       a.get("tokenName", ""),
+                "network":    a.get("blockchain", ""),
+                "balance":    bal,
+                "price_usd":  float(a.get("tokenPrice", 0) or 0),
+                "value_usd":  float(a.get("balanceUsd",  0) or 0),
+                "thumbnail":  a.get("thumbnail", ""),
+                "token_type": a.get("tokenType", "ERC20"),
+                "contract":   a.get("contractAddress", ""),
+            })
+        tokens.sort(key=lambda x: x["value_usd"], reverse=True)
+        from datetime import datetime
+        wallets = load_dash_wallets()
+        for w in wallets:
+            if w["address"] == address.lower():
+                w["tokens"]       = tokens
+                w["last_updated"] = datetime.utcnow().isoformat()
+                break
+        save_dash_wallets(wallets)
+        return jsonify({"ok": True, "count": len(tokens)})
+    except urllib.error.HTTPError as e:
+        return jsonify({"error": f"API error {e.code}: {e.read().decode()[:200]}"}), 502
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 502
+
+@app.route("/api/dashboard/manual", methods=["GET"])
+def get_dash_manual():
+    return jsonify(load_dash_manual())
+
+@app.route("/api/dashboard/manual", methods=["POST"])
+def add_dash_manual():
+    body   = request.get_json() or {}
+    symbol = body.get("symbol", "").strip().upper()
+    if not symbol:
+        return jsonify({"error": "Símbolo obrigatório"}), 400
+    from datetime import datetime
+    asset = {
+        "id":        str(uuid.uuid4())[:8],
+        "symbol":    symbol,
+        "name":      body.get("name",      "").strip(),
+        "network":   body.get("network",   "").strip().lower(),
+        "balance":   float(body.get("balance",   0) or 0),
+        "price_usd": float(body.get("price_usd", 0) or 0),
+        "added_at":  datetime.utcnow().isoformat(),
+    }
+    manual = load_dash_manual()
+    manual.append(asset)
+    save_dash_manual(manual)
+    return jsonify({"ok": True})
+
+@app.route("/api/dashboard/manual/<asset_id>", methods=["DELETE"])
+def delete_dash_manual(asset_id):
+    manual = [a for a in load_dash_manual() if a["id"] != asset_id]
+    save_dash_manual(manual)
+    return jsonify({"ok": True})
+
+
 _warmup()
 
 if __name__ == "__main__":

@@ -279,29 +279,33 @@ function onTradeInvestmentInput() {
 // ─── Tab switching ────────────────────────────────────────────────────────────
 
 function switchTab(tab) {
-  const isTracker = tab === "tracker";
-  const isTrade   = tab === "trade";
-  const isAi      = tab === "ai";
+  const isTracker   = tab === "tracker";
+  const isTrade     = tab === "trade";
+  const isAi        = tab === "ai";
+  const isDashboard = tab === "dashboard";
 
   document.getElementById("section-tracker").classList.toggle("hidden", !isTracker);
   document.getElementById("section-trade").classList.toggle("hidden",   !isTrade);
-  const aiSection = document.getElementById("section-ai");
+  const aiSection   = document.getElementById("section-ai");
   if (aiSection) aiSection.classList.toggle("hidden", !isAi);
+  const dashSection = document.getElementById("section-dashboard");
+  if (dashSection) dashSection.classList.toggle("hidden", !isDashboard);
 
   document.getElementById("tab-tracker").classList.toggle("active", isTracker);
   document.getElementById("tab-trade").classList.toggle("active",   isTrade);
-  const aiTab = document.getElementById("tab-ai");
+  const aiTab   = document.getElementById("tab-ai");
   if (aiTab) aiTab.classList.toggle("active", isAi);
+  const dashTab = document.getElementById("tab-dashboard");
+  if (dashTab) dashTab.classList.toggle("active", isDashboard);
 
   document.getElementById("btn-add-tracker").classList.toggle("hidden", !isTracker);
   document.getElementById("btn-add-trade").classList.toggle("hidden",    !isTrade);
 
   const refreshBar = document.querySelector(".refresh-bar");
-  if (refreshBar) refreshBar.classList.toggle("hidden", isAi);
+  if (refreshBar) refreshBar.classList.toggle("hidden", isAi || isDashboard);
 
-  if (isTrade && !cachedPortfolio.length) {
-    loadPortfolio();
-  }
+  if (isTrade && !cachedPortfolio.length) loadPortfolio();
+  if (isDashboard && !dashLoaded) loadDashboard();
 }
 
 // ─── Portfolio loading ────────────────────────────────────────────────────────
