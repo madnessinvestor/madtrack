@@ -388,11 +388,15 @@
   <!-- Dashboard: Add Wallet modal -->
   <div class="dash-modal hidden" id="dash-wallet-modal" onclick="if(event.target===this)closeDashWalletModal()">
     <div class="dash-modal-box">
-      <div class="dash-modal-title">🔗 Adicionar Carteira EVM</div>
-      <p class="dash-modal-sub">Cole o endereço público (0x…). Somente leitura — nenhuma chave privada é solicitada.</p>
+      <div class="dash-modal-title">🔗 Adicionar Carteira</div>
+      <p class="dash-modal-sub">Cole os endereços públicos. Somente leitura — nenhuma chave privada é solicitada.</p>
       <div>
-        <label for="dwm-address">Endereço da carteira</label>
+        <label for="dwm-address">Endereço EVM (obrigatório)</label>
         <input id="dwm-address" type="text" placeholder="0x742d35Cc6634C053..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+      </div>
+      <div>
+        <label for="dwm-svm">Endereço Solana (opcional)</label>
+        <input id="dwm-svm" type="text" placeholder="DyEWx33cWoBdGF1xmWck..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
       </div>
       <div>
         <label for="dwm-label">Apelido (opcional)</label>

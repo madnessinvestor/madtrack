@@ -1,28 +1,36 @@
 // ─── Dashboard (on-chain wallets) ─────────────────────────────────────────────
 
-let dashWallets      = [];
-let dashManual       = [];
-let dashLoaded       = false;
-let dashAnkrOk       = false;
+let dashWallets = [];
+let dashManual  = [];
+let dashLoaded  = false;
 
 const CHAIN_META = {
+  // Jumper chain keys
   eth:        { name: "Ethereum",   color: "#627eea" },
   bsc:        { name: "BNB Chain",  color: "#f0b90b" },
+  pol:        { name: "Polygon",    color: "#8247e5" },
+  arb:        { name: "Arbitrum",   color: "#28a0f0" },
+  opt:        { name: "Optimism",   color: "#ff0420" },
+  avax:       { name: "Avalanche",  color: "#e84142" },
+  ftm:        { name: "Fantom",     color: "#1969ff" },
+  base:       { name: "Base",       color: "#0052ff" },
+  gnosis:     { name: "Gnosis",     color: "#04795b" },
+  linea:      { name: "Linea",      color: "#61dfff" },
+  scrl:       { name: "Scroll",     color: "#eebb6a" },
+  era:        { name: "zkSync Era", color: "#8c8dfc" },
+  cro:        { name: "Cronos",     color: "#002d74" },
+  celo:       { name: "Celo",       color: "#35d07f" },
+  mnt:        { name: "Mantle",     color: "#50e3c2" },
+  blast:      { name: "Blast",      color: "#fcfc03" },
+  mode:       { name: "Mode",       color: "#dffe00" },
+  sol:        { name: "Solana",     color: "#9945ff" },
+  // legacy / alternate aliases
   polygon:    { name: "Polygon",    color: "#8247e5" },
   arbitrum:   { name: "Arbitrum",   color: "#28a0f0" },
   optimism:   { name: "Optimism",   color: "#ff0420" },
   avalanche:  { name: "Avalanche",  color: "#e84142" },
-  fantom:     { name: "Fantom",     color: "#1969ff" },
-  base:       { name: "Base",       color: "#0052ff" },
-  gnosis:     { name: "Gnosis",     color: "#04795b" },
-  linea:      { name: "Linea",      color: "#61dfff" },
   scroll:     { name: "Scroll",     color: "#eebb6a" },
   zksync:     { name: "zkSync",     color: "#8c8dfc" },
-  cronos:     { name: "Cronos",     color: "#002d74" },
-  celo:       { name: "Celo",       color: "#35d07f" },
-  moonbeam:   { name: "Moonbeam",   color: "#53cbc9" },
-  harmony:    { name: "Harmony",    color: "#00aee9" },
-  klaytn:     { name: "Klaytn",     color: "#ff6b37" },
 };
 
 function chainMeta(id) {
@@ -52,16 +60,13 @@ function shortAddr(addr) {
 }
 
 async function loadDashboard() {
-  const [sr, wr, mr] = await Promise.all([
-    fetch("/api/dashboard/status"),
+  const [wr, mr] = await Promise.all([
     fetch("/api/dashboard/wallets"),
     fetch("/api/dashboard/manual")
   ]);
-  const status = await sr.json();
-  dashAnkrOk   = status.ankr_configured;
-  dashWallets  = await wr.json();
-  dashManual   = await mr.json();
-  dashLoaded   = true;
+  dashWallets = await wr.json();
+  dashManual  = await mr.json();
+  dashLoaded  = true;
   renderDashboard();
 }
 
@@ -77,18 +82,6 @@ function renderDashboard() {
 
   let html = "";
 
-  if (!dashAnkrOk) {
-    html += `<div class="dash-ankr-warn">
-      <div class="dash-ankr-warn-icon">🔑</div>
-      <div class="dash-ankr-warn-body">
-        <b>Chave Ankr não configurada</b> — necessária para buscar saldos on-chain.<br>
-        1. Crie uma conta gratuita em <a href="https://www.ankr.com/rpc/" target="_blank">ankr.com/rpc</a><br>
-        2. Gere uma API key (Free tier) e adicione como secret <code>ANKR_API_KEY</code> no Replit.<br>
-        <span style="opacity:0.7">Ativos manuais funcionam sem a chave.</span>
-      </div>
-    </div>`;
-  }
-
   if (grandTotal > 0) {
     html += `<div class="dash-total-bar">
       <span class="dash-total-label">Total On-Chain</span>
@@ -98,14 +91,14 @@ function renderDashboard() {
 
   // ── Wallets section ────────────────────────────────────────────────────────
   html += `<div class="dash-section-header">
-    <span class="dash-section-title">🔗 Carteiras EVM</span>
+    <span class="dash-section-title">🔗 Carteiras On-Chain</span>
     <button class="dash-add-btn" onclick="openDashWalletModal()">+ Carteira</button>
   </div>`;
 
   if (dashWallets.length === 0) {
     html += `<div class="dash-empty">
       <div class="dash-empty-icon">🦊</div>
-      <p>Adicione o endereço público de uma carteira EVM.<br>Serão listados todos os ativos em cada rede.</p>
+      <p>Adicione o endereço público de uma carteira EVM (e opcionalmente Solana).<br>Serão listados todos os ativos em cada rede.</p>
     </div>`;
   } else {
     for (const w of dashWallets) {
@@ -241,8 +234,9 @@ function escHtml(s) {
 
 function openDashWalletModal() {
   document.getElementById("dash-wallet-modal").classList.remove("hidden");
-  document.getElementById("dwm-address").value = "";
-  document.getElementById("dwm-label").value   = "";
+  document.getElementById("dwm-address").value  = "";
+  document.getElementById("dwm-svm").value      = "";
+  document.getElementById("dwm-label").value    = "";
   document.getElementById("dwm-err").textContent = "";
   setTimeout(() => document.getElementById("dwm-address").focus(), 50);
 }
@@ -253,11 +247,16 @@ function closeDashWalletModal() {
 
 async function submitDashWallet() {
   const address = document.getElementById("dwm-address").value.trim();
+  const svm     = document.getElementById("dwm-svm").value.trim();
   const label   = document.getElementById("dwm-label").value.trim();
   const errEl   = document.getElementById("dwm-err");
-  if (!address) { errEl.textContent = "Informe o endereço da carteira."; return; }
+  if (!address) { errEl.textContent = "Informe o endereço EVM da carteira."; return; }
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
     errEl.textContent = "Endereço EVM inválido (0x + 40 caracteres hex).";
+    return;
+  }
+  if (svm && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(svm)) {
+    errEl.textContent = "Endereço Solana inválido (base58, 32-44 chars).";
     return;
   }
   errEl.textContent = "";
@@ -267,7 +266,7 @@ async function submitDashWallet() {
     const r = await fetch("/api/dashboard/wallets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, label })
+      body: JSON.stringify({ address, svm_address: svm, label })
     });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || "Erro ao adicionar."; return; }

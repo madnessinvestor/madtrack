@@ -1749,7 +1749,7 @@ def save_dash_manual(data):
 
 @app.route("/api/dashboard/status", methods=["GET"])
 def get_dash_status():
-    return jsonify({"ankr_configured": bool(os.environ.get("ANKR_API_KEY", "").strip())})
+    return jsonify({"ready": True})
 
 @app.route("/api/dashboard/wallets", methods=["GET"])
 def get_dash_wallets():
@@ -1759,13 +1759,14 @@ def get_dash_wallets():
 def add_dash_wallet():
     body    = request.get_json() or {}
     address = body.get("address", "").strip().lower()
+    svm     = body.get("svm_address", "").strip()
     label   = body.get("label",   "").strip()
     if not address:
-        return jsonify({"error": "Endereço inválido"}), 400
+        return jsonify({"error": "Endereço EVM inválido"}), 400
     wallets = load_dash_wallets()
     if any(w["address"] == address for w in wallets):
         return jsonify({"error": "Carteira já adicionada"}), 409
-    wallets.append({"address": address, "label": label, "tokens": [], "last_updated": None})
+    wallets.append({"address": address, "svm_address": svm, "label": label, "tokens": [], "last_updated": None})
     save_dash_wallets(wallets)
     return jsonify({"ok": True})
 
@@ -1777,48 +1778,54 @@ def delete_dash_wallet(address):
 
 @app.route("/api/dashboard/wallets/<address>/refresh", methods=["POST"])
 def refresh_dash_wallet(address):
-    ankr_key = os.environ.get("ANKR_API_KEY", "").strip()
-    if not ankr_key:
-        return jsonify({"error": "ANKR_API_KEY não configurada. Crie uma chave gratuita em ankr.com/rpc e adicione como secret no Replit."}), 503
+    wallets = load_dash_wallets()
+    wallet  = next((w for w in wallets if w["address"] == address.lower()), None)
+    if not wallet:
+        return jsonify({"error": "Carteira não encontrada"}), 404
     try:
-        payload = json.dumps({
-            "jsonrpc": "2.0",
-            "method": "ankr_getAccountBalance",
-            "params": {
-                "walletAddress": address,
-                "onlyWhitelisted": False,
-                "pageSize": 100
-            },
-            "id": 1
-        }).encode()
+        params = f"evm={address}"
+        svm = wallet.get("svm_address", "").strip()
+        if svm:
+            params += f"&svm={svm}"
         req = urllib.request.Request(
-            f"https://rpc.ankr.com/multichain/{ankr_key}",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST"
+            f"https://api.jumper.xyz/v1/portfolio/tokens?{params}",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept":     "application/json",
+                "Origin":     "https://jumper.exchange",
+                "Referer":    "https://jumper.exchange/",
+            },
+            method="GET"
         )
         with urllib.request.urlopen(req, timeout=25) as r:
             result = json.loads(r.read().decode())
-        assets = result.get("result", {}).get("assets", [])
+        balances = result.get("data", {}).get("balances", [])
         tokens = []
-        for a in assets:
-            bal = float(a.get("balance", 0) or 0)
-            if bal < 1e-9:
+        for b in balances:
+            try:
+                raw   = int(b.get("amount", "0") or "0")
+                dec   = int(b.get("decimals", 18) or 18)
+                bal   = raw / (10 ** dec)
+            except Exception:
                 continue
+            if bal < 1e-12:
+                continue
+            val       = float(b.get("amountUSD", 0) or 0)
+            price_usd = (val / bal) if bal > 0 else 0
+            chain_key = (b.get("chain") or {}).get("chainKey", "")
             tokens.append({
-                "symbol":     a.get("tokenSymbol", ""),
-                "name":       a.get("tokenName", ""),
-                "network":    a.get("blockchain", ""),
+                "symbol":     b.get("symbol", ""),
+                "name":       b.get("name", ""),
+                "network":    chain_key,
+                "chain_type": b.get("chainType", "EVM"),
                 "balance":    bal,
-                "price_usd":  float(a.get("tokenPrice", 0) or 0),
-                "value_usd":  float(a.get("balanceUsd",  0) or 0),
-                "thumbnail":  a.get("thumbnail", ""),
-                "token_type": a.get("tokenType", "ERC20"),
-                "contract":   a.get("contractAddress", ""),
+                "price_usd":  price_usd,
+                "value_usd":  val,
+                "thumbnail":  "",
+                "contract":   b.get("address", ""),
             })
         tokens.sort(key=lambda x: x["value_usd"], reverse=True)
         from datetime import datetime
-        wallets = load_dash_wallets()
         for w in wallets:
             if w["address"] == address.lower():
                 w["tokens"]       = tokens
@@ -1827,7 +1834,7 @@ def refresh_dash_wallet(address):
         save_dash_wallets(wallets)
         return jsonify({"ok": True, "count": len(tokens)})
     except urllib.error.HTTPError as e:
-        return jsonify({"error": f"API error {e.code}: {e.read().decode()[:200]}"}), 502
+        return jsonify({"error": f"Erro {e.code} ao buscar saldos: {e.read().decode()[:200]}"}), 502
     except Exception as ex:
         return jsonify({"error": str(ex)}), 502
 
