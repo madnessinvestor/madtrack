@@ -233,9 +233,9 @@ function walletCardHtml(w) {
     // Perps tab
     html += `<div class="dwc-tab-pane" id="dwc-pane-perps-${w.address}" style="${activeTab === 'perps' ? '' : 'display:none'}">`;
     if (perps.length === 0) {
-      html += `<div class="dash-token-empty">Nenhuma posição Hyperliquid encontrada.</div>`;
+      html += `<div class="dash-token-empty">Nenhuma posição de trading encontrada (Hyperliquid, Polymarket…).</div>`;
     } else {
-      for (const p of perps) html += perpRowHtml(p);
+      for (const p of perps) html += defiRowHtml(p);
     }
     html += `</div>`;
   }
@@ -329,30 +329,6 @@ function defiRowHtml(d) {
   </div>`;
 }
 
-function perpRowHtml(p) {
-  const isPerp  = p.kind === "perp";
-  const sideEl  = isPerp
-    ? `<span class="perp-side-badge ${p.side === 'LONG' ? 'perp-long' : 'perp-short'}">${p.side}</span>`
-    : `<span class="perp-side-badge perp-spot">SPOT</span>`;
-  const pnlEl   = (isPerp && p.pnl != null)
-    ? `<span class="perp-pnl ${p.pnl >= 0 ? 'perp-pnl-pos' : 'perp-pnl-neg'}">${p.pnl >= 0 ? "+" : ""}${fmtDashUsd(p.pnl)}</span>`
-    : "";
-  return `<div class="perp-row">
-    <div class="dash-tok-left">
-      <span class="dash-tok-icon-fb">${(p.symbol||"?")[0]}</span>
-      <div class="dash-tok-info">
-        <span class="dash-tok-sym">${escHtml(p.symbol)}</span>
-        ${sideEl}
-      </div>
-    </div>
-    <div class="dash-tok-mid"></div>
-    <div class="dash-tok-right">
-      <span class="dash-tok-val">${fmtDashUsd(p.value_usd)}</span>
-      <span class="dash-tok-bal">${fmtDashBal(p.balance)} ${escHtml(p.symbol)}</span>
-      ${pnlEl}
-    </div>
-  </div>`;
-}
 
 function escHtml(s) {
   return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");

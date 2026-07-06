@@ -1849,34 +1849,38 @@ def refresh_dash_wallet(address):
     except Exception as ex:
         errors.append(f"tokens: {ex}")
 
-    # ── 2. DeFi positions (Jumper /positions) ───────────────────────────────────
+    # ── 2 & 3. DeFi + Perps from Jumper /positions ─────────────────────────────
+    # Trading/exchange protocols go into perps[]; everything else into defi[]
+    PERP_PROTOCOLS = {"hyperliquid", "lighter", "polymarket", "dydx", "kwenta",
+                      "synthetix", "gains network", "foxify", "pear protocol"}
     try:
         result = _jumper_get("positions", params)
+
+        def _tok_list(p, key):
+            out = []
+            for t in (p.get(key) or []):
+                amt_usd = float(t.get("amountUSD", 0) or 0)
+                if amt_usd < 0.0001:
+                    continue
+                try:
+                    raw = int(t.get("amount", "0") or "0")
+                    dec = int(t.get("decimals", 18) or 18)
+                    bal = raw / (10 ** dec)
+                except Exception:
+                    bal = 0
+                out.append({"symbol": t.get("symbol", ""), "balance": bal,
+                            "value_usd": amt_usd, "logo": t.get("logo", "")})
+            return out
+
         for p in result.get("data", []):
             net_usd = float(p.get("netUsd", 0) or 0)
             if abs(net_usd) < 0.01:
                 continue
             proto     = p.get("protocol") or {}
+            proto_name = proto.get("name", p.get("name", ""))
             chain_key = (p.get("chain") or {}).get("chainKey", "")
-
-            def _tok_list(key):
-                out = []
-                for t in (p.get(key) or []):
-                    amt_usd = float(t.get("amountUSD", 0) or 0)
-                    if amt_usd < 0.0001:
-                        continue
-                    try:
-                        raw = int(t.get("amount", "0") or "0")
-                        dec = int(t.get("decimals", 18) or 18)
-                        bal = raw / (10 ** dec)
-                    except Exception:
-                        bal = 0
-                    out.append({"symbol": t.get("symbol", ""), "balance": bal,
-                                "value_usd": amt_usd, "logo": t.get("logo", "")})
-                return out
-
-            defi.append({
-                "protocol":      proto.get("name", p.get("name", "")),
+            row = {
+                "protocol":      proto_name,
                 "protocol_logo": proto.get("logo", ""),
                 "protocol_url":  proto.get("url", ""),
                 "type":          p.get("type", ""),
@@ -1885,75 +1889,19 @@ def refresh_dash_wallet(address):
                 "asset_usd":     float(p.get("assetUsd", 0) or 0),
                 "debt_usd":      float(p.get("debtUsd",  0) or 0),
                 "net_usd":       net_usd,
-                "supply_tokens": _tok_list("supplyTokens"),
-                "reward_tokens": _tok_list("rewardTokens"),
-                "borrow_tokens": _tok_list("borrowTokens"),
-            })
+                "supply_tokens": _tok_list(p, "supplyTokens"),
+                "reward_tokens": _tok_list(p, "rewardTokens"),
+                "borrow_tokens": _tok_list(p, "borrowTokens"),
+            }
+            if proto_name.lower() in PERP_PROTOCOLS:
+                perps.append(row)
+            else:
+                defi.append(row)
+
         defi.sort(key=lambda x: x["net_usd"], reverse=True)
+        perps.sort(key=lambda x: x["net_usd"], reverse=True)
     except Exception as ex:
-        errors.append(f"defi: {ex}")
-
-    # ── 3. Hyperliquid (spot + perps) ───────────────────────────────────────────
-    try:
-        # Spot prices via spotMetaAndAssetCtxs
-        hl_prices = {s: 1.0 for s in ["USDC","USDT","USDE","USDT0","USDH","FDUSD"]}
-        try:
-            mc = _hl_post({"type": "spotMetaAndAssetCtxs"}, timeout=10)
-            for i, market in enumerate(mc[0].get("universe", [])):
-                if i < len(mc[1]):
-                    mid  = mc[1][i].get("midPx")
-                    name = market.get("name", "")
-                    if mid and "/" in name:
-                        base = name.split("/")[0]
-                        try:
-                            hl_prices[base] = float(mid)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-        # Spot balances
-        spot = _hl_post({"type": "spotClearinghouseState", "user": address})
-        for b in spot.get("balances", []):
-            coin  = b.get("coin", "")
-            total = float(b.get("total", "0") or "0")
-            if total < 1e-9 or not coin or coin.startswith("+") or coin.startswith("o"):
-                continue
-            price     = hl_prices.get(coin, 0)
-            value_usd = total * price if price else float(b.get("entryNtl", 0) or 0)
-            if value_usd < 0.01:
-                continue
-            perps.append({
-                "kind":      "spot",
-                "symbol":    coin,
-                "balance":   total,
-                "price_usd": price,
-                "value_usd": value_usd,
-                "pnl":       None,
-                "side":      None,
-            })
-
-        # Perp positions
-        cs = _hl_post({"type": "clearinghouseState", "user": address})
-        for ap in cs.get("assetPositions", []):
-            pos  = ap.get("position", {})
-            coin = pos.get("coin", "")
-            szi  = float(pos.get("szi", "0") or "0")
-            if abs(szi) < 1e-12:
-                continue
-            perps.append({
-                "kind":      "perp",
-                "symbol":    coin,
-                "balance":   abs(szi),
-                "price_usd": float(pos.get("entryPx",        0) or 0),
-                "value_usd": abs(float(pos.get("positionValue", 0) or 0)),
-                "pnl":       float(pos.get("unrealizedPnl",  0) or 0),
-                "side":      "LONG" if szi > 0 else "SHORT",
-            })
-
-        perps.sort(key=lambda x: x["value_usd"], reverse=True)
-    except Exception as ex:
-        errors.append(f"perps: {ex}")
+        errors.append(f"positions: {ex}")
 
     from datetime import datetime
     for w in wallets:
