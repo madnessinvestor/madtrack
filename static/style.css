@@ -2644,3 +2644,51 @@ section.hidden { display: none; }
   text-align: center;
   margin: 0;
 }
+
+/* ── Widget tab: setting rows (Exibição / Texto / Layout) ── */
+.wt-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 18px 16px 4px;
+}
+.wt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.wt-row:active { background: rgba(255,255,255,0.03); }
+.wt-info { flex: 1; min-width: 0; }
+.wt-title { font-size: 14px; font-weight: 500; color: var(--text); }
+.wt-desc  { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.wt-pills {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.wt-pills button {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  padding: 5px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.wt-pills button.active {
+  background: rgba(0,230,118,0.18);
+  color: var(--accent);
+}
+.wt-pills button:not(:last-child) { border-right: 1px solid var(--border); }

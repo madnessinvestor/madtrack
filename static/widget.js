@@ -1,181 +1,164 @@
-// ─── Widget Config ────────────────────────────────────────────────────────────
+// ─── Widget Settings Tab ──────────────────────────────────────────────────────
+// Uses the same localStorage keys (w_*) as /widget so every change here is
+// immediately reflected when the user opens the actual widget.
 
-const WIDGET_KEY = "madtracker_widget_config";
-
-let widgetConfig = {
-  assets:  [],          // tickers selecionados
-  size:    "small",
-  theme:   "dark",
-  refresh: 15,
-  showChg:  true,
-  showLogo: true,
+const WT_DEFAULTS = {
+  ccy:          "USD",
+  chg:          "pct",
+  cols:         "2",
+  fontSize:     "md",
+  bold:         false,
+  showCcy:      true,
+  showHeader:   true,
+  autoSort:     false,
+  showRefresh:  false,
+  showControls: true
 };
 
-/* Carrega config salva */
-function widgetLoadConfig() {
-  try {
-    const saved = localStorage.getItem(WIDGET_KEY);
-    if (saved) Object.assign(widgetConfig, JSON.parse(saved));
-  } catch (_) {}
+function wtLoad() {
+  const c = {};
+  for (const [k, def] of Object.entries(WT_DEFAULTS)) {
+    const raw = localStorage.getItem("w_" + k);
+    if (raw === null) c[k] = def;
+    else if (typeof def === "boolean") c[k] = raw === "1";
+    else c[k] = raw;
+  }
+  return c;
 }
 
-/* Chamado ao entrar na aba */
+function wtSave(cfg) {
+  for (const [k, v] of Object.entries(cfg)) {
+    localStorage.setItem("w_" + k, typeof v === "boolean" ? (v ? "1" : "0") : v);
+  }
+}
+
+let wtCfg = Object.assign({}, WT_DEFAULTS);
+
+// Called from inline onclick in index.html
+function wSet(key, val) {
+  wtCfg[key] = val;
+  wtSave(wtCfg);
+  wtApplyUI();
+  wtUpdatePreview();
+}
+
+function wToggle(key) {
+  wtCfg[key] = !wtCfg[key];
+  wtSave(wtCfg);
+  wtApplyUI();
+  wtUpdatePreview();
+}
+
+// ── Sync UI controls to current config ────────────────────────────────────────
+function wtApplyUI() {
+  // Pill selectors
+  [
+    ["wt-ccy",  "ccy"],
+    ["wt-chg",  "chg"],
+    ["wt-cols", "cols"],
+    ["wt-fs",   "fontSize"]
+  ].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelectorAll("button").forEach(b =>
+      b.classList.toggle("active", b.dataset.v === String(wtCfg[key]))
+    );
+  });
+
+  // Toggle checkboxes
+  [
+    ["wt-bold",        "bold"],
+    ["wt-showCcy",     "showCcy"],
+    ["wt-showHeader",  "showHeader"],
+    ["wt-autoSort",    "autoSort"],
+    ["wt-showRefresh", "showRefresh"],
+    ["wt-showControls","showControls"]
+  ].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!wtCfg[key];
+  });
+}
+
+// ── Live preview ───────────────────────────────────────────────────────────────
+const WT_RATES = { USD: 1, BRL: 5.70, EUR: 0.92 };
+const WT_SYM   = { USD: "$", BRL: "R$", EUR: "€" };
+const WT_FS    = { sm: "9.5px", md: "11px", lg: "13px" };
+
+function wtFmtPrice(usdP) {
+  const p   = usdP * (WT_RATES[wtCfg.ccy] || 1);
+  const sym = wtCfg.showCcy ? (WT_SYM[wtCfg.ccy] || "") : "";
+  if (p >= 10000) return sym + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (p >= 1)     return sym + p.toFixed(2);
+  return sym + p.toFixed(4);
+}
+
+function wtFmtChg(usdP, pct) {
+  if (wtCfg.chg === "pct") {
+    const s = pct >= 0 ? "+" : "";
+    return { text: s + pct.toFixed(2) + "%", cls: pct > 0 ? "wpc-up" : "wpc-dn" };
+  }
+  const prev = usdP / (1 + pct / 100);
+  const abs  = (usdP - prev) * (WT_RATES[wtCfg.ccy] || 1);
+  const sym  = wtCfg.showCcy ? (WT_SYM[wtCfg.ccy] || "") : "";
+  const s    = abs >= 0 ? "+" : "-";
+  return { text: s + sym + Math.abs(abs).toFixed(2), cls: abs >= 0 ? "wpc-up" : "wpc-dn" };
+}
+
+function wtUpdatePreview() {
+  const fs = WT_FS[wtCfg.fontSize] || "11px";
+  const fw = wtCfg.bold ? "700" : "400";
+  const fwChg = wtCfg.bold ? "700" : "600";
+
+  // Font / weight on preview rows
+  const rows = document.getElementById("wpc-rows");
+  if (rows) {
+    rows.querySelectorAll(".wpc-ticker, .wpc-price").forEach(el => {
+      el.style.fontSize = fs;
+      el.style.fontWeight = fw;
+    });
+    rows.querySelectorAll(".wpc-chg").forEach(el => {
+      el.style.fontSize = fs;
+      el.style.fontWeight = fwChg;
+    });
+  }
+
+  // Prices & changes
+  const p1 = document.getElementById("wpv-p1");
+  const p2 = document.getElementById("wpv-p2");
+  const c1 = document.getElementById("wpv-c1");
+  const c2 = document.getElementById("wpv-c2");
+  if (p1) p1.textContent = wtFmtPrice(59960);
+  if (p2) p2.textContent = wtFmtPrice(1576);
+  if (c1) { const r = wtFmtChg(59960, 1.15);  c1.textContent = r.text; c1.className = "wpc-chg " + r.cls; }
+  if (c2) { const r = wtFmtChg(1576, -0.03);  c2.textContent = r.text; c2.className = "wpc-chg " + r.cls; }
+
+  // Header visibility
+  const topbar = document.getElementById("wpv-topbar");
+  if (topbar) topbar.style.display = (wtCfg.showHeader || wtCfg.showControls) ? "" : "none";
+
+  // Clock
+  const timeEl = document.getElementById("wpc-time");
+  if (timeEl) {
+    const now = new Date();
+    timeEl.textContent =
+      now.getHours().toString().padStart(2, "0") + ":" +
+      now.getMinutes().toString().padStart(2, "0");
+  }
+}
+
+// ── Entry point called by switchTab('widget') in trade.js ─────────────────────
 function widgetOnEnter() {
-  widgetLoadConfig();
-  widgetBuildAssetChips();
-  widgetRestoreChips();
-  widgetRestoreToggles();
-  widgetUpdatePreview();
-  widgetTickClock();
-}
+  wtCfg = wtLoad();
+  wtApplyUI();
+  wtUpdatePreview();
 
-/* Constrói os chips de ativos a partir da watchlist carregada */
-function widgetBuildAssetChips() {
-  const wrap = document.getElementById("widget-asset-chips");
-  if (!wrap) return;
-  // usa a lista global de assets se disponível
-  const assets = (typeof cachedAssets !== "undefined" && cachedAssets.length)
-    ? cachedAssets
-    : [];
-  wrap.innerHTML = "";
-  if (!assets.length) {
-    wrap.innerHTML = `<span style="font-size:0.72rem;color:var(--muted)">Adicione ativos na Watchlist primeiro</span>`;
-    return;
-  }
-  assets.forEach(a => {
-    const btn = document.createElement("button");
-    btn.className = "widget-chip" + (widgetConfig.assets.includes(a.symbol) ? " active" : "");
-    btn.textContent = a.symbol;
-    btn.dataset.ticker = a.symbol;
-    btn.onclick = () => widgetToggleAsset(btn, a);
-    wrap.appendChild(btn);
-  });
-}
-
-function widgetToggleAsset(btn, asset) {
-  const ticker = asset.symbol;
-  const idx = widgetConfig.assets.indexOf(ticker);
-  if (idx === -1) {
-    if (widgetConfig.assets.length >= 5) return; // max 5
-    widgetConfig.assets.push(ticker);
-    btn.classList.add("active");
-  } else {
-    widgetConfig.assets.splice(idx, 1);
-    btn.classList.remove("active");
-  }
-  widgetUpdatePreview();
-}
-
-/* Restaura seleção de chips de size/theme/refresh */
-function widgetRestoreChips() {
-  document.querySelectorAll("[data-wgt-size]").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.wgtSize === widgetConfig.size);
-    btn.onclick = () => {
-      document.querySelectorAll("[data-wgt-size]").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      widgetConfig.size = btn.dataset.wgtSize;
-      widgetUpdatePreview();
-    };
-  });
-  document.querySelectorAll("[data-wgt-theme]").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.wgtTheme === widgetConfig.theme);
-    btn.onclick = () => {
-      document.querySelectorAll("[data-wgt-theme]").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      widgetConfig.theme = btn.dataset.wgtTheme;
-      widgetUpdatePreview();
-    };
-  });
-  document.querySelectorAll("[data-wgt-refresh]").forEach(btn => {
-    btn.classList.toggle("active", Number(btn.dataset.wgtRefresh) === widgetConfig.refresh);
-    btn.onclick = () => {
-      document.querySelectorAll("[data-wgt-refresh]").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      widgetConfig.refresh = Number(btn.dataset.wgtRefresh);
-    };
-  });
-}
-
-function widgetRestoreToggles() {
-  const chg  = document.getElementById("wgt-toggle-chg");
-  const logo = document.getElementById("wgt-toggle-logo");
-  if (chg)  chg.checked  = widgetConfig.showChg;
-  if (logo) logo.checked = widgetConfig.showLogo;
-}
-
-/* Atualiza o card de preview */
-function widgetUpdatePreview() {
-  const card = document.getElementById("widget-preview-card");
-  if (!card) return;
-
-  const chg  = document.getElementById("wgt-toggle-chg");
-  const logo = document.getElementById("wgt-toggle-logo");
-  widgetConfig.showChg  = chg  ? chg.checked  : true;
-  widgetConfig.showLogo = logo ? logo.checked : true;
-
-  // tema do card
-  const effectiveTheme = widgetConfig.theme === "auto"
-    ? (document.body.dataset.theme === "light" ? "light" : "dark")
-    : widgetConfig.theme;
-  card.classList.toggle("wpc-light", effectiveTheme === "light");
-
-  // linhas de assets
-  const rowsWrap = document.getElementById("wpc-rows");
-  if (!rowsWrap) return;
-
-  const selectedTickers = widgetConfig.assets.length
-    ? widgetConfig.assets
-    : (typeof cachedAssets !== "undefined" && cachedAssets.length)
-      ? cachedAssets.slice(0, 2).map(a => a.symbol)
-      : ["BTC", "ETH"];
-
-  const assetsMap = {};
-  if (typeof cachedAssets !== "undefined") {
-    cachedAssets.forEach(a => { assetsMap[a.symbol] = a; });
-  }
-
-  rowsWrap.innerHTML = selectedTickers.map(ticker => {
-    const a = assetsMap[ticker];
-    const price = a ? formatPrice(a.price) : "—";
-    const chgVal = a ? (a.change_24h || 0) : 0;
-    const chgStr = (chgVal >= 0 ? "+" : "") + chgVal.toFixed(2) + "%";
-    const cls = chgVal >= 0 ? "wpc-up" : "wpc-dn";
-    const chgHtml = widgetConfig.showChg ? `<span class="wpc-chg ${cls}">${chgStr}</span>` : "";
-    return `<div class="wpc-row">
-      <span class="wpc-ticker">${ticker}</span>
-      <span class="wpc-price">${price}</span>
-      ${chgHtml}
-    </div>`;
-  }).join("");
-}
-
-function widgetTickClock() {
-  const el = document.getElementById("wpc-time");
-  if (!el) return;
-  const now = new Date();
-  el.textContent = now.getHours().toString().padStart(2, "0") + ":" +
-                   now.getMinutes().toString().padStart(2, "0");
-}
-
-/* Formata preço resumido para o preview */
-function formatPrice(v) {
-  if (!v) return "—";
-  if (v >= 1000) return "$" + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  if (v >= 1)    return "$" + v.toFixed(2);
-  return "$" + v.toPrecision(4);
-}
-
-/* Salva */
-function widgetSaveConfig() {
-  try {
-    localStorage.setItem(WIDGET_KEY, JSON.stringify(widgetConfig));
-  } catch (_) {}
-
-  // feedback visual no botão
-  const btn = document.querySelector(".widget-save-btn span");
-  if (btn) {
-    const orig = btn.textContent;
-    btn.textContent = "✓ Salvo!";
-    setTimeout(() => { btn.textContent = orig; }, 1800);
-  }
+  // Fetch real exchange rates so the preview reflects current BRL/EUR values
+  fetch("/api/rates")
+    .then(r => r.json())
+    .then(d => {
+      if (d.BRL) WT_RATES.BRL = d.BRL;
+      if (d.EUR) WT_RATES.EUR = d.EUR;
+      wtUpdatePreview();
+    })
+    .catch(() => {});
 }
