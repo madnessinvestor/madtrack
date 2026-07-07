@@ -177,39 +177,67 @@ function renderDashboard() {
   el.innerHTML = html;
 }
 
+// ── Network type helpers ───────────────────────────────────────────────────────
+
+const NET_TYPE_META = {
+  evm:     { label: "EVM",     color: "#627eea", icon: "⬡" },
+  solana:  { label: "SOL",     color: "#9945ff", icon: "◎" },
+  bitcoin: { label: "BTC",     color: "#f7931a", icon: "₿" },
+  other:   { label: "L1",      color: "#888",    icon: "◈" },
+};
+
+function netTypeBadge(w) {
+  const nt  = w.network_type || "evm";
+  const meta = NET_TYPE_META[nt] || NET_TYPE_META.other;
+  const label = nt === "other" && w.sub_network
+    ? w.sub_network.toUpperCase()
+    : meta.label;
+  return `<span class="dwc-net-badge" style="background:${meta.color}20;color:${meta.color};border:1px solid ${meta.color}40">${label}</span>`;
+}
+
+// Encode address for safe use in HTML attributes / JS strings
+function safeAddr(addr) { return (addr || "").replace(/'/g, "\\'"); }
+
 // ── Wallet card ────────────────────────────────────────────────────────────────
 
 function walletCardHtml(w) {
-  const tokens  = w.tokens  || [];
-  const defi    = w.defi    || [];
-  const perps   = w.perps   || [];
+  const tokens   = w.tokens  || [];
+  const defi     = w.defi    || [];
+  const perps    = w.perps   || [];
+  const netType  = w.network_type || "evm";
 
-  const tokUsd  = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
-  const defiUsd = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
-  const perpsUsd= perps.reduce((s, p)  => s + (p.net_usd   || 0), 0);
-  const totalUsd= tokUsd + defiUsd + perpsUsd;
+  // Bitcoin and "other" only show Tokens tab
+  const hasDeFiTabs = (netType === "evm" || netType === "solana");
+
+  const tokUsd   = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
+  const defiUsd  = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
+  const perpsUsd = perps.reduce((s, p)  => s + (p.net_usd   || 0), 0);
+  const totalUsd = tokUsd + defiUsd + perpsUsd;
 
   const label    = w.label || shortAddr(w.address);
   const isLoaded = !!w.last_updated;
   const isOpen   = dashExpanded.has(w.address);
   const activeTab= dashActiveTab[w.address] || "tokens";
-
   const chevron  = isOpen ? "▼" : "▶";
+  const addrSafe = safeAddr(w.address);
 
   let html = `<div class="dash-wallet-card" id="dwc-${w.address}">
-    <div class="dwc-header" onclick="toggleWalletCard('${w.address}')">
+    <div class="dwc-header" onclick="toggleWalletCard('${addrSafe}')">
       <div class="dwc-header-left">
         <span class="dwc-chevron" id="dwc-chev-${w.address}">${chevron}</span>
         <div class="dwc-info">
-          <span class="dwc-label">${escHtml(label)}</span>
-          <span class="dwc-addr" title="${w.address}">${shortAddr(w.address)}</span>
+          <div class="dwc-label-row">
+            <span class="dwc-label">${escHtml(label)}</span>
+            ${netTypeBadge(w)}
+          </div>
+          <span class="dwc-addr" title="${escHtml(w.address)}">${shortAddr(w.address)}</span>
         </div>
       </div>
       <div class="dwc-header-right">
         <span class="dwc-total">${fmtDashUsd(totalUsd)}</span>
         <div class="dwc-btns" onclick="event.stopPropagation()">
-          <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${w.address}')" title="${t('dash_refresh_title')}">↻</button>
-          <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${w.address}')" title="${t('dash_remove_title')}">✕</button>
+          <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${addrSafe}')" title="${t('dash_refresh_title')}">↻</button>
+          <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${addrSafe}')" title="${t('dash_remove_title')}">✕</button>
         </div>
       </div>
     </div>
@@ -217,19 +245,21 @@ function walletCardHtml(w) {
 
   if (!isLoaded) {
     html += `<div class="dash-unloaded">
-      <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${w.address}')">${t("dash_load_btn")}</button>
+      <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${addrSafe}')">${t("dash_load_btn")}</button>
     </div>`;
   } else {
-    const tabs = [
+    const tabs = hasDeFiTabs ? [
       { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
       { id: "defi",   label: t("dash_tab_defi"),   count: defi.length,   usd: defiUsd },
       { id: "perps",  label: t("dash_tab_perps"),  count: perps.length,  usd: perpsUsd },
+    ] : [
+      { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
     ];
 
     html += `<div class="dwc-tabbar" id="dwc-tabbar-${w.address}">`;
     for (const tab of tabs) {
       const active = activeTab === tab.id ? " active" : "";
-      html += `<button class="dwc-tab${active}" onclick="switchWalletTab('${w.address}','${tab.id}',this)">
+      html += `<button class="dwc-tab${active}" onclick="switchWalletTab('${addrSafe}','${tab.id}',this)">
         ${tab.label}
         <span class="dwc-tab-badge">${tab.count > 0 ? tab.count + " · " + fmtDashUsd(tab.usd) : "—"}</span>
       </button>`;
@@ -245,23 +275,25 @@ function walletCardHtml(w) {
     }
     html += `</div>`;
 
-    // DeFi tab
-    html += `<div class="dwc-tab-pane" id="dwc-pane-defi-${w.address}" style="${activeTab === 'defi' ? '' : 'display:none'}">`;
-    if (defi.length === 0) {
-      html += `<div class="dash-token-empty">${t("dash_empty_defi")}</div>`;
-    } else {
-      for (const d of defi) html += defiRowHtml(d);
-    }
-    html += `</div>`;
+    if (hasDeFiTabs) {
+      // DeFi tab
+      html += `<div class="dwc-tab-pane" id="dwc-pane-defi-${w.address}" style="${activeTab === 'defi' ? '' : 'display:none'}">`;
+      if (defi.length === 0) {
+        html += `<div class="dash-token-empty">${t("dash_empty_defi")}</div>`;
+      } else {
+        for (const d of defi) html += defiRowHtml(d);
+      }
+      html += `</div>`;
 
-    // Perps tab
-    html += `<div class="dwc-tab-pane" id="dwc-pane-perps-${w.address}" style="${activeTab === 'perps' ? '' : 'display:none'}">`;
-    if (perps.length === 0) {
-      html += `<div class="dash-token-empty">${t("dash_empty_perps")}</div>`;
-    } else {
-      for (const p of perps) html += defiRowHtml(p);
+      // Perps tab
+      html += `<div class="dwc-tab-pane" id="dwc-pane-perps-${w.address}" style="${activeTab === 'perps' ? '' : 'display:none'}">`;
+      if (perps.length === 0) {
+        html += `<div class="dash-token-empty">${t("dash_empty_perps")}</div>`;
+      } else {
+        for (const p of perps) html += defiRowHtml(p);
+      }
+      html += `</div>`;
     }
-    html += `</div>`;
   }
 
   html += `</div></div>`;
@@ -450,12 +482,18 @@ function escHtml(s) {
 
 // ── Wallet modal ───────────────────────────────────────────────────────────────
 
+let _dwmNetType = "evm";
+
 function openDashWalletModal() {
   document.getElementById("dash-wallet-modal").classList.remove("hidden");
-  document.getElementById("dwm-address").value  = "";
-  document.getElementById("dwm-svm").value      = "";
-  document.getElementById("dwm-label").value    = "";
+  // Reset all fields
+  ["dwm-address","dwm-sol-address","dwm-btc-address","dwm-other-address","dwm-label"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
   document.getElementById("dwm-err").textContent = "";
+  // Reset to EVM tab
+  setWalletNetworkType("evm", document.querySelector(".dwm-net-btn[data-net='evm']"));
   setTimeout(() => document.getElementById("dwm-address").focus(), 50);
 }
 
@@ -463,33 +501,71 @@ function closeDashWalletModal() {
   document.getElementById("dash-wallet-modal").classList.add("hidden");
 }
 
+function setWalletNetworkType(type, btn) {
+  _dwmNetType = type;
+  // Update button active state
+  document.querySelectorAll(".dwm-net-btn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  // Show/hide fields
+  const allFields = ["evm","solana","bitcoin","other"];
+  allFields.forEach(f => {
+    const el = document.getElementById(`dwm-field-${f}`);
+    if (el) el.style.display = (f === type) ? "" : "none";
+  });
+  // Focus appropriate input
+  const focusMap = { evm: "dwm-address", solana: "dwm-sol-address",
+                     bitcoin: "dwm-btc-address", other: "dwm-other-address" };
+  setTimeout(() => {
+    const el = document.getElementById(focusMap[type]);
+    if (el) el.focus();
+  }, 50);
+}
+
 async function submitDashWallet() {
-  const address = document.getElementById("dwm-address").value.trim();
-  const svm     = document.getElementById("dwm-svm").value.trim();
-  const label   = document.getElementById("dwm-label").value.trim();
-  const errEl   = document.getElementById("dwm-err");
-  if (!address) { errEl.textContent = t("dash_err_evm_required"); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
-    errEl.textContent = t("dash_err_evm_invalid");
-    return;
-  }
-  if (svm && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(svm)) {
-    errEl.textContent = t("dash_err_sol_invalid");
-    return;
-  }
+  const errEl = document.getElementById("dwm-err");
+  const label = document.getElementById("dwm-label").value.trim();
   errEl.textContent = "";
+
+  let address = "", sub_network = "";
+
+  if (_dwmNetType === "evm") {
+    address = document.getElementById("dwm-address").value.trim();
+    if (!address) { errEl.textContent = t("dash_err_evm_required"); return; }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      errEl.textContent = t("dash_err_evm_invalid"); return;
+    }
+  } else if (_dwmNetType === "solana") {
+    address = document.getElementById("dwm-sol-address").value.trim();
+    if (!address) { errEl.textContent = t("dash_err_addr_required"); return; }
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+      errEl.textContent = t("dash_err_sol_invalid"); return;
+    }
+  } else if (_dwmNetType === "bitcoin") {
+    address = document.getElementById("dwm-btc-address").value.trim();
+    if (!address) { errEl.textContent = t("dash_err_addr_required"); return; }
+    if (!/^(1|3)[a-zA-Z0-9]{24,33}$|^bc1[a-zA-Z0-9]{6,87}$/.test(address)) {
+      errEl.textContent = t("dash_err_btc_invalid"); return;
+    }
+  } else if (_dwmNetType === "other") {
+    address     = document.getElementById("dwm-other-address").value.trim();
+    sub_network = document.getElementById("dwm-other-net").value;
+    if (!address) { errEl.textContent = t("dash_err_addr_required"); return; }
+  }
+
   const btn = document.getElementById("dwm-submit");
   btn.disabled = true; btn.textContent = t("dash_adding");
   try {
     const r = await fetch("/api/dashboard/wallets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, svm_address: svm, label })
+      body: JSON.stringify({ address, network_type: _dwmNetType, sub_network, label })
     });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || t("dash_err_add"); return; }
     closeDashWalletModal();
-    await refreshWallet(address.toLowerCase());
+    // For EVM, address is stored lowercase; others as-is
+    const storedAddr = _dwmNetType === "evm" ? address.toLowerCase() : address;
+    await refreshWallet(storedAddr);
   } finally {
     btn.disabled = false; btn.textContent = t("dash_add_btn");
   }

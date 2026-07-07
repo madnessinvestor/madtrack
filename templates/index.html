@@ -546,18 +546,51 @@
   <div class="dash-modal hidden" id="dash-wallet-modal" onclick="if(event.target===this)closeDashWalletModal()">
     <div class="dash-modal-box">
       <div class="dash-modal-title">🔗 Adicionar Carteira</div>
-      <p class="dash-modal-sub">Cole os endereços públicos. Somente leitura — nenhuma chave privada é solicitada.</p>
-      <div>
-        <label for="dwm-address">Endereço EVM (obrigatório)</label>
+      <p class="dash-modal-sub">Cole o endereço público. Somente leitura — nenhuma chave privada é solicitada.</p>
+
+      <!-- Network type selector -->
+      <div class="dwm-net-selector">
+        <button class="dwm-net-btn active" data-net="evm"     onclick="setWalletNetworkType('evm',this)">EVM</button>
+        <button class="dwm-net-btn"        data-net="solana"  onclick="setWalletNetworkType('solana',this)">Solana</button>
+        <button class="dwm-net-btn"        data-net="bitcoin" onclick="setWalletNetworkType('bitcoin',this)">Bitcoin</button>
+        <button class="dwm-net-btn"        data-net="other"   onclick="setWalletNetworkType('other',this)">Outra L1</button>
+      </div>
+
+      <!-- EVM field -->
+      <div id="dwm-field-evm">
+        <label for="dwm-address">Endereço EVM</label>
         <input id="dwm-address" type="text" placeholder="0x742d35Cc6634C053..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
       </div>
-      <div>
-        <label for="dwm-svm">Endereço Solana (opcional)</label>
-        <input id="dwm-svm" type="text" placeholder="DyEWx33cWoBdGF1xmWck..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+
+      <!-- Solana field -->
+      <div id="dwm-field-solana" style="display:none">
+        <label for="dwm-sol-address">Endereço Solana</label>
+        <input id="dwm-sol-address" type="text" placeholder="DyEWx33cWoBdGF1xmWck..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
       </div>
+
+      <!-- Bitcoin field -->
+      <div id="dwm-field-bitcoin" style="display:none">
+        <label for="dwm-btc-address">Endereço Bitcoin</label>
+        <input id="dwm-btc-address" type="text" placeholder="bc1q… ou 1… ou 3…" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+      </div>
+
+      <!-- Other L1 fields -->
+      <div id="dwm-field-other" style="display:none">
+        <label for="dwm-other-net">Rede</label>
+        <select id="dwm-other-net">
+          <option value="ton">TON</option>
+          <option value="near">NEAR</option>
+          <option value="cosmos">Cosmos (ATOM)</option>
+          <option value="sui">Sui</option>
+          <option value="aptos">Aptos</option>
+        </select>
+        <label for="dwm-other-address" style="margin-top:8px">Endereço</label>
+        <input id="dwm-other-address" type="text" placeholder="Endereço público…" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+      </div>
+
       <div>
         <label for="dwm-label">Apelido (opcional)</label>
-        <input id="dwm-label" type="text" placeholder="Ex: Minha MetaMask" autocomplete="off" onkeydown="if(event.key==='Enter')submitDashWallet()" />
+        <input id="dwm-label" type="text" placeholder="Ex: Minha carteira principal" autocomplete="off" onkeydown="if(event.key==='Enter')submitDashWallet()" />
       </div>
       <div class="dash-modal-err" id="dwm-err"></div>
       <div class="dash-modal-actions">

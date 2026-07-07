@@ -1508,7 +1508,6 @@ def _lookup_solana(hash_):
             })
     return jsonify({"error": "not_found"}), 404
 
-import re as _re
 @app.route("/api/tx-lookup")
 def tx_lookup():
     hash_   = request.args.get("hash",    "").strip()
@@ -1811,24 +1810,66 @@ def get_dash_status():
 def get_dash_wallets():
     return jsonify(load_dash_wallets())
 
+
+_VALID_NETWORK_TYPES = {"evm", "solana", "bitcoin", "other"}
+_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos"}
+
+def _validate_wallet_address(network_type, address, sub_network=""):
+    """Return an error string or None if valid."""
+    if not address:
+        return "Endereço inválido"
+    if network_type not in _VALID_NETWORK_TYPES:
+        return f"Tipo de rede desconhecido: {network_type}"
+    if network_type == "evm":
+        if not _re.match(r"^0x[0-9a-fA-F]{40}$", address):
+            return "Endereço EVM inválido (0x + 40 hex)"
+    elif network_type == "solana":
+        if not _re.match(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", address):
+            return "Endereço Solana inválido"
+    elif network_type == "bitcoin":
+        if not _re.match(r"^(1|3)[a-zA-Z0-9]{24,33}$|^bc1[a-zA-Z0-9]{6,87}$", address):
+            return "Endereço Bitcoin inválido"
+    elif network_type == "other":
+        if sub_network not in _VALID_SUB_NETWORKS:
+            return f"Rede não suportada: {sub_network}. Use: {', '.join(sorted(_VALID_SUB_NETWORKS))}"
+        if len(address) < 3 or len(address) > 128:
+            return "Endereço inválido"
+    return None
+
 @app.route("/api/dashboard/wallets", methods=["POST"])
 def add_dash_wallet():
-    body    = request.get_json() or {}
-    address = body.get("address", "").strip().lower()
-    svm     = body.get("svm_address", "").strip()
-    label   = body.get("label",   "").strip()
-    if not address:
-        return jsonify({"error": "Endereço EVM inválido"}), 400
+    body         = request.get_json() or {}
+    network_type = body.get("network_type", "evm").strip().lower()
+    address      = body.get("address", "").strip()
+    label        = body.get("label",   "").strip()
+    sub_network  = body.get("sub_network", "").strip().lower()
+
+    if network_type == "evm":
+        address = address.lower()
+
+    err = _validate_wallet_address(network_type, address, sub_network)
+    if err:
+        return jsonify({"error": err}), 400
+
     wallets = load_dash_wallets()
     if any(w["address"] == address for w in wallets):
         return jsonify({"error": "Carteira já adicionada"}), 409
-    wallets.append({"address": address, "svm_address": svm, "label": label, "tokens": [], "last_updated": None})
+
+    wallets.append({
+        "address":      address,
+        "network_type": network_type,
+        "sub_network":  sub_network,
+        "label":        label,
+        "tokens":       [],
+        "defi":         [],
+        "perps":        [],
+        "last_updated": None,
+    })
     save_dash_wallets(wallets)
     return jsonify({"ok": True})
 
-@app.route("/api/dashboard/wallets/<address>", methods=["DELETE"])
 def delete_dash_wallet(address):
-    wallets = [w for w in load_dash_wallets() if w["address"] != address.lower()]
+    wallets = [w for w in load_dash_wallets() if w["address"] != address]
     save_dash_wallets(wallets)
     return jsonify({"ok": True})
 
@@ -1856,144 +1897,284 @@ def _hl_post(payload, timeout=15):
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
 
-@app.route("/api/dashboard/wallets/<address>/refresh", methods=["POST"])
-def refresh_dash_wallet(address):
-    wallets = load_dash_wallets()
-    wallet  = next((w for w in wallets if w["address"] == address.lower()), None)
-    if not wallet:
-        return jsonify({"error": "Carteira não encontrada"}), 404
+PERP_PROTOCOLS = {"hyperliquid", "lighter", "polymarket", "dydx", "kwenta",
+                  "synthetix", "gains network", "foxify", "pear protocol"}
 
-    params = f"evm={address}"
-    svm = wallet.get("svm_address", "").strip()
-    if svm:
-        params += f"&svm={svm}"
+def _jumper_parse_tokens(balances):
+    """Parse Jumper /tokens balances into our token list format."""
+    tokens = []
+    for b in balances:
+        try:
+            raw = int(b.get("amount", "0") or "0")
+            dec = int(b.get("decimals", 18) or 18)
+            bal = raw / (10 ** dec)
+        except Exception:
+            continue
+        if bal < 1e-12:
+            continue
+        val = float(b.get("amountUSD", 0) or 0)
+        if val < 1.0:
+            continue
+        price_usd = (val / bal) if bal > 0 else 0
+        chain_key = (b.get("chain") or {}).get("chainKey", "")
+        tokens.append({
+            "symbol":     b.get("symbol", ""),
+            "name":       b.get("name", ""),
+            "network":    chain_key,
+            "chain_type": b.get("chainType", "EVM"),
+            "balance":    bal,
+            "price_usd":  price_usd,
+            "value_usd":  val,
+            "thumbnail":  b.get("logo", ""),
+            "contract":   b.get("address", ""),
+        })
+    tokens.sort(key=lambda x: x["value_usd"], reverse=True)
+    return tokens
 
-    errors  = []
-    tokens  = []
-    defi    = []
-    perps   = []
-
-    # ── 1. Tokens (Jumper /tokens) ──────────────────────────────────────────────
-    try:
-        result = _jumper_get("tokens", params)
-        for b in result.get("data", {}).get("balances", []):
+def _jumper_parse_positions(data):
+    """Parse Jumper /positions data into defi + perps lists."""
+    def _tok_list(p, key):
+        out = []
+        for t in (p.get(key) or []):
+            amt_usd = float(t.get("amountUSD", 0) or 0)
+            if amt_usd < 0.0001:
+                continue
             try:
-                raw = int(b.get("amount", "0") or "0")
-                dec = int(b.get("decimals", 18) or 18)
+                raw = int(t.get("amount", "0") or "0")
+                dec = int(t.get("decimals", 18) or 18)
                 bal = raw / (10 ** dec)
             except Exception:
-                continue
-            if bal < 1e-12:
-                continue
-            val       = float(b.get("amountUSD", 0) or 0)
-            if val < 1.0:
-                continue
-            price_usd = (val / bal) if bal > 0 else 0
-            chain_key = (b.get("chain") or {}).get("chainKey", "")
-            tokens.append({
-                "symbol":     b.get("symbol", ""),
-                "name":       b.get("name", ""),
-                "network":    chain_key,
-                "chain_type": b.get("chainType", "EVM"),
-                "balance":    bal,
-                "price_usd":  price_usd,
-                "value_usd":  val,
-                "thumbnail":  b.get("logo", ""),
-                "contract":   b.get("address", ""),
-            })
-        tokens.sort(key=lambda x: x["value_usd"], reverse=True)
-    except Exception as ex:
-        errors.append(f"tokens: {ex}")
+                bal = 0
+            out.append({"symbol": t.get("symbol", ""), "balance": bal,
+                        "value_usd": amt_usd, "logo": t.get("logo", "")})
+        return out
 
-    # ── 2 & 3. DeFi + Perps from Jumper /positions ─────────────────────────────
-    # Trading/exchange protocols go into perps[]; everything else into defi[]
-    PERP_PROTOCOLS = {"hyperliquid", "lighter", "polymarket", "dydx", "kwenta",
-                      "synthetix", "gains network", "foxify", "pear protocol"}
-    try:
-        result = _jumper_get("positions", params)
+    defi, perps = [], []
+    for p in data:
+        net_usd = float(p.get("netUsd", 0) or 0)
+        if abs(net_usd) < 0.01:
+            continue
+        proto      = p.get("protocol") or {}
+        proto_name = proto.get("name", p.get("name", ""))
+        chain_key  = (p.get("chain") or {}).get("chainKey", "")
+        row = {
+            "protocol":      proto_name,
+            "protocol_logo": proto.get("logo", ""),
+            "protocol_url":  proto.get("url", ""),
+            "type":          p.get("type", ""),
+            "description":   p.get("description", ""),
+            "network":       chain_key,
+            "asset_usd":     float(p.get("assetUsd", 0) or 0),
+            "debt_usd":      float(p.get("debtUsd",  0) or 0),
+            "net_usd":       net_usd,
+            "supply_tokens": _tok_list(p, "supplyTokens"),
+            "reward_tokens": _tok_list(p, "rewardTokens"),
+            "borrow_tokens": _tok_list(p, "borrowTokens"),
+        }
+        if proto_name.lower() in PERP_PROTOCOLS:
+            perps.append(row)
+        else:
+            defi.append(row)
+    defi.sort(key=lambda x: x["net_usd"], reverse=True)
+    perps.sort(key=lambda x: x["net_usd"], reverse=True)
+    return defi, perps
 
-        def _tok_list(p, key):
-            out = []
-            for t in (p.get(key) or []):
-                amt_usd = float(t.get("amountUSD", 0) or 0)
-                if amt_usd < 0.0001:
-                    continue
-                try:
-                    raw = int(t.get("amount", "0") or "0")
-                    dec = int(t.get("decimals", 18) or 18)
-                    bal = raw / (10 ** dec)
-                except Exception:
-                    bal = 0
-                out.append({"symbol": t.get("symbol", ""), "balance": bal,
-                            "value_usd": amt_usd, "logo": t.get("logo", "")})
-            return out
-
-        for p in result.get("data", []):
-            net_usd = float(p.get("netUsd", 0) or 0)
-            if abs(net_usd) < 0.01:
-                continue
-            proto     = p.get("protocol") or {}
-            proto_name = proto.get("name", p.get("name", ""))
-            chain_key = (p.get("chain") or {}).get("chainKey", "")
-            row = {
-                "protocol":      proto_name,
-                "protocol_logo": proto.get("logo", ""),
-                "protocol_url":  proto.get("url", ""),
-                "type":          p.get("type", ""),
-                "description":   p.get("description", ""),
-                "network":       chain_key,
-                "asset_usd":     float(p.get("assetUsd", 0) or 0),
-                "debt_usd":      float(p.get("debtUsd",  0) or 0),
-                "net_usd":       net_usd,
-                "supply_tokens": _tok_list(p, "supplyTokens"),
-                "reward_tokens": _tok_list(p, "rewardTokens"),
-                "borrow_tokens": _tok_list(p, "borrowTokens"),
-            }
-            if proto_name.lower() in PERP_PROTOCOLS:
-                perps.append(row)
-            else:
-                defi.append(row)
-
-        defi.sort(key=lambda x: x["net_usd"], reverse=True)
-        perps.sort(key=lambda x: x["net_usd"], reverse=True)
-    except Exception as ex:
-        errors.append(f"positions: {ex}")
-
-    # ── 4. Deduplicate receipt tokens ────────────────────────────────────────────
-    # Jumper's /tokens returns ALL wallet token balances, including protocol
-    # receipt tokens (e.g. kHYPE for Kinetiq staking, UETH for ETH vaults).
-    # Those same tokens appear as supply_tokens inside /positions (DeFi/perps),
-    # so they get double-counted. Remove any wallet token whose symbol + value
-    # closely matches a supply_token already accounted for in a position.
+def _dedup_tokens(tokens, defi, perps):
+    """Remove receipt tokens from token list that are already counted in positions."""
     supply_sym_values: dict = {}
     for pos in defi + perps:
         for t in pos.get("supply_tokens", []) + pos.get("reward_tokens", []):
             sym = t.get("symbol", "").upper()
             supply_sym_values[sym] = supply_sym_values.get(sym, 0) + float(t.get("value_usd", 0) or 0)
-
-    deduped: list = []
+    deduped = []
     for tok in tokens:
         sym     = tok["symbol"].upper()
         tok_val = tok["value_usd"]
         pos_val = supply_sym_values.get(sym, 0)
         if pos_val > 1.0 and tok_val > 1.0:
             ratio = abs(tok_val - pos_val) / max(tok_val, pos_val)
-            if ratio < 0.25:   # within 25% → almost certainly the same asset
+            if ratio < 0.25:
                 continue
         deduped.append(tok)
-    tokens = deduped
+    return deduped
 
+def _save_wallet_result(wallets, address, tokens, defi, perps):
     from datetime import datetime
     for w in wallets:
-        if w["address"] == address.lower():
+        if w["address"] == address:
             w["tokens"]       = tokens
             w["defi"]         = defi
             w["perps"]        = perps
             w["last_updated"] = datetime.utcnow().isoformat()
             break
     save_dash_wallets(wallets)
+
+def _refresh_evm(wallet, wallets, address):
+    errors = []
+    params = f"evm={address}"
+    try:
+        result = _jumper_get("tokens", params)
+        tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
+    except Exception as ex:
+        tokens = []
+        errors.append(f"tokens: {ex}")
+    try:
+        result = _jumper_get("positions", params)
+        defi, perps = _jumper_parse_positions(result.get("data", []))
+    except Exception as ex:
+        defi, perps = [], []
+        errors.append(f"positions: {ex}")
+    tokens = _dedup_tokens(tokens, defi, perps)
+    _save_wallet_result(wallets, address, tokens, defi, perps)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
                     "perps": len(perps), "errors": errors})
+
+def _refresh_solana(wallet, wallets, address):
+    errors = []
+    params = f"svm={address}"
+    try:
+        result = _jumper_get("tokens", params)
+        tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
+    except Exception as ex:
+        tokens = []
+        errors.append(f"tokens: {ex}")
+    try:
+        result = _jumper_get("positions", params)
+        defi, perps = _jumper_parse_positions(result.get("data", []))
+    except Exception as ex:
+        defi, perps = [], []
+        errors.append(f"positions: {ex}")
+    tokens = _dedup_tokens(tokens, defi, perps)
+    _save_wallet_result(wallets, address, tokens, defi, perps)
+    return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
+                    "perps": len(perps), "errors": errors})
+
+def _get_btc_price_usd():
+    """Fetch current BTC price in USD from public APIs."""
+    try:
+        d = http_get("https://api.coinbase.com/v2/prices/BTC-USD/spot", timeout=8)
+        return float(d["data"]["amount"])
+    except Exception:
+        pass
+    try:
+        d = http_get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd", timeout=8)
+        return float(d["bitcoin"]["usd"])
+    except Exception:
+        pass
+    return 0.0
+
+def _refresh_bitcoin(wallet, wallets, address):
+    errors = []
+    tokens = []
+    try:
+        data    = http_get(f"https://mempool.space/api/address/{address}", timeout=10)
+        chain   = data.get("chain_stats",   {})
+        mpool   = data.get("mempool_stats", {})
+        sats    = (chain.get("funded_txo_sum", 0) - chain.get("spent_txo_sum", 0)
+                 + mpool.get("funded_txo_sum", 0) - mpool.get("spent_txo_sum", 0))
+        btc_bal = sats / 1e8
+        if btc_bal > 0:
+            btc_price = _get_btc_price_usd()
+            tokens.append({
+                "symbol":     "BTC",
+                "name":       "Bitcoin",
+                "network":    "bitcoin",
+                "chain_type": "BITCOIN",
+                "balance":    btc_bal,
+                "price_usd":  btc_price,
+                "value_usd":  btc_bal * btc_price,
+                "thumbnail":  "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+                "contract":   "",
+            })
+    except Exception as ex:
+        errors.append(f"bitcoin: {ex}")
+    _save_wallet_result(wallets, address, tokens, [], [])
+    return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
+                    "perps": 0, "errors": errors})
+
+_OTHER_FETCH_SUPPORTED = {"ton", "near"}
+
+def _refresh_other(wallet, wallets, address):
+    """Fetch balance for other L1 networks. TON and NEAR have auto-fetch; others store address only."""
+    errors  = []
+    tokens  = []
+    sub_net = wallet.get("sub_network", "").strip().lower()
+
+    if sub_net not in _OTHER_FETCH_SUPPORTED:
+        _save_wallet_result(wallets, address, [], [], [])
+        return jsonify({"ok": True, "tokens": 0, "defi": 0, "perps": 0,
+                        "errors": [f"Busca automática não disponível para {sub_net.upper()} ainda."]})
+
+    try:
+        if sub_net == "ton":
+            d = http_get(f"https://toncenter.com/api/v2/getAddressBalance?address={address}", timeout=10)
+            nanoton = int(d.get("result", 0) or 0)
+            ton_bal = nanoton / 1e9
+            if ton_bal > 0:
+                price_d = http_get("https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd", timeout=8)
+                ton_usd = float((price_d or {}).get("the-open-network", {}).get("usd", 0) or 0)
+                tokens.append({
+                    "symbol": "TON", "name": "TON", "network": "ton",
+                    "chain_type": "OTHER", "balance": ton_bal,
+                    "price_usd": ton_usd, "value_usd": ton_bal * ton_usd,
+                    "thumbnail": "https://assets.coingecko.com/coins/images/17980/large/ton_symbol.png",
+                    "contract": "",
+                })
+        elif sub_net == "near":
+            req = urllib.request.Request(
+                "https://rpc.mainnet.near.org",
+                data=json.dumps({"jsonrpc": "2.0", "id": "1", "method": "query",
+                    "params": {"request_type": "view_account", "finality": "final",
+                               "account_id": address}}).encode(),
+                headers={"Content-Type": "application/json"}, method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as r:
+                d = json.loads(r.read().decode())
+            yocto    = int((d.get("result", {}).get("amount", 0) or 0))
+            near_bal = yocto / 1e24
+            if near_bal > 0:
+                price_d  = http_get("https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd", timeout=8)
+                near_usd = float((price_d or {}).get("near", {}).get("usd", 0) or 0)
+                tokens.append({
+                    "symbol": "NEAR", "name": "NEAR Protocol", "network": "near",
+                    "chain_type": "OTHER", "balance": near_bal,
+                    "price_usd": near_usd, "value_usd": near_bal * near_usd,
+                    "thumbnail": "https://assets.coingecko.com/coins/images/10365/large/near.jpg",
+                    "contract": "",
+                })
+    except Exception as ex:
+        errors.append(f"{sub_net}: {ex}")
+
+    _save_wallet_result(wallets, address, tokens, [], [])
+    return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
+                    "perps": 0, "errors": errors})
+
+@app.route("/api/dashboard/wallets/<path:address>", methods=["DELETE"])
+def delete_dash_wallet(address):
+    wallets = [w for w in load_dash_wallets() if w["address"] != address]
+    save_dash_wallets(wallets)
+    return jsonify({"ok": True})
+
+@app.route("/api/dashboard/wallets/<path:address>/refresh", methods=["POST"])
+def refresh_dash_wallet(address):
+    wallets = load_dash_wallets()
+    wallet  = next((w for w in wallets if w["address"] == address), None)
+    # Backward-compat: EVM wallets stored before network_type field existed
+    if not wallet:
+        wallet = next((w for w in wallets if w["address"] == address.lower()), None)
+        address = address.lower()
+    if not wallet:
+        return jsonify({"error": "Carteira não encontrada"}), 404
+
+    network_type = wallet.get("network_type", "evm")
+    if network_type == "solana":
+        return _refresh_solana(wallet, wallets, address)
+    if network_type == "bitcoin":
+        return _refresh_bitcoin(wallet, wallets, address)
+    if network_type == "other":
+        return _refresh_other(wallet, wallets, address)
+    # default: evm
+    return _refresh_evm(wallet, wallets, address)
 
 @app.route("/api/dashboard/manual", methods=["GET"])
 def get_dash_manual():

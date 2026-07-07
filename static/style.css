@@ -2324,9 +2324,22 @@ section.hidden { display: none; }
 .dwc-header-left  { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .dwc-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .dwc-chevron  { font-size: 0.65rem; color: var(--muted); width: 12px; flex-shrink: 0; }
-.dwc-info     { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.dwc-label    { font-size: 0.88rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
-.dwc-addr     { font-size: 0.73rem; color: var(--muted); font-family: monospace; }
+.dwc-info      { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dwc-label-row { display: flex; align-items: center; gap: 6px; }
+.dwc-label     { font-size: 0.88rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.dwc-addr      { font-size: 0.73rem; color: var(--muted); font-family: monospace; }
+.dwc-net-badge { font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; letter-spacing: 0.03em; flex-shrink: 0; }
+
+/* Network type selector inside add-wallet modal */
+.dwm-net-selector { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.dwm-net-btn {
+  flex: 1; min-width: 60px; padding: 7px 4px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted); font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.dwm-net-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.dwm-net-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .dwc-total    { font-size: 0.92rem; font-weight: 700; color: var(--text); }
 .dwc-btns     { display: flex; gap: 4px; }
 .dwc-body     { border-top: 1px solid var(--border); }
