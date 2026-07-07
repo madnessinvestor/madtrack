@@ -146,6 +146,10 @@ function wtUpdatePreview() {
   }
 }
 
+// ── Backwards-compat aliases (guard against SW-cached old HTML) ───────────────
+function widgetUpdatePreview() { wtUpdatePreview(); }
+function widgetSaveConfig()    { /* settings are saved immediately on change */ }
+
 // ── Entry point called by switchTab('widget') in trade.js ─────────────────────
 function widgetOnEnter() {
   wtCfg = wtLoad();
