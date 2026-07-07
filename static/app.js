@@ -65,18 +65,36 @@ async function fetchRates() {
 }
 
 function updateCurrencyBtn() {
-  const btn = document.getElementById("btn-currency");
-  if (btn) btn.textContent = currSym();
+  // Update settings panel currency pills
+  document.querySelectorAll(".cur-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.cur === currentCurrency);
+  });
+}
+
+function setCurrency(val) {
+  if (!CURRENCY_CYCLE.includes(val)) return;
+  currentCurrency = val;
+  localStorage.setItem("currency", currentCurrency);
+  updateCurrencyBtn();
+  rerenderAssets();
+  if (typeof loadPortfolio   === "function") loadPortfolio();
+  if (typeof renderDashboard === "function") renderDashboard();
 }
 
 function toggleCurrency() {
   const idx = CURRENCY_CYCLE.indexOf(currentCurrency);
-  currentCurrency = CURRENCY_CYCLE[(idx + 1) % CURRENCY_CYCLE.length];
-  localStorage.setItem("currency", currentCurrency);
-  updateCurrencyBtn();
-  rerenderAssets();
-  if (typeof loadPortfolio    === "function") loadPortfolio();
-  if (typeof renderDashboard  === "function") renderDashboard();
+  setCurrency(CURRENCY_CYCLE[(idx + 1) % CURRENCY_CYCLE.length]);
+}
+
+function openSettingsPanel() {
+  document.getElementById("settings-panel").classList.remove("hidden");
+  // Mark settings nav item active
+  document.getElementById("nav-settings").classList.add("active");
+}
+
+function closeSettingsPanel() {
+  document.getElementById("settings-panel").classList.add("hidden");
+  document.getElementById("nav-settings").classList.remove("active");
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────

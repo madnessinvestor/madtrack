@@ -301,9 +301,6 @@ function switchTab(tab) {
   document.getElementById("btn-add-tracker").classList.toggle("hidden", !isTracker);
   document.getElementById("btn-add-trade").classList.toggle("hidden",    !isTrade);
 
-  const refreshBar = document.querySelector(".refresh-bar");
-  if (refreshBar) refreshBar.classList.toggle("hidden", isAi || isDashboard);
-
   if (isTrade && !cachedPortfolio.length) loadPortfolio();
   if (isDashboard) {
     if (!dashLoaded) {

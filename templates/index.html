@@ -13,11 +13,9 @@
   <header>
     <h1>MadTracker</h1>
     <div class="header-actions">
-      <button id="btn-lang" onclick="toggleLang()" title="Language">PT</button>
-      <button id="btn-theme" onclick="toggleTheme()" title="Tema"></button>
-      <button id="btn-currency" onclick="toggleCurrency()" title="Moeda">$</button>
       <button id="btn-alerts" class="btn-bell" onclick="openAlertsModal()" title="Alertas">
-        🔔<span id="alert-badge" class="alert-badge hidden">0</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="alert-badge" class="alert-badge hidden">0</span>
       </button>
       <button id="btn-add-tracker" class="btn-primary" onclick="openModal()">
         <span class="btn-icon">+</span><span data-i18n="btn_add">Adicionar</span>
@@ -27,22 +25,6 @@
       </button>
     </div>
   </header>
-
-  <!-- Tab bar -->
-  <nav class="tab-bar">
-    <button class="tab-btn active" id="tab-tracker" onclick="switchTab('tracker')">
-      📊 <span data-i18n="tab_tracker">Tracker</span>
-    </button>
-    <button class="tab-btn" id="tab-dashboard" onclick="switchTab('dashboard')">
-      ⛓️ <span>Dashboard</span>
-    </button>
-    <button class="tab-btn" id="tab-trade" onclick="switchTab('trade')">
-      💼 <span data-i18n="tab_trade">Trade</span>
-    </button>
-    <button class="tab-btn" id="tab-ai" onclick="switchTab('ai')">
-      🤖 <span data-i18n="tab_ai">Mad AI</span>
-    </button>
-  </nav>
 
   <!-- Tracker section -->
   <section id="section-tracker">
@@ -129,11 +111,74 @@
     </div>
   </section>
 
-  <!-- Single refresh bar -->
-  <div class="refresh-bar">
-    <span id="last-update">—</span>
-    <button id="btn-refresh" onclick="refreshCurrent()">↻ <span data-i18n="btn_refresh">Atualizar</span></button>
+  <!-- Settings panel (sheet) -->
+  <div id="settings-panel" class="settings-panel hidden" onclick="if(event.target===this)closeSettingsPanel()">
+    <div class="settings-box">
+      <div class="settings-title">Configurações</div>
+
+      <div class="settings-row">
+        <span class="settings-row-label" data-i18n="set_lang">Idioma</span>
+        <div class="settings-toggle-group">
+          <button id="btn-lang" onclick="toggleLang()" class="settings-toggle-btn">PT</button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <span class="settings-row-label" data-i18n="set_theme">Tema</span>
+        <div class="settings-toggle-group">
+          <button id="btn-theme" onclick="toggleTheme()" class="settings-toggle-btn"></button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <span class="settings-row-label" data-i18n="set_currency">Moeda</span>
+        <div class="settings-toggle-group">
+          <button class="settings-toggle-btn cur-btn" data-cur="BRL" onclick="setCurrency('BRL')">R$</button>
+          <button class="settings-toggle-btn cur-btn active" data-cur="USD" onclick="setCurrency('USD')">$</button>
+          <button class="settings-toggle-btn cur-btn" data-cur="EUR" onclick="setCurrency('EUR')">€</button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <span class="settings-row-label" id="last-update">—</span>
+        <button id="btn-refresh" class="settings-toggle-btn" onclick="refreshCurrent()">↻ <span data-i18n="btn_refresh">Atualizar</span></button>
+      </div>
+    </div>
   </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="tab-tracker" onclick="switchTab('tracker')">
+      <span class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </span>
+      <span data-i18n="tab_tracker">Tracker</span>
+    </button>
+    <button class="nav-item" id="tab-dashboard" onclick="switchTab('dashboard')">
+      <span class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      </span>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-item" id="tab-trade" onclick="switchTab('trade')">
+      <span class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L4 7m3-3 3 3M17 8v12m0 0 3-3m-3 3-3-3"/></svg>
+      </span>
+      <span data-i18n="tab_trade">Trade</span>
+    </button>
+    <button class="nav-item" id="tab-ai" onclick="switchTab('ai')">
+      <span class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+      </span>
+      <span data-i18n="tab_ai">Mad AI</span>
+    </button>
+    <button class="nav-item" id="nav-settings" onclick="openSettingsPanel()">
+      <span class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </span>
+      <span data-i18n="set_label">Config</span>
+    </button>
+  </nav>
 
   <!-- Tracker: modal busca por ticker -->
   <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">

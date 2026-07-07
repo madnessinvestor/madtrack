@@ -133,6 +133,11 @@ const TRANSLATIONS = {
     dash_err_network:        "Erro de rede ao carregar carteira.",
     dash_err_symbol:         "Símbolo obrigatório.",
     dash_confirm_remove:     "Remover esta carteira do Dashboard?",
+    // settings panel
+    set_label:    "Config",
+    set_lang:     "Idioma",
+    set_theme:    "Tema",
+    set_currency: "Moeda",
   },
   en: {
     btn_add:          "Add",
@@ -266,6 +271,11 @@ const TRANSLATIONS = {
     dash_err_network:        "Network error loading wallet.",
     dash_err_symbol:         "Symbol required.",
     dash_confirm_remove:     "Remove this wallet from Dashboard?",
+    // settings panel
+    set_label:    "Settings",
+    set_lang:     "Language",
+    set_theme:    "Theme",
+    set_currency: "Currency",
   }
 };
 
