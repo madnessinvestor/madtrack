@@ -310,7 +310,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   max-width: 480px;
   margin: 0 auto;
   display: flex;
@@ -924,7 +925,7 @@ main {
 /* tab-bar removed — navigation moved to .bottom-nav */
 
 /* ─── Sections ──────────────────────────────────────────────────────────────── */
-section { display: flex; flex-direction: column; flex: 1; }
+section { display: flex; flex-direction: column; flex: 1; overflow-y: auto; min-height: 0; }
 section.hidden { display: none; }
 
 /* ─── Portfolio Summary Strip ──────────────────────────────────────────────── */
