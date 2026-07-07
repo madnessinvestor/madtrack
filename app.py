@@ -1747,25 +1747,48 @@ def ai_chat():
 DASH_WALLETS_FILE = "dashboard_wallets.json"
 DASH_MANUAL_FILE  = "dashboard_manual.json"
 
-def load_dash_wallets():
-    if not os.path.exists(DASH_WALLETS_FILE):
+def _load_json_file(path):
+    """Load a JSON file robustly: handles missing file, empty file, and
+    trailing-garbage corruption (e.g. from a concurrent-write race)."""
+    if not os.path.exists(path):
         return []
-    with open(DASH_WALLETS_FILE) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            raw = f.read().strip()
+        if not raw:
+            return []
+        # Fast path — well-formed file
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+        # Slow path — try to recover the leading valid object
+        obj, _ = json.JSONDecoder().raw_decode(raw)
+        return obj if isinstance(obj, list) else []
+    except Exception:
+        return []
+
+def _save_json_file(path, data):
+    """Atomic write: flush to a tmp file then rename so a crash mid-write
+    never leaves a half-written (corrupt) file behind."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+def load_dash_wallets():
+    return _load_json_file(DASH_WALLETS_FILE)
 
 def save_dash_wallets(data):
-    with open(DASH_WALLETS_FILE, "w") as f:
-        json.dump(data, f)
+    _save_json_file(DASH_WALLETS_FILE, data)
 
 def load_dash_manual():
-    if not os.path.exists(DASH_MANUAL_FILE):
-        return []
-    with open(DASH_MANUAL_FILE) as f:
-        return json.load(f)
+    return _load_json_file(DASH_MANUAL_FILE)
 
 def save_dash_manual(data):
-    with open(DASH_MANUAL_FILE, "w") as f:
-        json.dump(data, f)
+    _save_json_file(DASH_MANUAL_FILE, data)
 
 @app.route("/api/dashboard/status", methods=["GET"])
 def get_dash_status():
