@@ -134,6 +134,7 @@ const TRANSLATIONS = {
     dash_err_symbol:         "Símbolo obrigatório.",
     dash_confirm_remove:     "Remover esta carteira do Dashboard?",
     // settings panel
+    set_title:    "Configurações",
     set_label:    "Config",
     set_lang:     "Idioma",
     set_theme:    "Tema",
@@ -272,6 +273,7 @@ const TRANSLATIONS = {
     dash_err_symbol:         "Symbol required.",
     dash_confirm_remove:     "Remove this wallet from Dashboard?",
     // settings panel
+    set_title:    "Settings",
     set_label:    "Settings",
     set_lang:     "Language",
     set_theme:    "Theme",
