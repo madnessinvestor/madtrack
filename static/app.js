@@ -541,6 +541,10 @@ document.addEventListener("keydown", e => {
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js").catch(() => {});
+  // When a new SW takes control, reload so stale cached HTML is dropped
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    window.location.reload();
+  });
 }
 
 // ─── Column layout ────────────────────────────────────────────────────────────

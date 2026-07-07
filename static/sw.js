@@ -1,5 +1,16 @@
-const CACHE = "madtracker-v11";
-const STATIC = ["/", "/static/style.css", "/static/app.js", "/static/i18n.js", "/static/trade.js", "/static/alerts.js", "/static/madai.js"];
+// HTML pages are never cached — always fetched fresh from the server.
+// Only static assets (JS, CSS) are cached for offline performance.
+const CACHE = "madtracker-v12";
+const STATIC = [
+  "/static/style.css",
+  "/static/app.js",
+  "/static/i18n.js",
+  "/static/trade.js",
+  "/static/alerts.js",
+  "/static/madai.js",
+  "/static/widget.js",
+  "/static/dashboard.js"
+];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)));
@@ -15,7 +26,16 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
+
+  // Never intercept API calls
   if (url.pathname.startsWith("/api/")) return;
+
+  // HTML pages: always network, never cache
+  const isHTML = e.request.mode === "navigate" ||
+    e.request.headers.get("accept")?.includes("text/html");
+  if (isHTML) return; // pass through to network
+
+  // Static assets: cache-first
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
