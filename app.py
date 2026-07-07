@@ -1768,15 +1768,28 @@ def _load_json_file(path):
     except Exception:
         return []
 
+_file_lock = threading.Lock()
+
 def _save_json_file(path, data):
-    """Atomic write: flush to a tmp file then rename so a crash mid-write
-    never leaves a half-written (corrupt) file behind."""
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, ensure_ascii=False)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    """Atomic write: flush to a uniquely-named tmp file then rename so a
+    crash mid-write never leaves a corrupt file, and concurrent saves to
+    the same path don't collide on the same .tmp name."""
+    import tempfile
+    dir_ = os.path.dirname(os.path.abspath(path))
+    with _file_lock:
+        fd, tmp = tempfile.mkstemp(dir=dir_, prefix=os.path.basename(path) + ".")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 def load_dash_wallets():
     return _load_json_file(DASH_WALLETS_FILE)

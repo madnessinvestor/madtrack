@@ -23,6 +23,7 @@ Serves on port 5000. No API keys required — fetches from public endpoints (Hyp
 
 ## Notes
 - Icon 404s for obscure symbols are expected/harmless — the `/api/icon` endpoint returns 404 when no icon is found externally
-- The app is a single-server Flask dev server; for production use a WSGI server (e.g. gunicorn)
+- Production: gunicorn configured (`gunicorn --bind=0.0.0.0:5000 --reuse-port app:app`)
+- `_save_json_file` uses a `threading.Lock` + `tempfile.mkstemp` for safe concurrent writes
 
 ## User preferences
