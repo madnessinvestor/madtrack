@@ -111,6 +111,102 @@
     </div>
   </section>
 
+  <!-- Widget section -->
+  <section id="section-widget" class="hidden">
+    <div class="widget-config-container">
+
+      <div class="widget-header-card">
+        <div class="widget-header-icon">📱</div>
+        <div>
+          <div class="widget-header-title" data-i18n="wgt_title">Widget</div>
+          <div class="widget-header-sub" data-i18n="wgt_subtitle">Configure o widget da tela inicial</div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="widget-preview-wrap">
+        <div class="widget-preview-label" data-i18n="wgt_preview">Pré-visualização</div>
+        <div class="widget-phone-mock">
+          <div class="widget-mock-bar"></div>
+          <div id="widget-preview-card" class="widget-preview-card">
+            <div class="wpc-header">
+              <span class="wpc-logo">MadTracker</span>
+              <span class="wpc-time" id="wpc-time">12:34</span>
+            </div>
+            <div id="wpc-rows" class="wpc-rows">
+              <div class="wpc-row"><span class="wpc-ticker">BTC</span><span class="wpc-price">$64,000</span><span class="wpc-chg wpc-up">+1.8%</span></div>
+              <div class="wpc-row"><span class="wpc-ticker">ETH</span><span class="wpc-price">$3,200</span><span class="wpc-chg wpc-dn">-0.5%</span></div>
+            </div>
+            <div class="wpc-footer" data-i18n="wgt_updated">Atualizado agora</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ativos -->
+      <div class="widget-section">
+        <div class="widget-section-title" data-i18n="wgt_assets">Ativos exibidos</div>
+        <div id="widget-asset-chips" class="widget-chips"></div>
+        <p class="widget-hint" data-i18n="wgt_assets_hint">Selecione até 5 ativos da sua Watchlist</p>
+      </div>
+
+      <!-- Tamanho -->
+      <div class="widget-section">
+        <div class="widget-section-title" data-i18n="wgt_size">Tamanho</div>
+        <div class="widget-chips">
+          <button class="widget-chip active" data-wgt-size="small"  data-i18n="wgt_size_s">Pequeno (2×1)</button>
+          <button class="widget-chip"        data-wgt-size="medium" data-i18n="wgt_size_m">Médio (2×2)</button>
+          <button class="widget-chip"        data-wgt-size="large"  data-i18n="wgt_size_l">Grande (4×2)</button>
+        </div>
+      </div>
+
+      <!-- Tema -->
+      <div class="widget-section">
+        <div class="widget-section-title" data-i18n="wgt_theme">Tema do widget</div>
+        <div class="widget-chips">
+          <button class="widget-chip active" data-wgt-theme="dark"  data-i18n="wgt_theme_dark">Escuro</button>
+          <button class="widget-chip"        data-wgt-theme="light" data-i18n="wgt_theme_light">Claro</button>
+          <button class="widget-chip"        data-wgt-theme="auto"  data-i18n="wgt_theme_auto">Auto</button>
+        </div>
+      </div>
+
+      <!-- Atualização -->
+      <div class="widget-section">
+        <div class="widget-section-title" data-i18n="wgt_refresh">Atualização automática</div>
+        <div class="widget-chips">
+          <button class="widget-chip"        data-wgt-refresh="5"  data-i18n="wgt_ref_5">5 min</button>
+          <button class="widget-chip active" data-wgt-refresh="15" data-i18n="wgt_ref_15">15 min</button>
+          <button class="widget-chip"        data-wgt-refresh="30" data-i18n="wgt_ref_30">30 min</button>
+          <button class="widget-chip"        data-wgt-refresh="60" data-i18n="wgt_ref_60">1 hora</button>
+        </div>
+      </div>
+
+      <!-- Toggles -->
+      <div class="widget-section">
+        <div class="widget-row-toggle">
+          <span class="widget-row-label" data-i18n="wgt_show_chg">Mostrar variação %</span>
+          <label class="wgt-switch">
+            <input type="checkbox" id="wgt-toggle-chg" checked onchange="widgetUpdatePreview()">
+            <span class="wgt-slider"></span>
+          </label>
+        </div>
+        <div class="widget-row-toggle">
+          <span class="widget-row-label" data-i18n="wgt_show_logo">Mostrar ícone do ativo</span>
+          <label class="wgt-switch">
+            <input type="checkbox" id="wgt-toggle-logo" checked onchange="widgetUpdatePreview()">
+            <span class="wgt-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Salvar -->
+      <button class="widget-save-btn" onclick="widgetSaveConfig()">
+        <span data-i18n="wgt_save">Salvar configuração</span>
+      </button>
+      <p class="widget-save-hint" data-i18n="wgt_save_hint">Adicione o app à tela inicial como PWA para ativar o widget</p>
+
+    </div>
+  </section>
+
   <!-- Settings panel (sheet) -->
   <div id="settings-panel" class="settings-panel hidden" onclick="if(event.target===this)closeSettingsPanel()">
     <div class="settings-box">
@@ -171,6 +267,12 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
       </span>
       <span data-i18n="tab_ai">Mad AI</span>
+    </button>
+    <button class="nav-item" id="tab-widget" onclick="switchTab('widget')">
+      <span class="nav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      </span>
+      <span data-i18n="tab_widget">Widget</span>
     </button>
     <button class="nav-item" id="nav-settings" onclick="openSettingsPanel()">
       <span class="nav-icon-wrap">
@@ -512,5 +614,6 @@
   <script src="/static/alerts.js"></script>
   <script src="/static/madai.js"></script>
   <script src="/static/dashboard.js"></script>
+  <script src="/static/widget.js"></script>
 </body>
 </html>
