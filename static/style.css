@@ -2692,3 +2692,180 @@ section.hidden { display: none; }
   color: var(--accent);
 }
 .wt-pills button:not(:last-child) { border-right: 1px solid var(--border); }
+
+/* ── Widget tab redesign (matches screenshot layout) ─────────────────────── */
+.wgt-page {
+  padding: 16px 16px 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Hero card */
+.wgt-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+.wgt-hero-icon {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  background: rgba(0,230,118,0.1);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.wgt-hero-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.wgt-hero-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* Section label (PREVIEW, etc.) */
+.wgt-slbl {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 4px 2px 0;
+}
+
+/* Preview box (centered card, no phone frame) */
+.wgt-preview-box {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 8px;
+}
+.wgt-preview-box .widget-preview-card {
+  width: 100%;
+  max-width: 280px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+}
+
+/* Generic card (SIZE / THEME / REFRESH / ASSETS) */
+.wgt-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wgt-card-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.wgt-card-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: -6px;
+}
+
+/* Asset chips inside card */
+.wgt-asset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wgt-asset-chip {
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-asset-chip.active {
+  color: var(--accent);
+  background: rgba(0,230,118,0.1);
+  border-color: var(--accent);
+}
+.wgt-asset-chip:active { opacity: 0.7; }
+.wgt-asset-empty {
+  font-size: 0.75rem;
+  color: var(--muted2);
+}
+
+/* Pill group (individual pills with gap, not merged) */
+.wgt-pills-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wgt-pill {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-pill.active {
+  color: var(--accent);
+  background: rgba(0,230,118,0.1);
+  border-color: var(--accent);
+}
+.wgt-pill:active { opacity: 0.7; }
+
+/* Toggle rows (standalone, not in a card) */
+.wgt-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 4px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-toggle-last {
+  border-bottom: 1px solid var(--border);
+}
+.wgt-toggle-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Save button */
+.wgt-save-btn {
+  margin-top: 4px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 999px;
+  padding: 15px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 16px rgba(0,230,118,0.3);
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-save-btn:active { opacity: 0.78; }

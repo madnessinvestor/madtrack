@@ -113,159 +113,106 @@
 
   <!-- Widget section -->
   <section id="section-widget" class="hidden">
-    <div class="widget-config-container">
+    <div class="wgt-page">
 
-      <!-- Live preview -->
-      <div class="widget-preview-wrap">
-        <div class="widget-preview-label" data-i18n="wgt_preview">Pré-visualização</div>
-        <div class="widget-phone-mock">
-          <div class="widget-mock-bar"></div>
-          <div id="widget-preview-card" class="widget-preview-card">
-            <div class="wpc-header" id="wpv-topbar">
-              <span class="wpc-logo">MadTracker</span>
-              <span class="wpc-time" id="wpc-time">12:34</span>
-            </div>
-            <div id="wpc-rows" class="wpc-rows">
-              <div class="wpc-row">
-                <span class="wpc-ticker">BTC</span>
-                <span class="wpc-price" id="wpv-p1">$59,960.00</span>
-                <span class="wpc-chg wpc-up" id="wpv-c1">+1.15%</span>
-              </div>
-              <div class="wpc-row">
-                <span class="wpc-ticker">ETH</span>
-                <span class="wpc-price" id="wpv-p2">$1,576.00</span>
-                <span class="wpc-chg wpc-dn" id="wpv-c2">-0.03%</span>
-              </div>
-            </div>
-            <div class="wpc-footer" data-i18n="wgt_updated">Atualizado agora</div>
+      <!-- Hero card -->
+      <div class="wgt-hero">
+        <div class="wgt-hero-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="2" width="9" height="9" rx="2.5" fill="#00e676"/>
+            <rect x="13" y="2" width="9" height="9" rx="2.5" fill="#00e676" opacity="0.7"/>
+            <rect x="2" y="13" width="9" height="9" rx="2.5" fill="#00e676" opacity="0.7"/>
+            <rect x="13" y="13" width="9" height="9" rx="2.5" fill="#00e676" opacity="0.4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="wgt-hero-title">Widget</div>
+          <div class="wgt-hero-sub">Configure your home screen widget</div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="wgt-slbl">PREVIEW</div>
+      <div class="wgt-preview-box">
+        <div id="widget-preview-card" class="widget-preview-card">
+          <div class="wpc-header" id="wpv-topbar">
+            <span class="wpc-logo">MadTracker</span>
+            <span class="wpc-time" id="wpc-time">12:34</span>
           </div>
+          <div id="wpc-rows" class="wpc-rows">
+            <div class="wpc-row">
+              <span class="wpc-ticker">BTC</span>
+              <span class="wpc-price" id="wpv-p1">$64,000</span>
+              <span class="wpc-chg wpc-up" id="wpv-c1">+1.8%</span>
+            </div>
+            <div class="wpc-row">
+              <span class="wpc-ticker">ETH</span>
+              <span class="wpc-price" id="wpv-p2">$3,200</span>
+              <span class="wpc-chg wpc-dn" id="wpv-c2">-0.5%</span>
+            </div>
+          </div>
+          <div class="wpc-footer">Updated just now</div>
         </div>
       </div>
 
-      <!-- EXIBIÇÃO -->
-      <div class="wt-label">Exibição</div>
-
-      <div class="wt-row">
-        <div class="wt-info">
-          <div class="wt-title">Moeda</div>
-          <div class="wt-desc">Converter preços para a moeda selecionada</div>
-        </div>
-        <div class="wt-pills" id="wt-ccy">
-          <button data-v="USD" onclick="wSet('ccy','USD')">$ USD</button>
-          <button data-v="BRL" onclick="wSet('ccy','BRL')">R$ BRL</button>
-          <button data-v="EUR" onclick="wSet('ccy','EUR')">€ EUR</button>
+      <!-- Displayed Assets -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">DISPLAYED ASSETS</div>
+        <div class="wgt-card-sub">Select up to 5 assets from your Watchlist</div>
+        <div class="wgt-asset-chips" id="wgt-asset-chips">
+          <span class="wgt-asset-empty">Loading…</span>
         </div>
       </div>
 
-      <div class="wt-row">
-        <div class="wt-info">
-          <div class="wt-title">Variação</div>
-          <div class="wt-desc">Exibir variação em percentual ou valor</div>
-        </div>
-        <div class="wt-pills" id="wt-chg">
-          <button data-v="pct" onclick="wSet('chg','pct')">%</button>
-          <button data-v="val" onclick="wSet('chg','val')">Valor</button>
-        </div>
-      </div>
-
-      <div class="wt-row">
-        <div class="wt-info">
-          <div class="wt-title">Número de colunas</div>
-          <div class="wt-desc">Quantas colunas de ativos exibir</div>
-        </div>
-        <div class="wt-pills" id="wt-cols">
-          <button data-v="1" onclick="wSet('cols','1')">1</button>
-          <button data-v="2" onclick="wSet('cols','2')">2</button>
+      <!-- Size -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">SIZE</div>
+        <div class="wgt-pills-group" id="wt-size">
+          <button class="wgt-pill" data-v="sm"  onclick="wSet('size','sm')">Small (2×1)</button>
+          <button class="wgt-pill" data-v="md"  onclick="wSet('size','md')">Medium (2×2)</button>
+          <button class="wgt-pill" data-v="lg"  onclick="wSet('size','lg')">Large (4×2)</button>
         </div>
       </div>
 
-      <!-- TEXTO -->
-      <div class="wt-label">Texto</div>
-
-      <div class="wt-row">
-        <div class="wt-info">
-          <div class="wt-title">Tamanho do texto</div>
-          <div class="wt-desc">Tamanho da fonte nos ativos</div>
-        </div>
-        <div class="wt-pills" id="wt-fs">
-          <button data-v="sm" onclick="wSet('fontSize','sm')">P</button>
-          <button data-v="md" onclick="wSet('fontSize','md')">M</button>
-          <button data-v="lg" onclick="wSet('fontSize','lg')">G</button>
+      <!-- Widget Theme -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">WIDGET THEME</div>
+        <div class="wgt-pills-group" id="wt-theme">
+          <button class="wgt-pill" data-v="dark"  onclick="wSet('theme','dark')">Dark</button>
+          <button class="wgt-pill" data-v="light" onclick="wSet('theme','light')">Light</button>
+          <button class="wgt-pill" data-v="auto"  onclick="wSet('theme','auto')">Auto</button>
         </div>
       </div>
 
-      <div class="wt-row" onclick="wToggle('bold')">
-        <div class="wt-info">
-          <div class="wt-title">Negrito</div>
-          <div class="wt-desc">Exibir preços e variação em negrito</div>
+      <!-- Auto Refresh -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">AUTO REFRESH</div>
+        <div class="wgt-pills-group" id="wt-refresh">
+          <button class="wgt-pill" data-v="5"  onclick="wSet('refresh','5')">5 min</button>
+          <button class="wgt-pill" data-v="15" onclick="wSet('refresh','15')">15 min</button>
+          <button class="wgt-pill" data-v="30" onclick="wSet('refresh','30')">30 min</button>
+          <button class="wgt-pill" data-v="60" onclick="wSet('refresh','60')">1 hour</button>
         </div>
+      </div>
+
+      <!-- Toggles -->
+      <div class="wgt-toggle-row" onclick="wToggle('showChg')">
+        <span class="wgt-toggle-label">Show % change</span>
         <label class="wgt-switch" onclick="event.stopPropagation()">
-          <input type="checkbox" id="wt-bold" onchange="wToggle('bold')">
+          <input type="checkbox" id="wt-showChg" onchange="wToggle('showChg')">
+          <span class="wgt-slider"></span>
+        </label>
+      </div>
+      <div class="wgt-toggle-row wgt-toggle-last" onclick="wToggle('showIcon')">
+        <span class="wgt-toggle-label">Show asset icon</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-showIcon" onchange="wToggle('showIcon')">
           <span class="wgt-slider"></span>
         </label>
       </div>
 
-      <div class="wt-row" onclick="wToggle('showCcy')">
-        <div class="wt-info">
-          <div class="wt-title">Mostrar símbolo da moeda</div>
-          <div class="wt-desc">Exibe $ / R$ / € antes do preço</div>
-        </div>
-        <label class="wgt-switch" onclick="event.stopPropagation()">
-          <input type="checkbox" id="wt-showCcy" onchange="wToggle('showCcy')">
-          <span class="wgt-slider"></span>
-        </label>
-      </div>
-
-      <!-- LAYOUT -->
-      <div class="wt-label">Layout</div>
-
-      <div class="wt-row" onclick="wToggle('showHeader')">
-        <div class="wt-info">
-          <div class="wt-title">Mostrar cabeçalho</div>
-          <div class="wt-desc">Exibe "Last fetch: HH:MM" no topo</div>
-        </div>
-        <label class="wgt-switch" onclick="event.stopPropagation()">
-          <input type="checkbox" id="wt-showHeader" onchange="wToggle('showHeader')">
-          <span class="wgt-slider"></span>
-        </label>
-      </div>
-
-      <div class="wt-row" onclick="wToggle('autoSort')">
-        <div class="wt-info">
-          <div class="wt-title">Ordenar por variação</div>
-          <div class="wt-desc">Ativos ordenados do maior ao menor % de variação</div>
-        </div>
-        <label class="wgt-switch" onclick="event.stopPropagation()">
-          <input type="checkbox" id="wt-autoSort" onchange="wToggle('autoSort')">
-          <span class="wgt-slider"></span>
-        </label>
-      </div>
-
-      <div class="wt-row" onclick="wToggle('showRefresh')">
-        <div class="wt-info">
-          <div class="wt-title">Mostrar botão de atualizar</div>
-          <div class="wt-desc">Exibe ↻ no cabeçalho para forçar atualização</div>
-        </div>
-        <label class="wgt-switch" onclick="event.stopPropagation()">
-          <input type="checkbox" id="wt-showRefresh" onchange="wToggle('showRefresh')">
-          <span class="wgt-slider"></span>
-        </label>
-      </div>
-
-      <div class="wt-row" onclick="wToggle('showControls')">
-        <div class="wt-info">
-          <div class="wt-title">Mostrar controles rápidos</div>
-          <div class="wt-desc">Botões de moeda e % no topo do widget</div>
-        </div>
-        <label class="wgt-switch" onclick="event.stopPropagation()">
-          <input type="checkbox" id="wt-showControls" onchange="wToggle('showControls')">
-          <span class="wgt-slider"></span>
-        </label>
-      </div>
-
-      <!-- Abrir Widget -->
-      <a class="widget-save-btn" href="/widget" target="_blank">← Abrir Widget</a>
-      <p class="widget-save-hint" data-i18n="wgt_save_hint">Adicione o app à tela inicial como PWA para ativar o widget</p>
+      <!-- Save -->
+      <button class="wgt-save-btn" onclick="wSaveConfig()">Save configuration</button>
 
     </div>
   </section>

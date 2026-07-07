@@ -1,18 +1,14 @@
 // ─── Widget Settings Tab ──────────────────────────────────────────────────────
-// Uses the same localStorage keys (w_*) as /widget so every change here is
-// immediately reflected when the user opens the actual widget.
+// Uses the same localStorage keys (w_*) as /widget.
+// Changes here are reflected immediately when the user opens the actual widget.
 
 const WT_DEFAULTS = {
-  ccy:          "USD",
-  chg:          "pct",
-  cols:         "2",
-  fontSize:     "md",
-  bold:         false,
-  showCcy:      true,
-  showHeader:   true,
-  autoSort:     false,
-  showRefresh:  false,
-  showControls: true
+  size:     "sm",    // sm | md | lg
+  theme:    "dark",  // dark | light | auto
+  refresh:  "15",    // minutes: 5 | 15 | 30 | 60
+  showChg:  true,    // show % change
+  showIcon: true,    // show asset icon
+  assets:   ""       // comma-separated selected symbols (up to 5)
 };
 
 function wtLoad() {
@@ -34,7 +30,7 @@ function wtSave(cfg) {
 
 let wtCfg = Object.assign({}, WT_DEFAULTS);
 
-// Called from inline onclick in index.html
+// Called by pill buttons
 function wSet(key, val) {
   wtCfg[key] = val;
   wtSave(wtCfg);
@@ -42,6 +38,7 @@ function wSet(key, val) {
   wtUpdatePreview();
 }
 
+// Called by toggle switches
 function wToggle(key) {
   wtCfg[key] = !wtCfg[key];
   wtSave(wtCfg);
@@ -49,92 +46,73 @@ function wToggle(key) {
   wtUpdatePreview();
 }
 
+// Toggle an asset chip on/off (max 5 selected)
+function wToggleAsset(sym) {
+  const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
+  const idx = selected.indexOf(sym);
+  if (idx >= 0) {
+    selected.splice(idx, 1);
+  } else {
+    if (selected.length >= 5) return; // limit reached, do nothing
+    selected.push(sym);
+  }
+  wtCfg.assets = selected.join(",");
+  wtSave(wtCfg);
+  // Refresh chip visuals only (no full UI rebuild)
+  document.querySelectorAll(".wgt-asset-chip").forEach(chip => {
+    chip.classList.toggle("active", selected.includes(chip.dataset.sym));
+  });
+}
+
+// Save button feedback
+function wSaveConfig() {
+  wtSave(wtCfg);
+  const btn = document.querySelector(".wgt-save-btn");
+  if (!btn) return;
+  const orig = btn.textContent;
+  btn.textContent = "Saved ✓";
+  btn.style.opacity = "0.8";
+  setTimeout(() => { btn.textContent = orig; btn.style.opacity = ""; }, 1500);
+}
+
 // ── Sync UI controls to current config ────────────────────────────────────────
 function wtApplyUI() {
-  // Pill selectors
+  // Pill groups
   [
-    ["wt-ccy",  "ccy"],
-    ["wt-chg",  "chg"],
-    ["wt-cols", "cols"],
-    ["wt-fs",   "fontSize"]
+    ["wt-size",    "size"],
+    ["wt-theme",   "theme"],
+    ["wt-refresh", "refresh"],
   ].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.querySelectorAll("button").forEach(b =>
+    el.querySelectorAll(".wgt-pill").forEach(b =>
       b.classList.toggle("active", b.dataset.v === String(wtCfg[key]))
     );
   });
 
   // Toggle checkboxes
   [
-    ["wt-bold",        "bold"],
-    ["wt-showCcy",     "showCcy"],
-    ["wt-showHeader",  "showHeader"],
-    ["wt-autoSort",    "autoSort"],
-    ["wt-showRefresh", "showRefresh"],
-    ["wt-showControls","showControls"]
+    ["wt-showChg",  "showChg"],
+    ["wt-showIcon", "showIcon"],
   ].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el) el.checked = !!wtCfg[key];
   });
+
+  // Asset chips (if already rendered)
+  const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
+  document.querySelectorAll(".wgt-asset-chip").forEach(chip => {
+    chip.classList.toggle("active", selected.includes(chip.dataset.sym));
+  });
 }
 
 // ── Live preview ───────────────────────────────────────────────────────────────
-const WT_RATES = { USD: 1, BRL: 5.70, EUR: 0.92 };
-const WT_SYM   = { USD: "$", BRL: "R$", EUR: "€" };
-const WT_FS    = { sm: "9.5px", md: "11px", lg: "13px" };
-
-function wtFmtPrice(usdP) {
-  const p   = usdP * (WT_RATES[wtCfg.ccy] || 1);
-  const sym = wtCfg.showCcy ? (WT_SYM[wtCfg.ccy] || "") : "";
-  if (p >= 10000) return sym + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (p >= 1)     return sym + p.toFixed(2);
-  return sym + p.toFixed(4);
-}
-
-function wtFmtChg(usdP, pct) {
-  if (wtCfg.chg === "pct") {
-    const s = pct >= 0 ? "+" : "";
-    return { text: s + pct.toFixed(2) + "%", cls: pct > 0 ? "wpc-up" : "wpc-dn" };
-  }
-  const prev = usdP / (1 + pct / 100);
-  const abs  = (usdP - prev) * (WT_RATES[wtCfg.ccy] || 1);
-  const sym  = wtCfg.showCcy ? (WT_SYM[wtCfg.ccy] || "") : "";
-  const s    = abs >= 0 ? "+" : "-";
-  return { text: s + sym + Math.abs(abs).toFixed(2), cls: abs >= 0 ? "wpc-up" : "wpc-dn" };
-}
-
 function wtUpdatePreview() {
-  const fs = WT_FS[wtCfg.fontSize] || "11px";
-  const fw = wtCfg.bold ? "700" : "400";
-  const fwChg = wtCfg.bold ? "700" : "600";
+  const card = document.getElementById("widget-preview-card");
+  if (!card) return;
 
-  // Font / weight on preview rows
-  const rows = document.getElementById("wpc-rows");
-  if (rows) {
-    rows.querySelectorAll(".wpc-ticker, .wpc-price").forEach(el => {
-      el.style.fontSize = fs;
-      el.style.fontWeight = fw;
-    });
-    rows.querySelectorAll(".wpc-chg").forEach(el => {
-      el.style.fontSize = fs;
-      el.style.fontWeight = fwChg;
-    });
-  }
-
-  // Prices & changes
-  const p1 = document.getElementById("wpv-p1");
-  const p2 = document.getElementById("wpv-p2");
-  const c1 = document.getElementById("wpv-c1");
-  const c2 = document.getElementById("wpv-c2");
-  if (p1) p1.textContent = wtFmtPrice(59960);
-  if (p2) p2.textContent = wtFmtPrice(1576);
-  if (c1) { const r = wtFmtChg(59960, 1.15);  c1.textContent = r.text; c1.className = "wpc-chg " + r.cls; }
-  if (c2) { const r = wtFmtChg(1576, -0.03);  c2.textContent = r.text; c2.className = "wpc-chg " + r.cls; }
-
-  // Header visibility
-  const topbar = document.getElementById("wpv-topbar");
-  if (topbar) topbar.style.display = (wtCfg.showHeader || wtCfg.showControls) ? "" : "none";
+  // Theme
+  card.classList.toggle("wpc-light", wtCfg.theme === "light");
 
   // Clock
   const timeEl = document.getElementById("wpc-time");
@@ -144,25 +122,72 @@ function wtUpdatePreview() {
       now.getHours().toString().padStart(2, "0") + ":" +
       now.getMinutes().toString().padStart(2, "0");
   }
+
+  // Show / hide % change column
+  document.querySelectorAll("#wpc-rows .wpc-chg").forEach(el => {
+    el.style.display = wtCfg.showChg ? "" : "none";
+  });
+}
+
+// ── Sanitise a symbol to safe alphanumeric chars only ─────────────────────────
+const WT_SYM_RE = /[^A-Z0-9._\-]/g;
+function wtSanitiseSym(raw) {
+  return String(raw).toUpperCase().replace(WT_SYM_RE, "").slice(0, 20);
+}
+
+// ── Load watchlist assets as selectable chips (DOM-safe, no innerHTML inject) ──
+function wLoadAssets() {
+  const container = document.getElementById("wgt-asset-chips");
+  if (!container) return;
+
+  fetch("/api/assets")
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(data => {
+      const assets = Array.isArray(data) ? data : (data.assets || []);
+      const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
+
+      // Clear container safely
+      while (container.firstChild) container.removeChild(container.firstChild);
+
+      if (!assets.length) {
+        const msg = document.createElement("span");
+        msg.className = "wgt-asset-empty";
+        msg.textContent = "No assets in Watchlist yet";
+        container.appendChild(msg);
+        return;
+      }
+
+      assets.forEach(a => {
+        const sym = wtSanitiseSym(a.symbol || a.ticker || a.id || String(a));
+        if (!sym) return;
+        const btn = document.createElement("button");
+        btn.className = "wgt-asset-chip" + (selected.includes(sym) ? " active" : "");
+        btn.dataset.sym = sym;
+        btn.textContent = sym;
+        btn.addEventListener("click", () => wToggleAsset(sym));
+        container.appendChild(btn);
+      });
+    })
+    .catch(() => {
+      while (container.firstChild) container.removeChild(container.firstChild);
+      const msg = document.createElement("span");
+      msg.className = "wgt-asset-empty";
+      msg.textContent = "Could not load assets";
+      container.appendChild(msg);
+    });
 }
 
 // ── Backwards-compat aliases (guard against SW-cached old HTML) ───────────────
 function widgetUpdatePreview() { wtUpdatePreview(); }
-function widgetSaveConfig()    { /* settings are saved immediately on change */ }
+function widgetSaveConfig()    { wSaveConfig(); }
 
 // ── Entry point called by switchTab('widget') in trade.js ─────────────────────
 function widgetOnEnter() {
   wtCfg = wtLoad();
   wtApplyUI();
   wtUpdatePreview();
-
-  // Fetch real exchange rates so the preview reflects current BRL/EUR values
-  fetch("/api/rates")
-    .then(r => r.json())
-    .then(d => {
-      if (d.BRL) WT_RATES.BRL = d.BRL;
-      if (d.EUR) WT_RATES.EUR = d.EUR;
-      wtUpdatePreview();
-    })
-    .catch(() => {});
+  wLoadAssets();
 }
