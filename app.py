@@ -1916,21 +1916,19 @@ def _parse_token_amount(amount_raw, decimals):
     a human-readable decimal value.
 
     Jumper can return amounts as:
-      - A large integer string  ("6669014962512595915") → raw on-chain units
-      - A decimal string        ("101.13")              → already human-readable
-      - A Python float          (1.5)                   → already human-readable
-      - A Python int            (1000000)               → ambiguous; treat as
-                                                          raw on-chain units only
-                                                          when value > 10^8 to
-                                                          avoid misreading small
-                                                          human-readable integers
-    The previous implementation called int() on float values without checking,
-    silently truncating 1.5 → 1 and then dividing by 10^decimals, producing
-    near-zero balances for tokens whose amount came back as a JSON number.
+      - A large integer string  ("6669014962512595915") → raw on-chain units → divide by 10^decimals
+      - A decimal string        ("101.13")              → already human-readable → return as float
+      - A Python float          (1.5)                   → already human-readable → return as-is
+      - A Python int            (1000000)               → raw on-chain units    → divide by 10^decimals
+
+    The original implementation called int() on Python floats without type-checking,
+    silently truncating 1.5 → 1 then dividing by 10^decimals, producing near-zero
+    balances for tokens whose JSON amount came back as a decimal number.
+    The fix is to check for float/decimal-point first before treating as raw units.
     """
     if amount_raw is None:
         return 0.0
-    # Already a Python float → human-readable, return as-is
+    # Already a Python float (JSON number with decimal point) → human-readable
     if isinstance(amount_raw, float):
         return amount_raw
     try:
@@ -1938,16 +1936,9 @@ def _parse_token_amount(amount_raw, decimals):
         # String contains a decimal point → already human-readable
         if '.' in s:
             return float(s)
-        # Pure integer string
+        # Pure integer string or Python int → raw on-chain units
         raw = int(s)
-        dec = int(decimals)
-        divisor = 10 ** dec
-        # Heuristic: if the raw value is not large enough to be on-chain units
-        # (i.e. raw < 10^4 for any decimals ≥ 6, or raw < divisor/1000),
-        # treat it as already human-readable to avoid dividing small counts.
-        if dec >= 1 and raw < max(10_000, divisor // 1_000):
-            return float(raw)
-        return raw / divisor
+        return raw / (10 ** int(decimals))
     except (ValueError, TypeError):
         return 0.0
 
@@ -2011,6 +2002,10 @@ def _jumper_parse_positions(data):
         positions), so entries are deduped by (address, chain, amount) —
         a true synonym duplicate always has an identical amount for the same
         instrument, while two genuinely distinct tokens/amounts are both kept.
+
+        jumper_usd is preserved on each token so _apply_live_prices can use
+        it as a sanity ceiling when live-price × balance would produce a wildly
+        inflated result (e.g. receipt tokens returned with decimals=0).
         """
         out  = []
         seen = set()
@@ -2029,13 +2024,14 @@ def _jumper_parse_positions(data):
                 bal       = _parse_token_amount(amount, t.get("decimals", 18))
                 price_usd = (amt_usd / bal) if bal > 0 else 0.0
                 out.append({
-                    "symbol":    t.get("symbol", ""),
-                    "balance":   bal,
-                    "price_usd": price_usd,
-                    "value_usd": amt_usd,
-                    "logo":      t.get("logo", ""),
-                    "address":   addr,
-                    "network":   chain_key,
+                    "symbol":     t.get("symbol", ""),
+                    "balance":    bal,
+                    "price_usd":  price_usd,
+                    "value_usd":  amt_usd,
+                    "jumper_usd": amt_usd,   # authoritative reference for sanity checks
+                    "logo":       t.get("logo", ""),
+                    "address":    addr,
+                    "network":    chain_key,
                 })
         return out
 
@@ -2057,6 +2053,7 @@ def _jumper_parse_positions(data):
             "asset_usd":     float(p.get("assetUsd", 0) or 0),
             "debt_usd":      float(p.get("debtUsd",  0) or 0),
             "net_usd":       net_usd,
+            "jumper_net_usd": net_usd,  # Jumper's original — sanity ceiling for _apply_live_prices
             # supplyTokens + assetTokens + collateralTokens all represent
             # assets deployed in this position (different protocols use different keys)
             "supply_tokens": _tok_list(p, "supplyTokens", "assetTokens", "collateralTokens"),
@@ -2104,6 +2101,13 @@ def _apply_live_prices(tokens, defi, perps):
     amountUSD. Jumper is still used for quantities (balance) and discovery;
     only the pricing math is redone here. Falls back to the Jumper-provided
     value when a live price can't be found for a symbol.
+
+    Sanity check: some DeFi position tokens come from Jumper with decimals=0
+    (receipt/share tokens), so the parsed balance is the raw on-chain integer —
+    multiplying it by a live market price produces a wildly inflated value_usd.
+    When the live-repriced value exceeds Jumper's own amountUSD by more than
+    100×, we correct the balance back to jumper_usd / live_price so both the
+    displayed quantity and total are coherent.
     """
     symbols = {t.get("symbol", "") for t in tokens}
     for row in defi + perps:
@@ -2112,25 +2116,44 @@ def _apply_live_prices(tokens, defi, perps):
 
     price_map = _collect_live_prices(symbols)
 
-    def _reprice(t):
-        sym = t.get("symbol", "").strip().upper()
+    def _reprice(t, use_jumper_ceiling=False):
+        sym   = t.get("symbol", "").strip().upper()
         price = price_map.get(sym)
         if price is not None and t.get("balance", 0) > 0:
-            t["price_usd"] = price
-            t["value_usd"] = t["balance"] * price
+            live_value = t["balance"] * price
+            jumper_usd = t.get("jumper_usd") if use_jumper_ceiling else None
+            if jumper_usd and jumper_usd > 0 and live_value > jumper_usd * 100:
+                # Balance is inflated (likely decimals=0 receipt token).
+                # Correct it: set balance = what Jumper says the USD value is / price.
+                corrected_balance = jumper_usd / price
+                t["balance"]   = corrected_balance
+                t["price_usd"] = price
+                t["value_usd"] = jumper_usd
+            else:
+                t["price_usd"] = price
+                t["value_usd"] = live_value
         return t
 
     for t in tokens:
-        _reprice(t)
+        _reprice(t, use_jumper_ceiling=False)  # wallet tokens: no receipt-token issue
 
     for row in defi + perps:
+        jumper_net = row.get("jumper_net_usd", 0)
         for key in ("supply_tokens", "reward_tokens", "borrow_tokens"):
-            row[key] = [_reprice(t) for t in row.get(key, [])]
+            row[key] = [_reprice(t, use_jumper_ceiling=True) for t in row.get(key, [])]
         asset_usd = sum(t["value_usd"] for t in row["supply_tokens"] + row["reward_tokens"])
         debt_usd  = sum(t["value_usd"] for t in row["borrow_tokens"])
-        row["asset_usd"] = asset_usd
-        row["debt_usd"]  = debt_usd
-        row["net_usd"]   = asset_usd - debt_usd
+        computed_net = asset_usd - debt_usd
+        # If recomputed net is still >100× Jumper's original, the token list
+        # doesn't fully represent the position — trust Jumper's figure instead.
+        if jumper_net and abs(jumper_net) > 0 and abs(computed_net) > abs(jumper_net) * 100:
+            row["asset_usd"] = float(row.get("asset_usd", asset_usd))
+            row["debt_usd"]  = float(row.get("debt_usd",  debt_usd))
+            row["net_usd"]   = jumper_net
+        else:
+            row["asset_usd"] = asset_usd
+            row["debt_usd"]  = debt_usd
+            row["net_usd"]   = computed_net
 
     tokens.sort(key=lambda x: x["value_usd"], reverse=True)
     defi.sort(key=lambda x: x["net_usd"], reverse=True)
