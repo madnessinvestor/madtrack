@@ -190,11 +190,15 @@ const TRANSLATIONS = {
     wgt_save:         "Salvar configuração",
     wgt_save_hint:    "Adicione o app à tela inicial como PWA para ativar o widget",
     // settings panel
-    set_title:    "Configurações",
-    set_label:    "Config",
-    set_lang:     "Idioma",
-    set_theme:    "Tema",
-    set_currency: "Moeda",
+    set_title:       "Configurações",
+    set_label:       "Config",
+    set_lang:        "Idioma",
+    set_theme:       "Tema",
+    set_currency:    "Moeda",
+    set_network:     "Redes",
+    set_net_mainnet: "Mainnet",
+    set_net_testnet: "Testnet",
+    set_net_both:    "Ambas",
   },
   en: {
     btn_add:          "Add",
@@ -385,11 +389,15 @@ const TRANSLATIONS = {
     wgt_save:         "Save configuration",
     wgt_save_hint:    "Add the app to your home screen as a PWA to activate the widget",
     // settings panel
-    set_title:    "Settings",
-    set_label:    "Settings",
-    set_lang:     "Language",
-    set_theme:    "Theme",
-    set_currency: "Currency",
+    set_title:       "Settings",
+    set_label:       "Settings",
+    set_lang:        "Language",
+    set_theme:       "Theme",
+    set_currency:    "Currency",
+    set_network:     "Networks",
+    set_net_mainnet: "Mainnet",
+    set_net_testnet: "Testnet",
+    set_net_both:    "Both",
   }
 };
 

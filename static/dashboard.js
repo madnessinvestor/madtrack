@@ -8,6 +8,24 @@ const dashManualExpanded = new Set();
 const dashActiveTab  = {};
 const tokGroupExpanded = new Set();
 
+// ── Network filter (mainnet | testnet | both) ──────────────────────────────────
+let networkFilter = localStorage.getItem("networkFilter") || "mainnet";
+
+function setNetworkFilter(val) {
+  networkFilter = val;
+  localStorage.setItem("networkFilter", val);
+  document.querySelectorAll(".net-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.net === val)
+  );
+  if (dashLoaded) renderDashboard();
+}
+
+function applyNetworkFilterUI() {
+  document.querySelectorAll(".net-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.net === networkFilter)
+  );
+}
+
 const CHAIN_META = {
   // Jumper chain keys
   eth:        { name: "Ethereum",   color: "#627eea", id: 1 },
@@ -261,11 +279,20 @@ function safeAddr(addr) { return (addr || "").replace(/'/g, "\\'"); }
 // ── Wallet card ────────────────────────────────────────────────────────────────
 
 function walletCardHtml(w) {
-  const tokens        = w.tokens         || [];
-  const defi          = w.defi           || [];
-  const perps         = w.perps          || [];
-  const testnetTokens = w.testnet_tokens || [];
+  const allMainnetTokens = w.tokens         || [];
+  const allDefi          = w.defi           || [];
+  const allPerps         = w.perps          || [];
+  const allTestnetTokens = w.testnet_tokens || [];
   const netType  = w.network_type || "evm";
+
+  // Apply network filter
+  const showMainnet = (networkFilter !== "testnet");
+  const showTestnet = (networkFilter !== "mainnet");
+
+  const tokens        = showMainnet ? allMainnetTokens : [];
+  const defi          = showMainnet ? allDefi          : [];
+  const perps         = showMainnet ? allPerps         : [];
+  const testnetTokens = showTestnet ? allTestnetTokens : [];
 
   // Bitcoin and "other" only show Tokens tab
   const hasDeFiTabs = (netType === "evm" || netType === "solana");
@@ -994,6 +1021,7 @@ function startDashAutoRefresh() {
 }
 
 startDashAutoRefresh();
+applyNetworkFilterUI();
 
 function showDashError(address, msg) {
   const card = document.getElementById(`dwc-${address}`);
