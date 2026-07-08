@@ -100,6 +100,20 @@ function renderDashboard() {
   const el = document.getElementById("dash-content");
   if (!el) return;
 
+  // Sync open/closed state from the live DOM before wiping innerHTML.
+  // This prevents concurrent loadDashboard() calls (e.g. the 3-min timer
+  // refreshing all wallets simultaneously) from racing against each other
+  // and silently opening cards the user never touched.
+  for (const w of dashWallets) {
+    const body = document.getElementById(`dwc-body-${w.address}`);
+    if (!body) continue;                          // first render — nothing to sync
+    if (body.style.display === "none") {
+      dashExpanded.delete(w.address);             // card is closed in DOM → keep closed
+    } else {
+      dashExpanded.add(w.address);               // card is open in DOM  → keep open
+    }
+  }
+
   const totalWalletUsd = dashWallets.reduce((s, w) => {
     const tok   = (w.tokens || []).reduce((ts, t) => ts + (t.value_usd || 0), 0);
     const dfi   = (w.defi   || []).reduce((ts, d) => ts + (d.net_usd   || 0), 0);
