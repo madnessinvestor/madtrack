@@ -1883,8 +1883,30 @@ def _save_json_file(path, data):
                 pass
             raise
 
+def _reclassify_wallet_testnets(wallets):
+    """Ensure tokens with testnet chain keys are in testnet_tokens, not tokens.
+    Runs on every load so stale JSON never silently mixes testnet into mainnet."""
+    dirty = False
+    for w in wallets:
+        mainnet = w.get("tokens", [])
+        testnet = w.get("testnet_tokens", [])
+        new_main, new_test = [], list(testnet)
+        for tok in mainnet:
+            if _is_testnet_chain(tok.get("network", "")):
+                new_test.append(tok)
+                dirty = True
+            else:
+                new_main.append(tok)
+        w["tokens"] = new_main
+        w["testnet_tokens"] = new_test
+    return wallets, dirty
+
 def load_dash_wallets():
-    return _load_json_file(DASH_WALLETS_FILE)
+    wallets = _load_json_file(DASH_WALLETS_FILE)
+    wallets, dirty = _reclassify_wallet_testnets(wallets)
+    if dirty:
+        _save_json_file(DASH_WALLETS_FILE, wallets)
+    return wallets
 
 def save_dash_wallets(data):
     _save_json_file(DASH_WALLETS_FILE, data)
