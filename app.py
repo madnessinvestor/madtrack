@@ -7,6 +7,21 @@ _icon_cache  = {}
 _mcap_cache  = {}
 MCAP_TTL     = 600
 
+# ── Global price cache ────────────────────────────────────────────────────────
+# Shared across ALL price-fetching paths (watchlist, portfolio/trade, wallet
+# dashboard, price-lookup).  A single API round-trip per symbol per TTL window
+# is made; every other caller that needs the same symbol within that window
+# gets the cached result instantly.
+#
+# Thundering-herd guard: if a fetch is already in flight for a symbol, callers
+# wait on the same Event instead of launching duplicate requests.
+_price_cache        = {}   # sym (upper) -> (result_dict, timestamp)
+_price_cache_lock   = threading.Lock()
+PRICE_CACHE_TTL     = 60   # seconds — short enough to stay fresh, long enough to share
+
+_price_inflight      = {}  # sym -> threading.Event
+_price_inflight_lock = threading.Lock()
+
 # Symbol autocomplete cache: list of {symbol, name, exchange}
 _search_cache = []
 _search_lock  = threading.Lock()
@@ -406,7 +421,9 @@ APIS = [
     api_brapi
 ]
 
-def fetch_price(symbol):
+def _fetch_price_raw(symbol):
+    """Hit the external APIs and return a merged price dict.  No caching here —
+    use fetch_price() for the cached wrapper."""
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(APIS)) as ex:
         futures = {ex.submit(fn, symbol): fn for fn in APIS}
@@ -444,6 +461,53 @@ def fetch_price(symbol):
         primary["market_cap"] = _mcap_get(symbol)
 
     return primary
+
+
+def fetch_price(symbol):
+    """Cached wrapper around _fetch_price_raw.
+
+    • First call for a symbol within PRICE_CACHE_TTL seconds hits the APIs once.
+    • Every concurrent or subsequent call for the same symbol within that window
+      receives the cached result — no duplicate network round-trips.
+    • Thundering-herd guard: if a fetch is already in-flight, new callers wait
+      on the same threading.Event instead of spawning parallel requests.
+    """
+    sym = symbol.strip().upper()
+    now = time.time()
+
+    # Fast path: valid cache hit
+    with _price_cache_lock:
+        entry = _price_cache.get(sym)
+        if entry and now - entry[1] < PRICE_CACHE_TTL:
+            return entry[0]
+
+    # Thundering-herd guard — one fetch per symbol at a time
+    with _price_inflight_lock:
+        if sym in _price_inflight:
+            event = _price_inflight[sym]
+            is_leader = False
+        else:
+            event = threading.Event()
+            _price_inflight[sym] = event
+            is_leader = True
+
+    if not is_leader:
+        # Wait for the in-flight fetch (up to PRICE_CACHE_TTL seconds)
+        event.wait(timeout=PRICE_CACHE_TTL)
+        with _price_cache_lock:
+            entry = _price_cache.get(sym)
+            return entry[0] if entry else None
+
+    # This thread is the leader — fetch from APIs
+    try:
+        result = _fetch_price_raw(sym)
+        with _price_cache_lock:
+            _price_cache[sym] = (result, time.time())
+        return result
+    finally:
+        with _price_inflight_lock:
+            _price_inflight.pop(sym, None)
+        event.set()  # wake up any waiters
 
 # ─── Portfolio (Trade) ────────────────────────────────────────────────────────
 
