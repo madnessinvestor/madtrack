@@ -1,46 +1,38 @@
 # MadTracker
 
-A privacy-first asset tracker PWA for Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs.
+A privacy-first asset tracker for Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs. Built with Flask (Python) and Vanilla JavaScript as a Progressive Web App (PWA).
 
 ## Stack
 
-- **Backend:** Python 3 / Flask (`app.py`)
-- **Frontend:** Vanilla JavaScript PWA (no framework)
-- **Data:** `assets.json` (watchlist), `alerts.json` (price alerts), `portfolio.json` (trades)
-- **Templates:** Jinja2 (`templates/`)
-- **Static assets:** `static/` (JS, CSS, icons, service worker)
+- **Backend**: Python 3.12 + Flask
+- **Frontend**: Vanilla JS, PWA (service worker, manifest)
+- **Data**: No database — assets stored in `assets.json` (local file), prices fetched live from public APIs
 
-## How to run
+## How to Run
 
+The `Start application` workflow runs:
 ```
 python3 app.py
 ```
+This starts a Flask dev server on port 5000.
 
-Serves on port 5000. The workflow "Start application" handles this automatically.
+## Project Structure
 
-## Key features
+- `app.py` — Flask backend; all price-fetching logic (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare, B3, US stocks, Forex)
+- `templates/` — Jinja2 HTML templates (`index.html`, `widget.html`, `widget_settings.html`)
+- `static/` — JS modules (`app.js`, `dashboard.js`, `trade.js`, `madai.js`, `widget.js`, `alerts.js`, `i18n.js`), CSS, PWA manifest & service worker
+- `assets.json` — persisted watchlist (auto-created)
+- `alerts.json` — persisted price alerts (auto-created)
 
-- Multi-source crypto price aggregation (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare)
-- Brazilian (B3) and US stock tracking
-- Forex pair monitoring
-- Multi-currency display (BRL, USD, EUR)
-- Watchlist, portfolio/trade tracking, price alerts
-- AI assistant ("Mad AI") for portfolio analysis
-- Home-screen widget support
-- PWA (installable, service worker)
+## Deployment
 
-## External APIs used
+Uses gunicorn:
+```
+gunicorn --bind=0.0.0.0:5000 --reuse-port app:app
+```
 
-- Multiple public crypto exchange APIs (no keys required for most)
-- CoinGecko, CoinCap, CryptoCompare (public endpoints)
-- B3/US stock data via public market data providers
-- Jumper.xyz portfolio API
+## No Secrets Required
 
-## Notes
+All price data comes from public APIs — no API keys needed to run the app.
 
-- No database — all data stored in local JSON files (`assets.json`, `alerts.json`, `portfolio.json`)
-- No authentication required
-- The "Mad AI" feature may require an AI API key (check `app.py` around the `/api/madai` route)
-
-## User preferences
-
+## User Preferences
