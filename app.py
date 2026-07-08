@@ -1,5 +1,5 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, uuid, urllib.request, concurrent.futures, time, threading, time as _time
+import json, os, uuid, urllib.request, urllib.error, concurrent.futures, time, threading, time as _time
 
 app = Flask(__name__)
 DATA_FILE = "assets.json"
@@ -49,10 +49,19 @@ def save_assets(assets):
         json.dump(assets, f)
 
 def http_get(url, timeout=5):
+    req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0"})
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            time.sleep(1.5)   # back off 1.5 s and retry once on rate-limit
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    return json.loads(r.read().decode())
+            except Exception:
+                return None
+        return None
     except Exception:
         return None
 
@@ -519,8 +528,12 @@ def fetch_price(symbol):
     # This thread is the leader — fetch from APIs
     try:
         result = _fetch_price_raw(sym)
-        with _price_cache_lock:
-            _price_cache[sym] = (result, time.time())
+        # Only cache successful results. A None (rate-limited / not found) must
+        # NOT be cached — otherwise every caller for the next 60 s gets None
+        # without any API being retried.
+        if result:
+            with _price_cache_lock:
+                _price_cache[sym] = (result, time.time())
         return result
     finally:
         with _price_inflight_lock:
