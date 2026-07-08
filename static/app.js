@@ -157,7 +157,7 @@ function showRefreshToast() {
   const ddmm = `${now.getDate().toString().padStart(2,"0")}/${(now.getMonth()+1).toString().padStart(2,"0")}`;
   const el   = document.getElementById("refresh-toast");
   if (!el) return;
-  el.textContent = `Atualizado às ${hhmm} · ${ddmm}`;
+  el.textContent = `${t("refreshed_at")} ${hhmm} · ${ddmm}`;
   el.classList.remove("show");
   void el.offsetWidth;
   el.classList.add("show");
