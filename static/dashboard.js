@@ -257,9 +257,10 @@ function safeAddr(addr) { return (addr || "").replace(/'/g, "\\'"); }
 // ── Wallet card ────────────────────────────────────────────────────────────────
 
 function walletCardHtml(w) {
-  const tokens   = w.tokens  || [];
-  const defi     = w.defi    || [];
-  const perps    = w.perps   || [];
+  const tokens        = w.tokens         || [];
+  const defi          = w.defi           || [];
+  const perps         = w.perps          || [];
+  const testnetTokens = w.testnet_tokens || [];
   const netType  = w.network_type || "evm";
 
   // Bitcoin and "other" only show Tokens tab
@@ -268,6 +269,7 @@ function walletCardHtml(w) {
   const tokUsd   = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
   const defiUsd  = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
   const perpsUsd = perps.reduce((s, p)  => s + (p.net_usd   || 0), 0);
+  // Testnet value intentionally excluded from totalUsd
   const totalUsd = tokUsd + defiUsd + perpsUsd;
 
   const label    = w.label || shortAddr(w.address);
@@ -305,20 +307,26 @@ function walletCardHtml(w) {
       <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${addrSafe}')">${t("dash_load_btn")}</button>
     </div>`;
   } else {
-    const tabs = hasDeFiTabs ? [
+    const baseTabs = hasDeFiTabs ? [
       { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
       { id: "defi",   label: t("dash_tab_defi"),   count: defi.length,   usd: defiUsd },
       { id: "perps",  label: t("dash_tab_perps"),  count: perps.length,  usd: perpsUsd },
     ] : [
       { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
     ];
+    const tabs = testnetTokens.length > 0
+      ? [...baseTabs, { id: "testnet", label: t("dash_tab_testnet"), count: testnetTokens.length, usd: null }]
+      : baseTabs;
 
     html += `<div class="dwc-tabbar" id="dwc-tabbar-${w.address}">`;
     for (const tab of tabs) {
       const active = activeTab === tab.id ? " active" : "";
+      const badge  = tab.id === "testnet"
+        ? `<span class="dwc-tab-badge testnet-badge">${tab.count}</span>`
+        : `<span class="dwc-tab-badge">${tab.count > 0 ? tab.count + " · " + fmtDashUsd(tab.usd) : "—"}</span>`;
       html += `<button class="dwc-tab${active}" onclick="switchWalletTab('${addrSafe}','${tab.id}',this)">
         ${tab.label}
-        <span class="dwc-tab-badge">${tab.count > 0 ? tab.count + " · " + fmtDashUsd(tab.usd) : "—"}</span>
+        ${badge}
       </button>`;
     }
     html += `</div>`;
@@ -351,6 +359,14 @@ function walletCardHtml(w) {
       }
       html += `</div>`;
     }
+
+    // Testnet tab (only rendered when testnet tokens exist)
+    if (testnetTokens.length > 0) {
+      html += `<div class="dwc-tab-pane" id="dwc-pane-testnet-${w.address}" style="${activeTab === 'testnet' ? '' : 'display:none'}">`;
+      html += `<div class="testnet-notice">${t("dash_testnet_notice")}</div>`;
+      html += tokensGroupedHtml(testnetTokens, w.address + "-testnet");
+      html += `</div>`;
+    }
   }
 
   html += `</div></div>`;
@@ -373,7 +389,7 @@ document.addEventListener("click", e => {
 }, true);
 
 function switchWalletTab(address, tab, btn) {
-  ["tokens","defi","perps"].forEach(t => {
+  ["tokens","defi","perps","testnet"].forEach(t => {
     const pane = document.getElementById(`dwc-pane-${t}-${address}`);
     if (pane) pane.style.display = (t === tab) ? "" : "none";
   });

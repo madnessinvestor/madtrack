@@ -1914,20 +1914,33 @@ def _parse_token_amount(amount_raw, decimals):
     except (ValueError, TypeError):
         return 0.0
 
+# Chain-key substrings that indicate a testnet (case-insensitive match)
+_TESTNET_CHAIN_PATTERNS = ("sep", "goer", "testnet", "mumbai", "fuji", "chapel",
+                           "ropsten", "rinkeby", "kovan", "holesky")
+
+def _is_testnet_chain(chain_key: str) -> bool:
+    ck = chain_key.lower()
+    return any(p in ck for p in _TESTNET_CHAIN_PATTERNS)
+
 def _jumper_parse_tokens(balances):
     """Parse Jumper /tokens balances into our token list format.
     Uses amountUSD as the authoritative USD value; balance is display-only.
-    Skips only tokens where both balance AND amountUSD are effectively zero.
+    Skips tokens where amountUSD < 1.0.
+    Returns (mainnet_tokens, testnet_tokens) — testnet tokens are separated so
+    they can be displayed in a dedicated tab and excluded from the wallet total.
     """
-    tokens = []
+    mainnet, testnet = [], []
     for b in balances:
         val = float(b.get("amountUSD", 0) or 0)
-        if val < 1.0:
-            continue
         bal = _parse_token_amount(b.get("amount", "0"), b.get("decimals", 18))
-        price_usd = (val / bal) if bal > 0 else 0.0
         chain_key = (b.get("chain") or {}).get("chainKey", "")
-        tokens.append({
+        is_test = _is_testnet_chain(chain_key)
+        # Always keep testnet tokens (even <$1) so the user can see them;
+        # only skip mainnet tokens below $1 threshold
+        if not is_test and val < 1.0:
+            continue
+        price_usd = (val / bal) if bal > 0 else 0.0
+        entry = {
             "symbol":     b.get("symbol", ""),
             "name":       b.get("name", ""),
             "network":    chain_key,
@@ -1937,9 +1950,14 @@ def _jumper_parse_tokens(balances):
             "value_usd":  val,
             "thumbnail":  b.get("logo", ""),
             "contract":   b.get("address", "").lower(),
-        })
-    tokens.sort(key=lambda x: x["value_usd"], reverse=True)
-    return tokens
+        }
+        if is_test:
+            testnet.append(entry)
+        else:
+            mainnet.append(entry)
+    mainnet.sort(key=lambda x: x["value_usd"], reverse=True)
+    testnet.sort(key=lambda x: x["symbol"])
+    return mainnet, testnet
 
 def _jumper_parse_positions(data):
     """Parse Jumper /positions data into defi + perps lists.
@@ -2047,28 +2065,31 @@ def _dedup_tokens(tokens, defi, perps):
         deduped.append(tok)
     return deduped
 
-def _save_wallet_result(wallets, address, tokens, defi, perps):
+def _save_wallet_result(wallets, address, tokens, defi, perps, testnet_tokens=None):
     from datetime import datetime
     for w in wallets:
         if w["address"] == address:
-            w["tokens"]       = tokens
-            w["defi"]         = defi
-            w["perps"]        = perps
-            w["last_updated"] = datetime.utcnow().isoformat()
+            w["tokens"]          = tokens
+            w["defi"]            = defi
+            w["perps"]           = perps
+            w["testnet_tokens"]  = testnet_tokens or []
+            w["last_updated"]    = datetime.utcnow().isoformat()
             break
     save_dash_wallets(wallets)
 
 def _refresh_evm(wallet, wallets, address):
     errors = []
     # Keep old data as fallback so a failed API call never wipes the cache
-    old_tokens = wallet.get("tokens", [])
-    old_defi   = wallet.get("defi",   [])
-    old_perps  = wallet.get("perps",  [])
+    old_tokens  = wallet.get("tokens", [])
+    old_defi    = wallet.get("defi",   [])
+    old_perps   = wallet.get("perps",  [])
+    old_testnet = wallet.get("testnet_tokens", [])
     tok_ok = pos_ok = False
+    testnet_tokens = old_testnet
     params = f"evm={address}"
     try:
         result = _jumper_get("tokens", params)
-        tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
+        tokens, testnet_tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
         tok_ok = True
     except Exception as ex:
         tokens = old_tokens
@@ -2082,20 +2103,22 @@ def _refresh_evm(wallet, wallets, address):
         errors.append(f"positions: {ex}")
     if tok_ok:
         tokens = _dedup_tokens(tokens, defi if pos_ok else [], perps if pos_ok else [])
-    _save_wallet_result(wallets, address, tokens, defi, perps)
+    _save_wallet_result(wallets, address, tokens, defi, perps, testnet_tokens)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
-                    "perps": len(perps), "errors": errors})
+                    "perps": len(perps), "testnet": len(testnet_tokens), "errors": errors})
 
 def _refresh_solana(wallet, wallets, address):
     errors = []
-    old_tokens = wallet.get("tokens", [])
-    old_defi   = wallet.get("defi",   [])
-    old_perps  = wallet.get("perps",  [])
+    old_tokens  = wallet.get("tokens", [])
+    old_defi    = wallet.get("defi",   [])
+    old_perps   = wallet.get("perps",  [])
+    old_testnet = wallet.get("testnet_tokens", [])
     tok_ok = pos_ok = False
+    testnet_tokens = old_testnet
     params = f"svm={address}"
     try:
         result = _jumper_get("tokens", params)
-        tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
+        tokens, testnet_tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
         tok_ok = True
     except Exception as ex:
         tokens = old_tokens
@@ -2109,9 +2132,9 @@ def _refresh_solana(wallet, wallets, address):
         errors.append(f"positions: {ex}")
     if tok_ok:
         tokens = _dedup_tokens(tokens, defi if pos_ok else [], perps if pos_ok else [])
-    _save_wallet_result(wallets, address, tokens, defi, perps)
+    _save_wallet_result(wallets, address, tokens, defi, perps, testnet_tokens)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
-                    "perps": len(perps), "errors": errors})
+                    "perps": len(perps), "testnet": len(testnet_tokens), "errors": errors})
 
 def _get_btc_price_usd():
     """Fetch current BTC price in USD from public APIs."""
