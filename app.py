@@ -1418,6 +1418,15 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
     addr_syms_in  = {}  # addr -> set of symbols received
     addr_syms_out = {}  # addr -> set of symbols sent
 
+    # Track wrapped-native burned (sent to 0x0 or 0xdead) — signals native ETH/BNB/etc
+    # was unwrapped and sent to a recipient as native.  Used for "stable → native" swaps
+    # where the output does NOT appear as an ERC-20 Transfer to the user.
+    _BURN_ADDRS = {
+        "0x0000000000000000000000000000000000000000",
+        "0x000000000000000000000000000000000000dead",
+    }
+    wrapped_native_burned = 0.0   # total across all burn events in this tx
+
     for t in transfers:
         tok  = t.get("token") or {}
         sym  = tok.get("symbol", "").upper()
@@ -1433,6 +1442,10 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         to_a   = ((t.get("to")   or {}).get("hash") or "").lower()
         is_stable[sym]  = sym in _STABLECOINS
         is_wrapped[sym] = sym in _WRAPPED_NATIVE
+
+        # Accumulate burned wrapped-native (WETH→ETH unwrap events)
+        if is_wrapped[sym] and to_a in _BURN_ADDRS:
+            wrapped_native_burned += amount
 
         if to_a:
             addr_delta.setdefault(to_a, {})[sym] = addr_delta.get(to_a, {}).get(sym, 0) + amount
@@ -1505,6 +1518,30 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
             if best_stable_swap is None or score > best_stable_swap[0]:
                 best_stable_swap = (score, addr, recv_sym, recv_qty, sent_qty)
 
+    # --- Step 2b: stable → native ETH/BNB/HYPE buy detection ---
+    # Handles swaps like USDC → ETH where the output is native coin (not ERC-20).
+    # The aggregator/router unwraps WETH internally and sends ETH via a native transfer,
+    # so no ERC-20 Transfer ever reaches the user's address.
+    # Signal: wrapped-native was burned (sent to 0x0/0xdead) AND the user's address
+    # only sent stables (neg_stable) and received nothing as ERC-20.
+    # We override best_buyer with a dominant score so this wins over any unrelated
+    # pool leg that happened to match a different pattern in the same tx.
+    if wrapped_native_burned > 0:
+        _native_candidates = (list(known_wallets) if known_wallets else []) + [tx_from]
+        for _cand in _native_candidates:
+            _cd  = addr_delta.get(_cand, {})
+            _neg = [(s, -d) for s, d in _cd.items() if d < 0 and is_stable.get(s)]
+            _pos = any(d > 0 for d in _cd.values())
+            if _neg and not _pos:
+                _stable_spent = sum(v for _, v in _neg)
+                # native_sym is the chain's coin (ETH, BNB, HYPE…); it is NOT in
+                # _WRAPPED_NATIVE so buyer_buys_wrapped stays False → use_buyer = True
+                best_buyer = (
+                    _stable_spent + 1e12,   # dominant: always beats unrelated legs
+                    _cand, native_sym, wrapped_native_burned, _stable_spent,
+                )
+                break
+
     # --- Step 3: build result from the best match ---
     # Priority: buy > sell > stable-swap
     # Exception: if best_buyer is only buying a *wrapped native* token (WHYPE, WETH…)
@@ -1563,6 +1600,27 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         result["qty"]       = round(native_val, 10)
         result["total_usd"] = None
         return result
+
+    # --- Step 5: stable → native ETH/BNB/HYPE fallback ---
+    # Handles swaps like USDC → ETH where the output is native (not ERC-20).
+    # The router unwraps WETH internally and sends ETH via a native transfer,
+    # so no ERC-20 Transfer reaches the user's address.
+    # Detection: user spent stables + received zero ERC-20 + WETH was burned in tx.
+    if wrapped_native_burned > 0:
+        # Prefer known wallet; fall back to tx_from
+        candidates = list(known_wallets) + [tx_from]
+        for cand in candidates:
+            cand_delta = addr_delta.get(cand, {})
+            neg_st = [(s, -d) for s, d in cand_delta.items() if d < 0 and is_stable.get(s)]
+            any_pos = any(d > 0 for d in cand_delta.values())
+            if neg_st and not any_pos:
+                # This address only sent stables and received nothing as ERC-20
+                # → they must have received native token
+                stable_spent = sum(v for _, v in neg_st)
+                result["ticker"]    = native_sym
+                result["qty"]       = round(wrapped_native_burned, 10)
+                result["total_usd"] = round(stable_spent, 6)
+                return result
 
     result["error"] = "swap_complex"
     return result
