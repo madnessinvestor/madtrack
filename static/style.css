@@ -366,7 +366,7 @@ h1 {
 .btn-fab {
   position: fixed;
   bottom: 88px;
-  right: 20px;
+  right: max(20px, calc((100vw - 480px) / 2 + 20px));
   width: 58px;
   height: 58px;
   border-radius: 50%;
