@@ -176,6 +176,12 @@ async function loadAssets() {
     const now = new Date();
     if (luTime) luTime.textContent = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
     if (luDate) luDate.textContent = `${now.getDate().toString().padStart(2,"0")}/${(now.getMonth()+1).toString().padStart(2,"0")}`;
+    const wrap = document.getElementById("last-update-wrap");
+    if (wrap) {
+      wrap.classList.remove("show");
+      void wrap.offsetWidth; // reflow to restart animation
+      wrap.classList.add("show");
+    }
   } catch {
     list.innerHTML = `<div class="empty-state"><p>${t("error_load")}</p></div>`;
   }
