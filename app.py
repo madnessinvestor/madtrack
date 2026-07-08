@@ -2060,40 +2060,55 @@ def _save_wallet_result(wallets, address, tokens, defi, perps):
 
 def _refresh_evm(wallet, wallets, address):
     errors = []
+    # Keep old data as fallback so a failed API call never wipes the cache
+    old_tokens = wallet.get("tokens", [])
+    old_defi   = wallet.get("defi",   [])
+    old_perps  = wallet.get("perps",  [])
+    tok_ok = pos_ok = False
     params = f"evm={address}"
     try:
         result = _jumper_get("tokens", params)
         tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
+        tok_ok = True
     except Exception as ex:
-        tokens = []
+        tokens = old_tokens
         errors.append(f"tokens: {ex}")
     try:
         result = _jumper_get("positions", params)
         defi, perps = _jumper_parse_positions(result.get("data", []))
+        pos_ok = True
     except Exception as ex:
-        defi, perps = [], []
+        defi, perps = old_defi, old_perps
         errors.append(f"positions: {ex}")
-    tokens = _dedup_tokens(tokens, defi, perps)
+    if tok_ok:
+        tokens = _dedup_tokens(tokens, defi if pos_ok else [], perps if pos_ok else [])
     _save_wallet_result(wallets, address, tokens, defi, perps)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
                     "perps": len(perps), "errors": errors})
 
 def _refresh_solana(wallet, wallets, address):
     errors = []
+    old_tokens = wallet.get("tokens", [])
+    old_defi   = wallet.get("defi",   [])
+    old_perps  = wallet.get("perps",  [])
+    tok_ok = pos_ok = False
     params = f"svm={address}"
     try:
         result = _jumper_get("tokens", params)
         tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
+        tok_ok = True
     except Exception as ex:
-        tokens = []
+        tokens = old_tokens
         errors.append(f"tokens: {ex}")
     try:
         result = _jumper_get("positions", params)
         defi, perps = _jumper_parse_positions(result.get("data", []))
+        pos_ok = True
     except Exception as ex:
-        defi, perps = [], []
+        defi, perps = old_defi, old_perps
         errors.append(f"positions: {ex}")
-    tokens = _dedup_tokens(tokens, defi, perps)
+    if tok_ok:
+        tokens = _dedup_tokens(tokens, defi if pos_ok else [], perps if pos_ok else [])
     _save_wallet_result(wallets, address, tokens, defi, perps)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
                     "perps": len(perps), "errors": errors})
@@ -2282,6 +2297,27 @@ def delete_dash_manual(asset_id):
     manual = [a for a in load_dash_manual() if a["id"] != asset_id]
     save_dash_manual(manual)
     return jsonify({"ok": True})
+
+@app.route("/api/dashboard/manual/refresh", methods=["POST"])
+def refresh_dash_manual():
+    """Re-fetch current market prices for all manually-added assets."""
+    manual = load_dash_manual()
+    if not manual:
+        return jsonify({"ok": True, "updated": 0})
+    def _update_one(asset):
+        sym = asset.get("symbol", "")
+        if not sym:
+            return
+        try:
+            r = fetch_price(sym)
+            if r and r.get("price"):
+                asset["price_usd"] = float(r["price"])
+        except Exception:
+            pass  # keep existing price on failure
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+        list(ex.map(_update_one, manual))
+    save_dash_manual(manual)
+    return jsonify({"ok": True, "updated": len(manual)})
 
 
 _warmup()

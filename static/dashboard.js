@@ -690,9 +690,12 @@ async function refreshAllWallets() {
     if (!listRes.ok) return;
     const wallets = await listRes.json();
     const onChain = wallets.filter(w => w.network_type === "evm" || w.network_type === "solana" || w.network_type === "bitcoin");
-    await Promise.allSettled(onChain.map(w =>
-      fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" })
-    ));
+    await Promise.allSettled([
+      ...onChain.map(w =>
+        fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" })
+      ),
+      fetch("/api/dashboard/manual/refresh", { method: "POST" }),
+    ]);
     await loadDashboard();
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = ""; }
@@ -708,11 +711,13 @@ function startDashAutoRefresh() {
     const dashSection = document.getElementById("section-dashboard");
     if (!dashSection || dashSection.classList.contains("hidden")) return;
     const toRefresh = dashWallets.filter(w => w.last_updated);
-    if (!toRefresh.length) return;
-    // Refresh all loaded wallets in parallel, then do a single re-render
-    await Promise.allSettled(toRefresh.map(w =>
-      fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" }).catch(() => {})
-    ));
+    // Always refresh manual asset prices; refresh loaded wallets in parallel
+    await Promise.allSettled([
+      ...toRefresh.map(w =>
+        fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" }).catch(() => {})
+      ),
+      fetch("/api/dashboard/manual/refresh", { method: "POST" }).catch(() => {}),
+    ]);
     await loadDashboard();
   }, 3 * 60 * 1000); // every 3 minutes
 }

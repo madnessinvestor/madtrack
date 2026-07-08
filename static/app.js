@@ -145,8 +145,10 @@ function changeHTML(change, size = "") {
 
 function refreshAll() {
   loadAssets();
-  if (typeof loadPortfolio   === "function") loadPortfolio();
-  if (typeof loadDashboard   === "function") loadDashboard();
+  if (typeof loadPortfolio      === "function") loadPortfolio();
+  // Trigger real price refresh for dashboard wallets + manual assets
+  if (typeof refreshAllWallets  === "function") refreshAllWallets();
+  else if (typeof loadDashboard === "function") loadDashboard();
 }
 
 async function loadAssets() {
