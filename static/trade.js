@@ -357,6 +357,7 @@ function switchTab(tab) {
 
   document.getElementById("btn-add-tracker").classList.toggle("hidden", !isTracker);
   document.getElementById("btn-add-trade").classList.toggle("hidden",    !isTrade);
+  document.getElementById("btn-export-trades")?.classList.toggle("hidden", !isTrade);
 
   if (isTrade && !cachedPortfolio.length) loadPortfolio();
   if (isDashboard) {
@@ -561,6 +562,78 @@ function loadPortfolioIcons(tokens) {
       tryCryptoIcon(img, text, sym);
     }
   });
+}
+
+// ─── Export trades (CSV) ─────────────────────────────────────────────────────
+
+function exportTrades() {
+  const tokens = cachedPortfolio;
+  if (!tokens || !tokens.length) {
+    alert("Nenhum trade para exportar.");
+    return;
+  }
+
+  const rows = [];
+  // Header
+  rows.push([
+    "Ticker",
+    "Data",
+    "Tipo",
+    "Quantidade",
+    "Preço Pago (USD)",
+    "Total (USD)",
+    "Preço Médio (USD)",
+    "Preço Atual (USD)",
+    "Valor Atual (USD)",
+    "P&L (USD)",
+    "P&L (%)"
+  ]);
+
+  for (const tok of tokens) {
+    const { total_qty, total_invested, avg_price, cur_value, pnl, pnl_pct } = calcToken(tok);
+    const curPrice = tok.current_price != null ? tok.current_price : "";
+    const trades   = tok.trades || [];
+
+    for (const tr of trades) {
+      const isSell  = tr.qty < 0;
+      const absQty  = Math.abs(tr.qty);
+      const total   = absQty * tr.price_paid;
+      rows.push([
+        tok.ticker,
+        tr.date || "",
+        isSell ? "Venda" : "Compra",
+        absQty,
+        tr.price_paid,
+        isSell ? -total : total,
+        avg_price.toFixed(8),
+        curPrice !== "" ? curPrice.toFixed(8) : "",
+        curPrice !== "" ? cur_value.toFixed(2) : "",
+        curPrice !== "" ? pnl.toFixed(2) : "",
+        curPrice !== "" ? pnl_pct.toFixed(2) : ""
+      ]);
+    }
+  }
+
+  const csvContent = rows.map(r =>
+    r.map(v => {
+      const s = String(v ?? "");
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(",")
+  ).join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  const now  = new Date();
+  const pad  = n => String(n).padStart(2, "0");
+  const ts   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  a.href     = url;
+  a.download = `madtracker_trades_${ts}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Delete actions ───────────────────────────────────────────────────────────
