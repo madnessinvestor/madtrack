@@ -2198,6 +2198,20 @@ def _refresh_other(wallet, wallets, address):
     return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
                     "perps": 0, "errors": errors})
 
+@app.route("/api/dashboard/wallets/order", methods=["PUT"])
+def reorder_dash_wallets():
+    """Persist a full wallet reorder sent from the drag-and-drop UI.
+    Must be registered BEFORE the <path:address> routes so Flask
+    does not swallow 'order' as a wallet address."""
+    addresses = (request.get_json() or {}).get("addresses", [])
+    wallets   = load_dash_wallets()
+    addr_map  = {w["address"]: w for w in wallets}
+    reordered = [addr_map[a] for a in addresses if a in addr_map]
+    seen = set(addresses)
+    reordered += [w for w in wallets if w["address"] not in seen]
+    save_dash_wallets(reordered)
+    return jsonify({"ok": True})
+
 @app.route("/api/dashboard/wallets/<path:address>", methods=["PATCH"])
 def edit_dash_wallet(address):
     """Update mutable wallet metadata (label only for now)."""
@@ -2209,19 +2223,6 @@ def edit_dash_wallet(address):
         return jsonify({"error": "Carteira não encontrada"}), 404
     wallet["label"] = label
     save_dash_wallets(wallets)
-    return jsonify({"ok": True})
-
-@app.route("/api/dashboard/wallets/order", methods=["PUT"])
-def reorder_dash_wallets():
-    """Persist a full wallet reorder sent from the drag-and-drop UI."""
-    addresses = (request.get_json() or {}).get("addresses", [])
-    wallets   = load_dash_wallets()
-    addr_map  = {w["address"]: w for w in wallets}
-    reordered = [addr_map[a] for a in addresses if a in addr_map]
-    # Append any wallets not mentioned in the new order (safety net)
-    seen = set(addresses)
-    reordered += [w for w in wallets if w["address"] not in seen]
-    save_dash_wallets(reordered)
     return jsonify({"ok": True})
 
 @app.route("/api/dashboard/wallets/<path:address>", methods=["DELETE"])

@@ -730,11 +730,19 @@ let _editWalletAddress = null;
 
 function openEditWalletModal(address) {
   _editWalletAddress = address;
-  const wallet = dashWallets.find(w => w.address === address);
+  const wallet  = dashWallets.find(w => w.address === address);
   const labelEl = document.getElementById("dwm-edit-label");
-  labelEl.value = (wallet && wallet.label) ? wallet.label : "";
-  document.getElementById("dwm-edit-err").textContent = "";
-  document.getElementById("dash-edit-wallet-modal").classList.remove("hidden");
+  const errEl   = document.getElementById("dwm-edit-err");
+  const modal   = document.getElementById("dash-edit-wallet-modal");
+  if (!labelEl || !errEl || !modal) {
+    // Modal elements missing — likely stale service-worker cache.
+    // Hard-reload to pick up the latest HTML.
+    location.reload(true);
+    return;
+  }
+  labelEl.value     = (wallet && wallet.label) ? wallet.label : "";
+  errEl.textContent = "";
+  modal.classList.remove("hidden");
   setTimeout(() => labelEl.select(), 50);
 }
 
