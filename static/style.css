@@ -392,28 +392,32 @@ h1 {
   line-height: 1;
   margin-top: -2px;
 }
+.refresh-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
 .btn-refresh-main {
-  background: var(--surface) !important;
-  color: var(--fg) !important;
-  border: 1px solid var(--border) !important;
-  box-shadow: none !important;
+  font-size: 1.15rem;
+  line-height: 1;
 }
 .btn-refresh-main:active { opacity: 0.7; }
 .last-update-wrap {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.25;
+  align-items: center;
+  line-height: 1.2;
   white-space: nowrap;
 }
 .last-update-wrap #last-update-time {
-  font-size: 0.78rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  color: var(--fg);
+  color: var(--text);
 }
 .last-update-wrap #last-update-date {
-  font-size: 0.68rem;
-  color: var(--muted2);
+  font-size: 0.58rem;
+  color: var(--muted);
 }
 .btn-icon {
   display: inline-flex;

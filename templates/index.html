@@ -17,13 +17,13 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span id="alert-badge" class="alert-badge hidden">0</span>
       </button>
-      <div class="last-update-wrap">
-        <span id="last-update-time">—</span>
-        <span id="last-update-date">—</span>
+      <div class="refresh-group">
+        <button id="btn-refresh" class="btn-bell btn-refresh-main" onclick="refreshAll()" title="Atualizar">↻</button>
+        <div class="last-update-wrap">
+          <span id="last-update-time">—</span>
+          <span id="last-update-date">—</span>
+        </div>
       </div>
-      <button id="btn-refresh" class="btn-primary btn-refresh-main" onclick="refreshAll()">
-        ↻ <span data-i18n="btn_refresh">Atualizar</span>
-      </button>
     </div>
   </header>
 
