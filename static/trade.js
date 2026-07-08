@@ -202,7 +202,8 @@ function _applyTxResult(data) {
     if (dateEl) dateEl.value = data.timestamp;
   }
 
-  // Update sell/buy mode on confirm button
+  // Store full result for counterpart-trade logic in submitTrade
+  _currentHashData   = data;
   _currentHashIsSell = !!data.is_sell;
   _updateConfirmBtn();
 
@@ -262,6 +263,7 @@ let tradePendingTicker   = null;
 let tradeMode            = "unit"; // "unit" | "total"
 let tradeLastEdited      = "price"; // "price" | "investment" — for bidirectional sync
 let _currentHashIsSell   = false;  // true when tx lookup detected a sell
+let _currentHashData     = null;   // full tx-lookup response, used to auto-add counterpart leg
 
 function setTradeMode(mode) {
   tradeMode = mode;
@@ -593,6 +595,7 @@ function openTradeModal(prefillTicker) {
 
   tradeLastEdited    = "price";
   _currentHashIsSell = false;
+  _currentHashData   = null;
   _selectedHashNet   = "";
   clearTimeout(_txHashTimer);
   const _v  = (id, val)  => { const el = document.getElementById(id); if (el) el.value = val; };
@@ -828,13 +831,52 @@ async function submitTrade() {
     body: JSON.stringify({ ticker, qty, price_paid: price, date })
   });
   const data = await res.json();
-  if (data.ok) {
-    closeTradeModal();
-    loadPortfolio();
-  } else {
+  if (!data.ok) {
     errEl.textContent = data.error || t("err_save");
     errEl.classList.remove("hidden");
+    return;
   }
+
+  // ── Auto-add the counterpart leg so both sides of a swap/sell appear ────────
+  // SELL (token → stablecoin): also record the received stablecoin as a BUY.
+  // SWAP (token → token): also record the sent token as a SELL (the received
+  //   token BUY was already submitted as the primary trade above).
+  const hd = _currentHashData;
+  if (hd) {
+    let counterTicker = null, counterQty = null, counterPrice = null, counterIsSell = false;
+
+    if (hd.is_sell && hd.received_ticker && hd.received_qty) {
+      // Record the stablecoin received: BUY, price ≈ $1
+      counterTicker  = hd.received_ticker;
+      counterQty     = hd.received_qty;
+      counterPrice   = 1.0;
+      counterIsSell  = false;
+    } else if (hd.is_swap && hd.from_ticker && hd.from_qty && hd.total_usd) {
+      // Record the token given up: SELL, price estimated from total_usd / from_qty
+      counterTicker  = hd.from_ticker;
+      counterQty     = hd.from_qty;
+      counterPrice   = hd.total_usd / hd.from_qty;
+      counterIsSell  = true;
+    }
+
+    if (counterTicker && counterQty > 0 && counterPrice > 0) {
+      const counterQtyFinal = counterIsSell ? -counterQty : counterQty;
+      await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: counterTicker,
+          qty: counterQtyFinal,
+          price_paid: counterPrice,
+          date
+        })
+      });
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  closeTradeModal();
+  loadPortfolio();
 }
 
 document.addEventListener("keydown", e => {

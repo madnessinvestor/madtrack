@@ -1544,9 +1544,11 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         if pos_stable and neg_non_stable:
             stable_recv = sum(v for _, v in pos_stable)
             sold_sym, sold_qty = max(neg_non_stable, key=lambda x: x[1])
+            # Track the dominant received stablecoin ticker + qty for the counterpart trade
+            recv_stable_sym, recv_stable_qty = max(pos_stable, key=lambda x: x[1])
             score = stable_recv + tiebreak * 1e-9 + wallet_boost
             if best_seller is None or score > best_seller[0]:
-                best_seller = (score, addr, sold_sym, sold_qty, stable_recv)
+                best_seller = (score, addr, sold_sym, sold_qty, stable_recv, recv_stable_sym, recv_stable_qty)
 
         # STABLE-TO-STABLE pattern: spent one stable, received a different stable
         # e.g. USDT → USDC, DAI → USDT
@@ -1601,16 +1603,21 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
                 break
 
     # --- Step 3: build result from the best match ---
-    # Priority: buy > sell > stable-swap
-    # Exception: if best_buyer is only buying a *wrapped native* token (WHYPE, WETH…)
-    # AND tx_from is directly the seller, the "buyer" is a DEX pool counterparty —
-    # the user is actually selling, so prefer the seller's perspective.
-    buyer_buys_wrapped    = best_buyer  is not None and is_wrapped.get(best_buyer[2],  False)
-    tx_from_direct_seller = best_seller is not None and best_seller[1] == tx_from
+    # Priority: buy > sell > stable-swap > token-swap
+    #
+    # Key invariant: when tx_from (or a known saved wallet) is the SELLER, the
+    # "buyer" in best_buyer is always a DEX pool counterparty, not the user.
+    # In that case the user's sell perspective is the correct one to return.
+    # The old code only made this exception for wrapped-native buyers, but the
+    # same logic applies to ANY token — if you sent it and received a stable,
+    # you sold it.
+    tx_from_direct_seller  = best_seller is not None and best_seller[1] == tx_from
+    known_wallet_is_seller = best_seller is not None and best_seller[1] in known_wallets
 
     use_buyer = (
         best_buyer is not None
-        and not (buyer_buys_wrapped and tx_from_direct_seller)
+        and not tx_from_direct_seller   # user is the seller → prefer sell view
+        and not known_wallet_is_seller  # same for saved wallets
     )
 
     if use_buyer:
@@ -1624,11 +1631,13 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         return _finalize_usd(result)
 
     if best_seller:
-        _, _addr, sold_sym, sold_qty, stable_recv = best_seller
-        result["ticker"]    = sold_sym
-        result["qty"]       = round(sold_qty, 10)
-        result["total_usd"] = round(stable_recv, 6)
-        result["is_sell"]   = True
+        _, _addr, sold_sym, sold_qty, stable_recv, recv_stable_sym, recv_stable_qty = best_seller
+        result["ticker"]          = sold_sym
+        result["qty"]             = round(sold_qty, 10)
+        result["total_usd"]       = round(stable_recv, 6)
+        result["is_sell"]         = True
+        result["received_ticker"] = recv_stable_sym
+        result["received_qty"]    = round(recv_stable_qty, 6)
         return _finalize_usd(result)
 
     if best_stable_swap:
