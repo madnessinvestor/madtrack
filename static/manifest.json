@@ -1,6 +1,6 @@
 {
-  "name": "MadTracker",
-  "short_name": "MadTracker",
+  "name": "CryptoAIO",
+  "short_name": "CryptoAIO",
   "description": "Tracker de ativos simples",
   "start_url": "/",
   "display": "standalone",

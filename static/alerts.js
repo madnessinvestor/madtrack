@@ -259,7 +259,7 @@ async function fireAlert(alert, price) {
 
   // Also send system notification (desktop / Android PWA)
   const arrow = alert.direction === "above" ? "🔺" : "🔻";
-  const title = `MadTracker ${arrow} ${alert.ticker}`;
+  const title = `CryptoAIO ${arrow} ${alert.ticker}`;
   const body  = `${alert.ticker} atingiu ${formatUSD(price, true)} — Alvo: ${formatUSD(alert.target, true)}`;
   await _sendSystemNotification(title, body, `alert-${alert.id}`);
 }

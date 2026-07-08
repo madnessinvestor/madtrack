@@ -1,6 +1,6 @@
 // HTML pages are never cached — always fetched fresh from the server.
 // Only static assets (JS, CSS) are cached for offline performance.
-const CACHE = "madtracker-v14";
+const CACHE = "cryptoaio-v1";
 const STATIC = [
   "/static/style.css",
   "/static/app.js",
@@ -49,7 +49,7 @@ self.addEventListener("message", e => {
       icon:     "/static/icons/icon-192.png",
       badge:    "/static/icons/icon-192.png",
       vibrate:  [200, 100, 200],
-      tag:      e.data.tag || "madtracker-alert",
+      tag:      e.data.tag || "cryptoaio-alert",
       renotify: true,
     });
   }

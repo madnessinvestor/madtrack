@@ -59,7 +59,7 @@ def save_assets(assets):
         json.dump(assets, f)
 
 def http_get(url, timeout=5):
-    req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "CryptoAIO/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode())
@@ -79,7 +79,7 @@ def http_post(url, data, timeout=8):
     try:
         body = json.dumps(data).encode()
         req = urllib.request.Request(url, data=body, headers={
-            "User-Agent": "MadTracker/1.0",
+            "User-Agent": "CryptoAIO/1.0",
             "Content-Type": "application/json"
         }, method="POST")
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -1128,7 +1128,7 @@ def reset_alert(alert_id):
 
 def _tx_fetch(url, timeout=8):
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "MadTracker/1.0", "Accept": "application/json"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CryptoAIO/1.0", "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode())
     except Exception:
@@ -1138,7 +1138,7 @@ def _tx_post(url, payload, timeout=10):
     try:
         data = json.dumps(payload).encode()
         req = urllib.request.Request(url, data=data,
-            headers={"Content-Type": "application/json", "User-Agent": "MadTracker/1.0"},
+            headers={"Content-Type": "application/json", "User-Agent": "CryptoAIO/1.0"},
             method="POST")
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode())
@@ -2005,7 +2005,7 @@ def _build_portfolio_context():
 
     return "\n".join(lines)
 
-SYSTEM_PROMPT = """Você é o Mad AI, assistente financeiro integrado ao MadTracker.
+SYSTEM_PROMPT = """Você é o Mad AI, assistente financeiro integrado ao CryptoAIO.
 Seu papel é EXCLUSIVAMENTE analisar os dados de trades e portfólio fornecidos pelo usuário.
 
 REGRAS ABSOLUTAS:
@@ -2061,8 +2061,8 @@ def ai_chat():
         headers={
             "Authorization": provider["auth_header"](api_key),
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://madtracker.replit.app",
-            "X-Title": "MadTracker",
+            "HTTP-Referer": "https://cryptoaio.replit.app",
+            "X-Title": "CryptoAIO",
         },
         method="POST"
     )

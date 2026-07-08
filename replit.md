@@ -1,4 +1,4 @@
-# MadTracker
+# CryptoAIO
 
 A privacy-first asset tracker for Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs. Built with Flask (Python) and Vanilla JavaScript as a Progressive Web App (PWA).
 
