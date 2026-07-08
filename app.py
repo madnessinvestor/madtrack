@@ -2,6 +2,16 @@ from flask import Flask, render_template, jsonify, request, send_file
 import json, os, uuid, urllib.request, urllib.error, concurrent.futures, time, threading, time as _time
 
 app = Flask(__name__)
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+@app.after_request
+def no_cache_static(response):
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 DATA_FILE = "assets.json"
 _icon_cache  = {}
 _mcap_cache  = {}
