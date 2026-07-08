@@ -632,8 +632,6 @@ async function refreshWallet(address) {
     if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
     return;
   }
-  // Auto-expand the card so data is visible immediately after refresh
-  dashExpanded.add(address);
   await loadDashboard();
 }
 

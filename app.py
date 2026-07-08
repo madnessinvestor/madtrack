@@ -1900,22 +1900,32 @@ def _hl_post(payload, timeout=15):
 PERP_PROTOCOLS = {"hyperliquid", "lighter", "polymarket", "dydx", "kwenta",
                   "synthetix", "gains network", "foxify", "pear protocol"}
 
+def _parse_token_amount(amount_raw, decimals):
+    """Parse a token amount that may be an integer string or decimal string."""
+    try:
+        # Try integer first (raw on-chain units, e.g. "6669014962512595915")
+        raw = int(amount_raw)
+        return raw / (10 ** int(decimals))
+    except (ValueError, TypeError):
+        pass
+    try:
+        # Fallback: already a human-readable float (e.g. "101.13")
+        return float(amount_raw)
+    except (ValueError, TypeError):
+        return 0.0
+
 def _jumper_parse_tokens(balances):
-    """Parse Jumper /tokens balances into our token list format."""
+    """Parse Jumper /tokens balances into our token list format.
+    Uses amountUSD as the authoritative USD value; balance is display-only.
+    Skips only tokens where both balance AND amountUSD are effectively zero.
+    """
     tokens = []
     for b in balances:
-        try:
-            raw = int(b.get("amount", "0") or "0")
-            dec = int(b.get("decimals", 18) or 18)
-            bal = raw / (10 ** dec)
-        except Exception:
-            continue
-        if bal < 1e-12:
-            continue
         val = float(b.get("amountUSD", 0) or 0)
         if val < 1.0:
             continue
-        price_usd = (val / bal) if bal > 0 else 0
+        bal = _parse_token_amount(b.get("amount", "0"), b.get("decimals", 18))
+        price_usd = (val / bal) if bal > 0 else 0.0
         chain_key = (b.get("chain") or {}).get("chainKey", "")
         tokens.append({
             "symbol":     b.get("symbol", ""),
@@ -1926,27 +1936,34 @@ def _jumper_parse_tokens(balances):
             "price_usd":  price_usd,
             "value_usd":  val,
             "thumbnail":  b.get("logo", ""),
-            "contract":   b.get("address", ""),
+            "contract":   b.get("address", "").lower(),
         })
     tokens.sort(key=lambda x: x["value_usd"], reverse=True)
     return tokens
 
 def _jumper_parse_positions(data):
-    """Parse Jumper /positions data into defi + perps lists."""
-    def _tok_list(p, key):
+    """Parse Jumper /positions data into defi + perps lists.
+    Reads supplyTokens, assetTokens, collateralTokens, rewardTokens, borrowTokens.
+    Stores address+chain on each token for precise deduplication.
+    """
+    def _tok_list(p, *keys):
+        """Collect tokens from one or more position token arrays."""
         out = []
-        for t in (p.get(key) or []):
-            amt_usd = float(t.get("amountUSD", 0) or 0)
-            if amt_usd < 0.0001:
-                continue
-            try:
-                raw = int(t.get("amount", "0") or "0")
-                dec = int(t.get("decimals", 18) or 18)
-                bal = raw / (10 ** dec)
-            except Exception:
-                bal = 0
-            out.append({"symbol": t.get("symbol", ""), "balance": bal,
-                        "value_usd": amt_usd, "logo": t.get("logo", "")})
+        for key in keys:
+            for t in (p.get(key) or []):
+                amt_usd = float(t.get("amountUSD", 0) or 0)
+                if amt_usd < 0.0001:
+                    continue
+                bal       = _parse_token_amount(t.get("amount", "0"), t.get("decimals", 18))
+                chain_key = (t.get("chain") or {}).get("chainKey", "")
+                out.append({
+                    "symbol":    t.get("symbol", ""),
+                    "balance":   bal,
+                    "value_usd": amt_usd,
+                    "logo":      t.get("logo", ""),
+                    "address":   t.get("address", "").lower(),
+                    "network":   chain_key,
+                })
         return out
 
     defi, perps = [], []
@@ -1967,7 +1984,9 @@ def _jumper_parse_positions(data):
             "asset_usd":     float(p.get("assetUsd", 0) or 0),
             "debt_usd":      float(p.get("debtUsd",  0) or 0),
             "net_usd":       net_usd,
-            "supply_tokens": _tok_list(p, "supplyTokens"),
+            # supplyTokens + assetTokens + collateralTokens all represent
+            # assets deployed in this position (different protocols use different keys)
+            "supply_tokens": _tok_list(p, "supplyTokens", "assetTokens", "collateralTokens"),
             "reward_tokens": _tok_list(p, "rewardTokens"),
             "borrow_tokens": _tok_list(p, "borrowTokens"),
         }
@@ -1980,21 +1999,51 @@ def _jumper_parse_positions(data):
     return defi, perps
 
 def _dedup_tokens(tokens, defi, perps):
-    """Remove receipt tokens from token list that are already counted in positions."""
-    supply_sym_values: dict = {}
+    """Remove wallet tokens that are already counted inside DeFi/Perp positions.
+
+    Strategy (mirrors how Jumper separates tokens from positions):
+    1. Primary: match by (contract_address, network) — exact same token on exact same chain.
+    2. Fallback: match by symbol when address is unavailable.
+    In both cases only remove when the position value is within 25% of the wallet value,
+    meaning they almost certainly represent the same underlying asset (receipt-token pattern).
+    """
+    # Build lookup: (address.lower(), network) -> total USD in positions
+    pos_by_addr: dict = {}   # key: (addr, net) -> float
+    pos_by_sym:  dict = {}   # key: SYMBOL      -> float  (fallback)
+
     for pos in defi + perps:
         for t in pos.get("supply_tokens", []) + pos.get("reward_tokens", []):
-            sym = t.get("symbol", "").upper()
-            supply_sym_values[sym] = supply_sym_values.get(sym, 0) + float(t.get("value_usd", 0) or 0)
+            usd  = float(t.get("value_usd", 0) or 0)
+            addr = t.get("address", "").lower()
+            net  = t.get("network", "")
+            sym  = t.get("symbol", "").upper()
+            if addr:
+                key = (addr, net)
+                pos_by_addr[key] = pos_by_addr.get(key, 0) + usd
+            if sym:
+                pos_by_sym[sym] = pos_by_sym.get(sym, 0) + usd
+
     deduped = []
     for tok in tokens:
-        sym     = tok["symbol"].upper()
-        tok_val = tok["value_usd"]
-        pos_val = supply_sym_values.get(sym, 0)
+        tok_val  = tok["value_usd"]
+        addr     = tok.get("contract", "").lower()
+        net      = tok.get("network", "")
+        sym      = tok["symbol"].upper()
+
+        # Try address-based match first (most precise)
+        pos_val = 0.0
+        if addr:
+            pos_val = pos_by_addr.get((addr, net), 0.0)
+
+        # Fall back to symbol match only if no address or no address hit
+        if pos_val < 1.0 and sym:
+            pos_val = pos_by_sym.get(sym, 0.0)
+
         if pos_val > 1.0 and tok_val > 1.0:
             ratio = abs(tok_val - pos_val) / max(tok_val, pos_val)
             if ratio < 0.25:
-                continue
+                continue  # this wallet token IS the position receipt — skip it
+
         deduped.append(tok)
     return deduped
 
