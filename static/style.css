@@ -2136,6 +2136,11 @@ section.hidden { display: none; }
   text-overflow: ellipsis;
   max-width: 100px;
 }
+.dash-tok-price {
+  font-size: 0.7rem;
+  color: var(--muted2);
+  white-space: nowrap;
+}
 .dash-tok-mid {
   flex-shrink: 0;
 }

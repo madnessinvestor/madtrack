@@ -72,6 +72,17 @@ function fmtDashUsd(v) {
   return sign + fmt;
 }
 
+function fmtUnitPrice(p) {
+  if (!p || isNaN(p) || p <= 0) return null;
+  const rate = (typeof getRate === "function") ? getRate() : 1;
+  const sym  = (typeof currSym === "function") ? currSym()  : "$";
+  const v = p * rate;
+  if (v >= 1000)    return sym + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1)       return sym + v.toFixed(2);
+  if (v >= 0.0001)  return sym + v.toFixed(6);
+  return sym + v.toPrecision(3);
+}
+
 function fmtDashBal(b) {
   if (b == null || isNaN(b)) return "—";
   if (b >= 1000)    return b.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -420,12 +431,15 @@ function tokenGroupHtml(sym, items, walletAddr) {
     ? `onclick="toggleTokGroup('${escHtml(groupKey)}')" style="cursor:pointer"`
     : "";
 
+  const unitPrice = fmtUnitPrice(items[0].price_usd);
+
   let html = `<div class="dash-tok-group">
     <div class="dash-token-row dash-tok-group-hdr" ${clickAttr}>
       <div class="dash-tok-left">
         ${imgEl}
         <div class="dash-tok-info">
           <span class="dash-tok-sym">${escHtml(sym)}</span>
+          ${unitPrice ? `<span class="dash-tok-price">${unitPrice}</span>` : ""}
           <div class="dash-chain-dots">${netDots}</div>
         </div>
       </div>
