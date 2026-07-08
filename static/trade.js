@@ -312,9 +312,11 @@ function switchTab(tab) {
   if (isDashboard) {
     if (!dashLoaded) {
       loadDashboard();
+    } else {
+      // Re-render from cache to apply any currency change made since last visit.
+      // Does NOT trigger new API calls — the 3-min auto-refresh handles that.
+      if (typeof renderDashboard === "function") renderDashboard();
     }
-    // No auto-refresh on tab switch — the 3-minute timer handles background
-    // updates, and manual refresh is available per-wallet via the ↻ button.
   }
 }
 
