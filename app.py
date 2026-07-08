@@ -1266,7 +1266,7 @@ def _lookup_hyperevm_rpc(hash_):
             except Exception:
                 pass
 
-    parsed = _parse_evm_result(tx_from, transfers, tx_data, "HYPE", "HyperEVM", block_ts)
+    parsed = _parse_evm_result(tx_from, transfers, tx_data, "HYPE", "HyperEVM", block_ts, _known_evm_wallets())
     if not transfers and native_val > 0:
         parsed = {
             "network": "HyperEVM", "ticker": "HYPE",
@@ -1345,7 +1345,7 @@ def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
                 except Exception:
                     tx_data["value"] = "0x0"
 
-            return jsonify(_parse_evm_result(tx_from, all_transfers, tx_data, native_sym, chain_name, ts))
+            return jsonify(_parse_evm_result(tx_from, all_transfers, tx_data, native_sym, chain_name, ts, _known_evm_wallets()))
 
     # 2) Etherscan-style API fallback
     for candidate in [h, hash_]:
@@ -1376,7 +1376,20 @@ def _ts_fmt(iso_str):
 
 _WRAPPED_NATIVE = {"WETH","WBNB","WMATIC","WAVAX","WFTM","WONE","WHYPE","WCORE","WGLMR"}
 
-def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, timestamp):
+def _known_evm_wallets():
+    """Lowercased set of the user's own saved EVM wallet addresses (Dashboard > Carteiras On-Chain).
+    Used to disambiguate batched/solver transactions where many unrelated swaps are
+    settled in a single tx and tx_from is a relayer, not the actual trader."""
+    try:
+        return {
+            w["address"].lower()
+            for w in load_dash_wallets()
+            if w.get("network_type") == "evm" and w.get("address")
+        }
+    except Exception:
+        return set()
+
+def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, timestamp, known_wallets=None):
     """
     DEX swap parser that finds the TRUE buyer/seller in a transaction.
 
@@ -1396,6 +1409,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
       - Sells (non-stable → stable) and token-to-token swaps
     """
     tx_from = tx_from.lower()
+    known_wallets = known_wallets or set()
 
     # --- Step 1: compute net delta per (address, symbol) ---
     is_stable  = {}
@@ -1459,13 +1473,18 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         neg_non_stable = [(s, -d) for s, d in deltas.items() if d < 0 and not is_stable.get(s) and not is_wrapped.get(s)]
 
         tiebreak = 1 if addr == tx_from else 0
+        # If this address is one of the user's own saved wallets, it IS the trader —
+        # give it a dominant boost so it always outranks other legs of a batched/solver
+        # settlement tx (e.g. CoW-style aggregators that settle many unrelated users'
+        # swaps in a single transaction, where tx_from is just the relayer).
+        wallet_boost = 1e12 if addr in known_wallets else 0
 
         # BUY pattern: received non-stable + spent stable (or wrapped native)
         received = pos_non_stable or pos_wrapped
         if received and neg_stable:
             recv_sym, recv_qty = max(received, key=lambda x: x[1])
             stable_spent = sum(v for _, v in neg_stable)
-            score = stable_spent + tiebreak * 1e-9
+            score = stable_spent + tiebreak * 1e-9 + wallet_boost
             if best_buyer is None or score > best_buyer[0]:
                 best_buyer = (score, addr, recv_sym, recv_qty, stable_spent)
 
@@ -1473,7 +1492,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         if pos_stable and neg_non_stable:
             stable_recv = sum(v for _, v in pos_stable)
             sold_sym, sold_qty = max(neg_non_stable, key=lambda x: x[1])
-            score = stable_recv + tiebreak * 1e-9
+            score = stable_recv + tiebreak * 1e-9 + wallet_boost
             if best_seller is None or score > best_seller[0]:
                 best_seller = (score, addr, sold_sym, sold_qty, stable_recv)
 
@@ -1482,7 +1501,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         if pos_stable and neg_stable:
             recv_sym, recv_qty = max(pos_stable, key=lambda x: x[1])
             sent_qty = sum(v for _, v in neg_stable)
-            score = sent_qty + tiebreak * 1e-9
+            score = sent_qty + tiebreak * 1e-9 + wallet_boost
             if best_stable_swap is None or score > best_stable_swap[0]:
                 best_stable_swap = (score, addr, recv_sym, recv_qty, sent_qty)
 
@@ -1556,7 +1575,7 @@ def _lookup_evm(hash_):
         tx_from   = (data.get("from") or {}).get("hash", "")
         transfers = data.get("token_transfers") or []
         ts        = _ts_fmt(data.get("timestamp"))
-        parsed    = _parse_evm_result(tx_from, transfers, data, native_sym, chain_name, ts)
+        parsed    = _parse_evm_result(tx_from, transfers, data, native_sym, chain_name, ts, _known_evm_wallets())
         return jsonify(parsed)
     return jsonify({"error": "not_found"}), 404
 
