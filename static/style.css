@@ -2385,6 +2385,44 @@ section.hidden { display: none; }
 }
 .dash-modal-actions .btn-confirm:disabled { opacity: 0.5; }
 
+/* ── Manual asset card body ──────────────────────────────────────────────── */
+.dmc-source-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(100,100,120,0.18);
+  color: var(--muted2);
+  border: 1px solid rgba(100,100,120,0.22);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.dmc-stats {
+  padding: 6px 14px 10px;
+}
+.dmc-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+.dmc-stat-row:last-child { border-bottom: none; }
+.dmc-stat-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.dmc-stat-val {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+.dmc-pnl-pos { color: var(--green, #00e676); }
+.dmc-pnl-neg { color: var(--red,   #ff5252); }
+
 /* ── Manual asset modal extras ───────────────────────────────────────────── */
 .dmm-price-info {
   display: flex;

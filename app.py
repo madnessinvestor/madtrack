@@ -2337,6 +2337,45 @@ def add_dash_manual():
     save_dash_manual(manual)
     return jsonify({"ok": True})
 
+@app.route("/api/dashboard/manual/order", methods=["PUT"])
+def reorder_dash_manual():
+    """Persist manual asset reorder from drag-and-drop UI.
+    Must be registered BEFORE the <asset_id> route."""
+    ids    = (request.get_json() or {}).get("ids", [])
+    manual = load_dash_manual()
+    id_map = {a["id"]: a for a in manual}
+    reordered  = [id_map[i] for i in ids if i in id_map]
+    seen       = set(ids)
+    reordered += [a for a in manual if a["id"] not in seen]
+    save_dash_manual(reordered)
+    return jsonify({"ok": True})
+
+@app.route("/api/dashboard/manual/<asset_id>", methods=["PATCH"])
+def edit_dash_manual(asset_id):
+    """Update an existing manual asset."""
+    import re as _re
+    body   = request.get_json() or {}
+    manual = load_dash_manual()
+    asset  = next((a for a in manual if a["id"] == asset_id), None)
+    if not asset:
+        return jsonify({"error": "Ativo não encontrado"}), 404
+    try:
+        balance    = max(0.0, float(body.get("balance",    asset.get("balance",    0)) or 0))
+        price_usd  = max(0.0, float(body.get("price_usd",  asset.get("price_usd",  0)) or 0))
+        investment = max(0.0, float(body.get("investment",  asset.get("investment",  0)) or 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Valores numéricos inválidos"}), 400
+    raw_date = body.get("purchase_date", asset.get("purchase_date"))
+    if raw_date and not _re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}', str(raw_date)):
+        raw_date = None
+    asset["balance"]       = balance
+    asset["price_usd"]     = price_usd
+    asset["investment"]    = investment
+    asset["source"]        = body.get("source", asset.get("source", "")).strip()[:64]
+    asset["purchase_date"] = raw_date
+    save_dash_manual(manual)
+    return jsonify({"ok": True})
+
 @app.route("/api/dashboard/manual/<asset_id>", methods=["DELETE"])
 def delete_dash_manual(asset_id):
     manual = [a for a in load_dash_manual() if a["id"] != asset_id]

@@ -3,7 +3,8 @@
 let dashWallets      = [];
 let dashManual       = [];
 let dashLoaded       = false;
-const dashExpanded   = new Set();
+const dashExpanded      = new Set();
+const dashManualExpanded = new Set();
 const dashActiveTab  = {};
 const tokGroupExpanded = new Set();
 
@@ -112,17 +113,17 @@ function renderDashboard() {
   if (!el) return;
 
   // Sync open/closed state from the live DOM before wiping innerHTML.
-  // This prevents concurrent loadDashboard() calls (e.g. the 3-min timer
-  // refreshing all wallets simultaneously) from racing against each other
-  // and silently opening cards the user never touched.
   for (const w of dashWallets) {
     const body = document.getElementById(`dwc-body-${w.address}`);
-    if (!body) continue;                          // first render — nothing to sync
-    if (body.style.display === "none") {
-      dashExpanded.delete(w.address);             // card is closed in DOM → keep closed
-    } else {
-      dashExpanded.add(w.address);               // card is open in DOM  → keep open
-    }
+    if (!body) continue;
+    if (body.style.display === "none") dashExpanded.delete(w.address);
+    else dashExpanded.add(w.address);
+  }
+  for (const a of dashManual) {
+    const body = document.getElementById(`dmc-body-${a.id}`);
+    if (!body) continue;
+    if (body.style.display === "none") dashManualExpanded.delete(a.id);
+    else dashManualExpanded.add(a.id);
   }
 
   const totalWalletUsd = dashWallets.reduce((s, w) => {
@@ -175,39 +176,20 @@ function renderDashboard() {
       <p>${t("dash_manual_empty")}</p>
     </div>`;
   } else {
-    html += `<div class="dash-token-list">`;
-    for (const a of dashManual) {
-      const cm  = chainMeta(a.network);
-      const val = (a.balance || 0) * (a.price_usd || 0);
-      const img = `<span class="dash-tok-icon-fb">${(a.symbol || "?")[0]}</span>`;
-      html += `<div class="dash-token-row">
-        <div class="dash-tok-left">
-          ${img}
-          <div class="dash-tok-info">
-            <span class="dash-tok-sym">${escHtml(a.symbol)}</span>
-            ${a.name ? `<span class="dash-tok-name">${escHtml(a.name)}</span>` : ""}
-          </div>
-        </div>
-        <div class="dash-tok-mid">
-          ${a.network ? `<span class="dash-net-badge" style="--nc:${cm.color}">${cm.name}</span>` : ""}
-        </div>
-        <div class="dash-tok-right">
-          <span class="dash-tok-val">${fmtDashUsd(val)}</span>
-          <span class="dash-tok-bal">${fmtDashBal(a.balance)} ${escHtml(a.symbol)}</span>
-        </div>
-        <button class="dash-del-inline" onclick="deleteManualAsset('${a.id}')" title="${t('dash_remove_title')}">✕</button>
-      </div>`;
-    }
+    html += `<div id="dash-manual-list">`;
+    for (const a of dashManual) html += manualCardHtml(a);
     html += `</div>`;
   }
 
   el.innerHTML = html;
   initDashSortable();
+  initManualSortable();
 }
 
 // ── Drag-and-drop reorder ──────────────────────────────────────────────────────
 
-let _dashSortable = null;
+let _dashSortable   = null;
+let _manualSortable = null;
 
 function initDashSortable() {
   const list = document.getElementById("dash-wallets-list");
@@ -221,13 +203,35 @@ function initDashSortable() {
     onEnd: async () => {
       const cards     = list.querySelectorAll(".dash-wallet-card[data-addr]");
       const addresses = [...cards].map(c => c.dataset.addr);
-      // Update local order immediately so subsequent renders stay consistent
       const addrMap   = Object.fromEntries(dashWallets.map(w => [w.address, w]));
       dashWallets     = addresses.map(a => addrMap[a]).filter(Boolean);
       await fetch("/api/dashboard/wallets/order", {
         method:  "PUT",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ addresses }),
+      });
+    },
+  });
+}
+
+function initManualSortable() {
+  const list = document.getElementById("dash-manual-list");
+  if (_manualSortable) { _manualSortable.destroy(); _manualSortable = null; }
+  if (!list || typeof Sortable === "undefined") return;
+  _manualSortable = new Sortable(list, {
+    handle: ".dwc-drag-handle",
+    animation: 150,
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    onEnd: async () => {
+      const cards = list.querySelectorAll(".dash-wallet-card[data-mid]");
+      const ids   = [...cards].map(c => c.dataset.mid);
+      const idMap = Object.fromEntries(dashManual.map(a => [a.id, a]));
+      dashManual  = ids.map(id => idMap[id]).filter(Boolean);
+      await fetch("/api/dashboard/manual/order", {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ids }),
       });
     },
   });
@@ -371,6 +375,88 @@ function walletCardHtml(w) {
 
   html += `</div></div>`;
   return html;
+}
+
+// ── Manual asset card ──────────────────────────────────────────────────────────
+
+function manualCardHtml(a) {
+  const sym    = a.symbol || "?";
+  const bal    = a.balance    || 0;
+  const price  = a.price_usd  || 0;
+  const invest = a.investment || 0;
+  const curVal = bal * price;
+  const ppt    = (bal > 0 && invest > 0) ? invest / bal : 0;
+  const pnl    = invest > 0 ? curVal - invest : null;
+  const pnlPct = (pnl !== null && invest > 0) ? (pnl / invest * 100) : null;
+  const isOpen = dashManualExpanded.has(a.id);
+  const idSafe = escHtml(a.id);
+
+  const sourceBadge = a.source
+    ? `<span class="dmc-source-badge">${escHtml(a.source)}</span>`
+    : "";
+
+  let pnlHtml;
+  if (pnl !== null) {
+    const cls  = pnl >= 0 ? "dmc-pnl-pos" : "dmc-pnl-neg";
+    const sign = pnl >= 0 ? "+" : "";
+    pnlHtml = `<span class="${cls}">${sign}${fmtDashUsd(pnl)} (${sign}${pnlPct.toFixed(2)}%)</span>`;
+  } else {
+    pnlHtml = "—";
+  }
+
+  const rows = [
+    [t("dmc_cur_price"),  price  > 0 ? fmtDashUsd(price)  : "—"],
+    [t("dmc_quantity"),   `${fmtDashBal(bal)} ${escHtml(sym)}`],
+    [t("dmc_investment"), invest > 0 ? fmtDashUsd(invest) : "—"],
+    [t("dmc_ppt"),        ppt    > 0 ? fmtDashUsd(ppt)   : "—"],
+    [t("dmc_cur_value"),  fmtDashUsd(curVal)],
+    [t("dmc_pnl"),        pnlHtml],
+  ];
+  if (a.purchase_date) {
+    rows.push([t("dmc_purchase_date"), escHtml(a.purchase_date.replace("T", " ").slice(0, 16))]);
+  }
+
+  let bodyHtml = `<div class="dmc-stats">`;
+  for (const [lbl, val] of rows) {
+    bodyHtml += `<div class="dmc-stat-row"><span class="dmc-stat-label">${lbl}</span><span class="dmc-stat-val">${val}</span></div>`;
+  }
+  bodyHtml += `</div>`;
+
+  return `<div class="dash-wallet-card" id="dmc-${idSafe}" data-mid="${idSafe}">
+    <div class="dwc-header" onclick="toggleManualCard('${idSafe}')">
+      <div class="dwc-header-left">
+        <span class="dwc-drag-handle drag-handle" title="${t("dmm_drag_title")}">⠿</span>
+        <span class="dwc-chevron" id="dmc-chev-${idSafe}">${isOpen ? "▼" : "▶"}</span>
+        <div class="dwc-info">
+          <div class="dwc-label-row">
+            <span class="dwc-label">${escHtml(sym)}</span>
+            ${sourceBadge}
+          </div>
+          <span class="dwc-addr">${fmtDashBal(bal)} ${escHtml(sym)} · ${fmtDashUsd(curVal)}</span>
+        </div>
+      </div>
+      <div class="dwc-header-right">
+        <span class="dwc-total">${fmtDashUsd(curVal)}</span>
+        <div class="dwc-btns" onclick="event.stopPropagation()">
+          <button class="dash-icon-btn" onclick="openEditManualModal('${idSafe}')" title="${t("dash_edit_title")}">✎</button>
+          <button class="dash-icon-btn dash-del-btn" onclick="deleteManualAsset('${idSafe}')" title="${t("dash_remove_title")}">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="dwc-body" id="dmc-body-${idSafe}" style="${isOpen ? "" : "display:none"}">
+      ${bodyHtml}
+    </div>
+  </div>`;
+}
+
+function toggleManualCard(id) {
+  const body = document.getElementById(`dmc-body-${id}`);
+  const chev = document.getElementById(`dmc-chev-${id}`);
+  if (!body) return;
+  const opening = body.style.display === "none";
+  body.style.display = opening ? "" : "none";
+  if (chev) chev.textContent = opening ? "▼" : "▶";
+  if (opening) dashManualExpanded.add(id); else dashManualExpanded.delete(id);
 }
 
 function toggleWalletCard(address) {
@@ -658,12 +744,20 @@ let _dmmFetchedPrice = null;   // price from ticker lookup
 let _dmmFetchedSrc   = null;   // source label
 let _dmmLookupTimer  = null;
 let _dmmReqSeq       = 0;      // monotonic counter for race-safe responses
+let _dmmEditingId    = null;   // id when editing existing asset, null when adding
 
-function openDashManualModal() {
-  document.getElementById("dash-manual-modal").classList.remove("hidden");
-  ["dmm-sym","dmm-qty","dmm-invest","dmm-date"].forEach(id => {
+function _dmmLocalNow() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function _dmmResetForm() {
+  ["dmm-qty","dmm-invest","dmm-date"].forEach(id => {
     document.getElementById(id).value = "";
   });
+  document.getElementById("dmm-sym").value    = "";
+  document.getElementById("dmm-sym").disabled = false;
   document.getElementById("dmm-err").textContent = "";
   document.getElementById("dmm-ppt").textContent = "--";
   const info = document.getElementById("dmm-price-info");
@@ -671,17 +765,65 @@ function openDashManualModal() {
   info.classList.add("hidden");
   _dmmFetchedPrice = null;
   _dmmFetchedSrc   = null;
-  // pre-fill date with now in local time (datetime-local needs YYYY-MM-DDTHH:mm)
-  const now = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const localDt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  document.getElementById("dmm-date").value = localDt;
+  _dmmEditingId    = null;
+}
+
+function openDashManualModal() {
+  _dmmResetForm();
+  document.getElementById("dmm-date").value = _dmmLocalNow();
+  const titleEl = document.querySelector("#dash-manual-modal .dash-modal-title");
+  if (titleEl) titleEl.setAttribute("data-i18n", "dmm_title");
+  const submitEl = document.getElementById("dmm-submit");
+  if (submitEl) submitEl.setAttribute("data-i18n", "dash_add_btn");
+  applyLang();
+  document.getElementById("dash-manual-modal").classList.remove("hidden");
   setTimeout(() => document.getElementById("dmm-sym").focus(), 50);
+}
+
+function openEditManualModal(id) {
+  const asset = dashManual.find(a => a.id === id);
+  if (!asset) return;
+  _dmmResetForm();
+  _dmmEditingId = id;
+
+  const symEl = document.getElementById("dmm-sym");
+  symEl.value    = asset.symbol || "";
+  symEl.disabled = true;   // symbol cannot change on edit
+
+  document.getElementById("dmm-qty").value    = asset.balance    > 0 ? asset.balance    : "";
+  document.getElementById("dmm-invest").value = asset.investment > 0 ? asset.investment : "";
+  document.getElementById("dmm-date").value   = (asset.purchase_date || "").slice(0, 16) || _dmmLocalNow();
+  document.getElementById("dmm-err").textContent = "";
+
+  _dmmFetchedPrice = asset.price_usd || null;
+  _dmmFetchedSrc   = asset.source    || null;
+
+  if (_dmmFetchedPrice) {
+    const fmt  = new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:2, maximumFractionDigits:8 });
+    const info = document.getElementById("dmm-price-info");
+    const parts = [{ css: "dmm-price-val", text: `${t("dmm_cur_price")} ${fmt.format(_dmmFetchedPrice)}` }];
+    if (_dmmFetchedSrc) parts.push({ css: "dmm-source-val", text: `${t("dmm_data_source")} ${_dmmFetchedSrc}` });
+    _dmmSetInfo(info, null, ...parts);
+    info.classList.remove("hidden");
+  }
+
+  onDmmCalc();
+
+  const titleEl = document.querySelector("#dash-manual-modal .dash-modal-title");
+  if (titleEl) titleEl.setAttribute("data-i18n", "dmm_title_edit");
+  const submitEl = document.getElementById("dmm-submit");
+  if (submitEl) submitEl.setAttribute("data-i18n", "dash_save_btn");
+  applyLang();
+
+  document.getElementById("dash-manual-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("dmm-qty").focus(), 50);
 }
 
 function closeDashManualModal() {
   document.getElementById("dash-manual-modal").classList.add("hidden");
+  document.getElementById("dmm-sym").disabled = false;
   clearTimeout(_dmmLookupTimer);
+  _dmmEditingId = null;
 }
 
 function onDmmSymInput() {
@@ -761,18 +903,17 @@ async function submitDashManual() {
   const btn = document.getElementById("dmm-submit");
   btn.disabled = true;
   try {
-    const r = await fetch("/api/dashboard/manual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        symbol,
-        balance:    qty,
-        price_usd:  _dmmFetchedPrice || 0,
-        investment: invest,
-        source:     _dmmFetchedSrc || "",
-        purchase_date: dateVal || null
-      })
-    });
+    const body = {
+      symbol,
+      balance:       qty,
+      price_usd:     _dmmFetchedPrice || 0,
+      investment:    invest,
+      source:        _dmmFetchedSrc || "",
+      purchase_date: dateVal || null,
+    };
+    const url    = _dmmEditingId ? `/api/dashboard/manual/${_dmmEditingId}` : "/api/dashboard/manual";
+    const method = _dmmEditingId ? "PATCH" : "POST";
+    const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || t("dash_err_generic"); return; }
     closeDashManualModal();
@@ -912,6 +1053,7 @@ async function submitEditWallet() {
 }
 
 async function deleteManualAsset(id) {
+  if (!confirm(t("dash_confirm_del_manual"))) return;
   await fetch(`/api/dashboard/manual/${id}`, { method: "DELETE" });
   await loadDashboard();
 }
