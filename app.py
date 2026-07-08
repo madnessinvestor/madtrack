@@ -2483,7 +2483,7 @@ def _refresh_bitcoin(wallet, wallets, address):
     errors = []
     tokens = []
     try:
-        data    = http_get(f"https://mempool.space/api/address/{address}", timeout=10)
+        data    = http_get(f"https://blockstream.info/api/address/{address}", timeout=10)
         chain   = data.get("chain_stats",   {})
         mpool   = data.get("mempool_stats", {})
         sats    = (chain.get("funded_txo_sum", 0) - chain.get("spent_txo_sum", 0)
