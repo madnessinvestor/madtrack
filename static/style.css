@@ -1869,6 +1869,7 @@ section.hidden { display: none; }
 }
 .hash-trade-type.buy  { background: rgba(0,230,118,0.12); color: var(--accent); }
 .hash-trade-type.sell { background: rgba(255,77,77,0.12);  color: var(--red); }
+.hash-trade-type.swap { background: rgba(255,193,7,0.14);  color: #ffc107; }
 .hash-detail-row {
   display: flex;
   gap: 12px;

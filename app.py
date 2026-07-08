@@ -1268,10 +1268,10 @@ def _lookup_hyperevm_rpc(hash_):
 
     parsed = _parse_evm_result(tx_from, transfers, tx_data, "HYPE", "HyperEVM", block_ts, _known_evm_wallets())
     if not transfers and native_val > 0:
-        parsed = {
+        parsed = _finalize_usd({
             "network": "HyperEVM", "ticker": "HYPE",
             "qty": round(native_val, 10), "total_usd": None, "timestamp": block_ts,
-        }
+        })
     return jsonify(parsed)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1357,13 +1357,14 @@ def _lookup_evm_single(hash_, chain_name, base_url, native_sym):
                 native_val = int(tx.get("value", "0x0") or "0x0", 16) / 1e18
             except Exception:
                 native_val = 0.0
-            return jsonify({
+            result = {
                 "network":   chain_name,
                 "ticker":    native_sym if native_val > 0 else "",
                 "qty":       round(native_val, 10) if native_val > 0 else None,
                 "total_usd": None,
                 "timestamp": None,
-            })
+            }
+            return jsonify(_finalize_usd(result))
     return jsonify({"error": "not_found"}), 404
 
 def _ts_fmt(iso_str):
@@ -1375,6 +1376,42 @@ def _ts_fmt(iso_str):
         return None
 
 _WRAPPED_NATIVE = {"WETH","WBNB","WMATIC","WAVAX","WFTM","WONE","WHYPE","WCORE","WGLMR"}
+
+# Maps a wrapped-native symbol to its underlying native coin for LIVE PRICE lookups only
+# (display ticker still shows the wrapped symbol, e.g. "WETH").
+_WRAPPED_TO_NATIVE = {
+    "WETH": "ETH", "WBNB": "BNB", "WMATIC": "MATIC", "WAVAX": "AVAX",
+    "WFTM": "FTM", "WONE": "ONE", "WHYPE": "HYPE", "WCORE": "CORE", "WGLMR": "GLMR",
+}
+
+def _price_symbol_for(sym):
+    return _WRAPPED_TO_NATIVE.get((sym or "").upper(), sym)
+
+def _estimate_usd(sym, qty):
+    """Best-effort live-price USD estimate for a token leg. Used when a swap has
+    no stablecoin leg to derive an exact dollar amount from (token-for-token swaps)."""
+    if not sym or not qty:
+        return None
+    try:
+        r = fetch_price(_price_symbol_for(sym))
+        if r and r.get("price"):
+            return round(r["price"] * qty, 6)
+    except Exception:
+        pass
+    return None
+
+def _finalize_usd(result):
+    """Ensure every parsed swap ends up with a USD value, even when neither leg is a
+    stablecoin (pure token-for-token swap). Falls back to the live price of whichever
+    leg is resolvable. Never overrides an already-known (stablecoin-derived) amount."""
+    if result.get("total_usd") is None:
+        est = _estimate_usd(result.get("ticker"), result.get("qty"))
+        if est is None:
+            est = _estimate_usd(result.get("from_ticker"), result.get("from_qty"))
+        if est is not None:
+            result["total_usd"] = est
+            result["total_usd_estimated"] = True
+    return result
 
 def _known_evm_wallets():
     """Lowercased set of the user's own saved EVM wallet addresses (Dashboard > Carteiras On-Chain).
@@ -1474,6 +1511,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
     best_buyer       = None   # (score, addr, recv_sym, recv_qty, stable_spent)
     best_seller      = None   # (score, addr, sold_sym, sold_qty, stable_recv)
     best_stable_swap = None   # (score, addr, recv_sym, recv_qty, sent_qty)
+    best_token_swap  = None   # (score, addr, recv_sym, recv_qty, sold_sym, sold_qty) — token-for-token, no stable leg
 
     for addr, deltas in addr_delta.items():
         if is_router(addr):
@@ -1484,6 +1522,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         pos_wrapped    = [(s, d) for s, d in deltas.items() if d > 0 and is_wrapped.get(s)]
         neg_stable     = [(s, -d) for s, d in deltas.items() if d < 0 and is_stable.get(s)]
         neg_non_stable = [(s, -d) for s, d in deltas.items() if d < 0 and not is_stable.get(s) and not is_wrapped.get(s)]
+        neg_wrapped    = [(s, -d) for s, d in deltas.items() if d < 0 and is_wrapped.get(s)]
 
         tiebreak = 1 if addr == tx_from else 0
         # If this address is one of the user's own saved wallets, it IS the trader —
@@ -1517,6 +1556,25 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
             score = sent_qty + tiebreak * 1e-9 + wallet_boost
             if best_stable_swap is None or score > best_stable_swap[0]:
                 best_stable_swap = (score, addr, recv_sym, recv_qty, sent_qty)
+
+        # TOKEN-FOR-TOKEN pattern: swapped one non-stable token for another with no
+        # stablecoin leg on either side (e.g. SOL → WBTC, ETH → some altcoin).
+        # Require a CLEAN single-token-in / single-token-out leg for this address —
+        # multi-token touches usually mean it's a router/intermediate hop, not the
+        # actual trader, and router-exclusion alone isn't enough to rule those out.
+        # Score by live USD value (like the buy/sell patterns above) rather than a
+        # bare tiebreak, so the address with the real trade — not a dust leftover —
+        # wins when several addresses show a token-for-token pattern in the same tx.
+        pos_tok = pos_non_stable + pos_wrapped
+        neg_tok = neg_non_stable + neg_wrapped
+        if len(pos_tok) == 1 and len(neg_tok) == 1:
+            recv_sym, recv_qty = pos_tok[0]
+            sold_sym, sold_qty = neg_tok[0]
+            if recv_sym != sold_sym:
+                usd_signal = _estimate_usd(recv_sym, recv_qty) or _estimate_usd(sold_sym, sold_qty) or 0
+                score = usd_signal + tiebreak * 1e-9 + wallet_boost
+                if best_token_swap is None or score > best_token_swap[0]:
+                    best_token_swap = (score, addr, recv_sym, recv_qty, sold_sym, sold_qty)
 
     # --- Step 2b: stable → native ETH/BNB/HYPE buy detection ---
     # Handles swaps like USDC → ETH where the output is native coin (not ERC-20).
@@ -1563,7 +1621,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         if result["total_usd"] is None and native_val > 0:
             result["native_sym"]    = native_sym
             result["native_amount"] = round(native_val, 8)
-        return result
+        return _finalize_usd(result)
 
     if best_seller:
         _, _addr, sold_sym, sold_qty, stable_recv = best_seller
@@ -1571,14 +1629,27 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         result["qty"]       = round(sold_qty, 10)
         result["total_usd"] = round(stable_recv, 6)
         result["is_sell"]   = True
-        return result
+        return _finalize_usd(result)
 
     if best_stable_swap:
         _, _addr, recv_sym, recv_qty, sent_qty = best_stable_swap
         result["ticker"]    = recv_sym
         result["qty"]       = round(recv_qty, 6)
         result["total_usd"] = round(sent_qty, 6)
-        return result
+        return _finalize_usd(result)
+
+    if best_token_swap:
+        # Pure token-for-token swap (e.g. SOL → WBTC): no stablecoin leg, so the
+        # dollar amount is estimated from a live price in _finalize_usd. The trade
+        # is recorded as acquiring the received token, same as a regular buy.
+        _, _addr, recv_sym, recv_qty, sold_sym, sold_qty = best_token_swap
+        result["ticker"]      = recv_sym
+        result["qty"]         = round(recv_qty, 10)
+        result["from_ticker"] = sold_sym
+        result["from_qty"]    = round(sold_qty, 10)
+        result["total_usd"]   = None
+        result["is_swap"]     = True
+        return _finalize_usd(result)
 
     # --- Step 4: fallbacks ---
     # Check tx_from directly (covers simple transfers, native-only txs, etc.)
@@ -1593,13 +1664,13 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
         if result["total_usd"] is None and native_val > 0:
             result["native_sym"]    = native_sym
             result["native_amount"] = round(native_val, 8)
-        return result
+        return _finalize_usd(result)
 
     if native_val > 0 and not transfers:
         result["ticker"]    = native_sym
         result["qty"]       = round(native_val, 10)
         result["total_usd"] = None
-        return result
+        return _finalize_usd(result)
 
     # --- Step 5: stable → native ETH/BNB/HYPE fallback ---
     # Handles swaps like USDC → ETH where the output is native (not ERC-20).
@@ -1620,7 +1691,7 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
                 result["ticker"]    = native_sym
                 result["qty"]       = round(wrapped_native_burned, 10)
                 result["total_usd"] = round(stable_spent, 6)
-                return result
+                return _finalize_usd(result)
 
     result["error"] = "swap_complex"
     return result
@@ -1689,18 +1760,29 @@ def _lookup_solana(hash_):
         mint     = p.get("mint", "")
         changes.append({"delta": delta, "mint": mint})
 
+    sold = [c for c in changes if c["delta"] < 0]
     bought = [c for c in changes if c["delta"] > 0]
     if bought:
         best = max(bought, key=lambda x: x["delta"])
         sym  = _sol_mint_symbol(best["mint"])
-        return jsonify({
+        result = {
             "network":   "Solana",
             "ticker":    sym or "",
             "qty":       round(best["delta"], 9),
             "total_usd": None,
             "timestamp": ts,
             "mint":      best["mint"],
-        })
+        }
+        # Token-for-token SPL swap: capture the "from" leg so the USD estimate
+        # (in _finalize_usd) can fall back to its price if the received token's isn't known.
+        if sold:
+            worst = min(sold, key=lambda x: x["delta"])
+            from_sym = _sol_mint_symbol(worst["mint"])
+            if from_sym:
+                result["from_ticker"] = from_sym
+                result["from_qty"]    = round(-worst["delta"], 9)
+                result["is_swap"]     = True
+        return jsonify(_finalize_usd(result))
 
     pre_sol  = meta.get("preBalances", [])
     post_sol = meta.get("postBalances", [])
@@ -1708,13 +1790,14 @@ def _lookup_solana(hash_):
         gains = [post_sol[i] - pre_sol[i] for i in range(min(len(pre_sol), len(post_sol)))]
         max_g = max(gains) if gains else 0
         if max_g > 0:
-            return jsonify({
+            result = {
                 "network":   "Solana",
                 "ticker":    "SOL",
                 "qty":       round(max_g / 1e9, 9),
                 "total_usd": None,
                 "timestamp": ts,
-            })
+            }
+            return jsonify(_finalize_usd(result))
     return jsonify({"error": "not_found"}), 404
 
 @app.route("/api/tx-lookup")

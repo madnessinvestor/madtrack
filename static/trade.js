@@ -208,16 +208,21 @@ function _applyTxResult(data) {
 
   // Show result card
   if (!result) return;
-  const tradeTypeLabel = data.is_sell ? "🔴 VENDA" : "🟢 COMPRA";
+  const isSwap = !!data.is_swap && data.from_ticker;
+  const tradeTypeLabel = isSwap ? "🔄 TROCA" : (data.is_sell ? "🔴 VENDA" : "🟢 COMPRA");
   let html = `<span class="hash-network-badge">🔗 ${data.network || "?"}</span>`;
-  html += `<span class="hash-trade-type ${data.is_sell ? "sell" : "buy"}">${tradeTypeLabel}</span>`;
+  html += `<span class="hash-trade-type ${isSwap ? "swap" : (data.is_sell ? "sell" : "buy")}">${tradeTypeLabel}</span>`;
   const details = [];
-  if (data.ticker && data.qty) {
+  if (isSwap && data.from_qty) {
+    // Show the full swap: what was given up → what was received
+    details.push(`<span class="hash-detail-item">${fmtQty(data.from_qty)} ${data.from_ticker} → <strong>${fmtQty(data.qty)} ${data.ticker}</strong></span>`);
+  } else if (data.ticker && data.qty) {
     details.push(`<span class="hash-detail-item">${t("qty_label")}: <strong>${fmtQty(data.qty)} ${data.ticker}</strong></span>`);
   }
   if (data.total_usd) {
-    const usdLabel = data.is_sell ? "Recebido" : t("investment_label");
-    details.push(`<span class="hash-detail-item">${usdLabel}: <strong>${formatUSD(data.total_usd, true)}</strong></span>`);
+    const usdLabel = isSwap ? "Valor (USD)" : (data.is_sell ? "Recebido" : t("investment_label"));
+    const estTag = data.total_usd_estimated ? " ~" : "";
+    details.push(`<span class="hash-detail-item">${usdLabel}${estTag}: <strong>${formatUSD(data.total_usd, true)}</strong></span>`);
   } else if (data.native_sym && data.native_amount) {
     details.push(`<span class="hash-detail-item">Pago: <strong>${data.native_amount} ${data.native_sym}</strong></span>`);
   }
@@ -229,6 +234,8 @@ function _applyTxResult(data) {
     html += `<div class="hash-note">⚠️ ${t("hash_btc_note")}</div>`;
   } else if (!data.total_usd && (data.native_sym || !data.qty)) {
     html += `<div class="hash-note">⚠️ ${t("hash_native_note")}</div>`;
+  } else if (data.total_usd_estimated) {
+    html += `<div class="hash-note">ℹ️ Valor em USD estimado pelo preço atual do token.</div>`;
   }
   result.className = "hash-result";
   result.innerHTML = html;
