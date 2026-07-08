@@ -600,6 +600,22 @@
     </div>
   </div>
 
+  <!-- Dashboard: Edit Wallet modal -->
+  <div class="dash-modal hidden" id="dash-edit-wallet-modal" onclick="if(event.target===this)closeEditWalletModal()">
+    <div class="dash-modal-box">
+      <div class="dash-modal-title">✏️ Editar Carteira</div>
+      <div>
+        <label for="dwm-edit-label">Apelido</label>
+        <input id="dwm-edit-label" type="text" placeholder="Ex: Minha carteira principal" autocomplete="off" onkeydown="if(event.key==='Enter')submitEditWallet();if(event.key==='Escape')closeEditWalletModal()" />
+      </div>
+      <div class="dash-modal-err" id="dwm-edit-err"></div>
+      <div class="dash-modal-actions">
+        <button class="btn-cancel" onclick="closeEditWalletModal()">Cancelar</button>
+        <button class="btn-confirm" id="dwm-edit-submit" onclick="submitEditWallet()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Dashboard: Add Manual Asset modal -->
   <div class="dash-modal hidden" id="dash-manual-modal" onclick="if(event.target===this)closeDashManualModal()">
     <div class="dash-modal-box">

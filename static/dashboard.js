@@ -250,6 +250,9 @@ function walletCardHtml(w) {
       <div class="dwc-header-right">
         <span class="dwc-total">${fmtDashUsd(totalUsd)}</span>
         <div class="dwc-btns" onclick="event.stopPropagation()">
+          <button class="dash-icon-btn dwc-move-btn" onclick="moveWallet('${addrSafe}','up')"   title="${t('dash_move_up')}">↑</button>
+          <button class="dash-icon-btn dwc-move-btn" onclick="moveWallet('${addrSafe}','down')" title="${t('dash_move_down')}">↓</button>
+          <button class="dash-icon-btn" onclick="openEditWalletModal('${addrSafe}')" title="${t('dash_edit_title')}">✎</button>
           <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${addrSafe}')" title="${t('dash_refresh_title')}">↻</button>
           <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${addrSafe}')" title="${t('dash_remove_title')}">✕</button>
         </div>
@@ -683,6 +686,59 @@ function showDashError(address, msg) {
 async function deleteWallet(address) {
   if (!confirm(t("dash_confirm_remove"))) return;
   await fetch(`/api/dashboard/wallets/${address}`, { method: "DELETE" });
+  await loadDashboard();
+}
+
+// ── Edit wallet label ──────────────────────────────────────────────────────────
+
+let _editWalletAddress = null;
+
+function openEditWalletModal(address) {
+  _editWalletAddress = address;
+  const wallet = dashWallets.find(w => w.address === address);
+  const labelEl = document.getElementById("dwm-edit-label");
+  labelEl.value = (wallet && wallet.label) ? wallet.label : "";
+  document.getElementById("dwm-edit-err").textContent = "";
+  document.getElementById("dash-edit-wallet-modal").classList.remove("hidden");
+  setTimeout(() => labelEl.select(), 50);
+}
+
+function closeEditWalletModal() {
+  document.getElementById("dash-edit-wallet-modal").classList.add("hidden");
+  _editWalletAddress = null;
+}
+
+async function submitEditWallet() {
+  const label  = document.getElementById("dwm-edit-label").value.trim();
+  const errEl  = document.getElementById("dwm-edit-err");
+  const btn    = document.getElementById("dwm-edit-submit");
+  errEl.textContent = "";
+  btn.disabled = true; btn.textContent = t("dash_saving");
+  try {
+    const r = await fetch(`/api/dashboard/wallets/${_editWalletAddress}`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ label }),
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || t("dash_err_generic"); return; }
+    closeEditWalletModal();
+    await loadDashboard();
+  } catch {
+    errEl.textContent = t("dash_err_network");
+  } finally {
+    btn.disabled = false; btn.textContent = t("dash_save_btn");
+  }
+}
+
+// ── Reorder wallet ─────────────────────────────────────────────────────────────
+
+async function moveWallet(address, direction) {
+  await fetch(`/api/dashboard/wallets/${address}/move`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ direction }),
+  });
   await loadDashboard();
 }
 

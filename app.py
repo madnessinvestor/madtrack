@@ -2198,6 +2198,34 @@ def _refresh_other(wallet, wallets, address):
     return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
                     "perps": 0, "errors": errors})
 
+@app.route("/api/dashboard/wallets/<path:address>", methods=["PATCH"])
+def edit_dash_wallet(address):
+    """Update mutable wallet metadata (label only for now)."""
+    body  = request.get_json() or {}
+    label = body.get("label", "").strip()
+    wallets = load_dash_wallets()
+    wallet  = next((w for w in wallets if w["address"] == address), None)
+    if not wallet:
+        return jsonify({"error": "Carteira não encontrada"}), 404
+    wallet["label"] = label
+    save_dash_wallets(wallets)
+    return jsonify({"ok": True})
+
+@app.route("/api/dashboard/wallets/<path:address>/move", methods=["POST"])
+def move_dash_wallet(address):
+    """Move a wallet up or down in the list."""
+    direction = (request.get_json() or {}).get("direction", "up")
+    wallets = load_dash_wallets()
+    idx = next((i for i, w in enumerate(wallets) if w["address"] == address), None)
+    if idx is None:
+        return jsonify({"error": "Carteira não encontrada"}), 404
+    if direction == "up" and idx > 0:
+        wallets[idx - 1], wallets[idx] = wallets[idx], wallets[idx - 1]
+    elif direction == "down" and idx < len(wallets) - 1:
+        wallets[idx + 1], wallets[idx] = wallets[idx], wallets[idx + 1]
+    save_dash_wallets(wallets)
+    return jsonify({"ok": True})
+
 @app.route("/api/dashboard/wallets/<path:address>", methods=["DELETE"])
 def delete_dash_wallet(address):
     wallets = [w for w in load_dash_wallets() if w["address"] != address]
