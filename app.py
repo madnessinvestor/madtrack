@@ -301,12 +301,23 @@ def _coingecko_coin_data(sym):
     if not search or not search.get("coins"):
         return None, None
     coin_id = None
+    # 1st pass: exact symbol match
     for c in search["coins"]:
         if c.get("symbol", "").lower() == s:
             coin_id = c["id"]
             break
+    # 2nd pass: symbol contained in id or name (handles tokens like vkhype whose
+    # CoinGecko id may differ from their ticker)
     if not coin_id:
-        coin_id = search["coins"][0]["id"]
+        for c in search["coins"]:
+            cid = c.get("id", "").lower()
+            cname = c.get("name", "").lower()
+            if s in cid or s in cname:
+                coin_id = c["id"]
+                break
+    # Never fall back to search["coins"][0] — that would return the wrong token
+    if not coin_id:
+        return None, None
     d = http_get(f"https://api.coingecko.com/api/v3/coins/{coin_id}?localization=false&tickers=false&community_data=false&developer_data=false")
     return coin_id, d
 
@@ -401,13 +412,20 @@ def _fetch_icon_url(symbol):
     search = http_get(f"https://api.coingecko.com/api/v3/search?query={s}", timeout=8)
     url = None
     if search and search.get("coins"):
-        # Prefer exact symbol match, then fall back to first result
+        # 1st pass: exact symbol match
         for c in search["coins"]:
             if c.get("symbol", "").lower() == s:
                 url = c.get("large") or c.get("thumb")
                 break
+        # 2nd pass: symbol contained in id or name
         if not url:
-            url = search["coins"][0].get("large") or search["coins"][0].get("thumb")
+            for c in search["coins"]:
+                cid = c.get("id", "").lower()
+                cname = c.get("name", "").lower()
+                if s in cid or s in cname:
+                    url = c.get("large") or c.get("thumb")
+                    break
+        # Never blindly use first result — wrong icon is worse than no icon
     _icon_cache[sym] = url
     return url
 
