@@ -2175,30 +2175,47 @@ def _jumper_parse_positions(data):
     return defi, perps
 
 def _collect_live_prices(symbols):
-    """Fetch live market prices (via the app's own price sources, Hyperliquid
-    first) for a set of symbols, in parallel. Returns {SYMBOL: price}."""
+    """Fetch live market prices via the app's own price sources (Hyperliquid
+    first, then the full APIS sequence). Each token's fetch is staggered by
+    50 ms to avoid hammering rate-limited APIs (e.g. CoinGecko) simultaneously.
+    Fetches run in overlapping threads — the stagger only controls the *start*
+    time, not serialisation. Returns {SYMBOL: price}."""
     symbols = {s.strip().upper() for s in symbols if s and s.strip()}
-    # Stablecoins: skip network round-trips, price is always ~1.
-    prices = {}
     STABLES = {"USDC", "USDT", "DAI", "USDC.E", "USDBC", "FDUSD", "TUSD", "USDE"}
-    to_fetch = set()
+    prices = {}
+    to_fetch = []
     for s in symbols:
         if s in STABLES:
             prices[s] = 1.0
         else:
-            to_fetch.add(s)
+            to_fetch.append(s)
     if not to_fetch:
         return prices
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(16, len(to_fetch))) as ex:
-        futures = {ex.submit(fetch_price, s): s for s in to_fetch}
-        for future in concurrent.futures.as_completed(futures):
-            sym = futures[future]
-            try:
-                r = future.result()
-                if r and r.get("price"):
-                    prices[sym] = float(r["price"])
-            except Exception:
-                pass
+
+    results = {}
+    lock = threading.Lock()
+
+    def _fetch_one(sym):
+        try:
+            r = fetch_price(sym)
+            if r and r.get("price"):
+                with lock:
+                    results[sym] = float(r["price"])
+        except Exception:
+            pass
+
+    threads = []
+    for i, sym in enumerate(sorted(to_fetch)):
+        if i > 0:
+            time.sleep(0.05)          # 50 ms stagger between token fetches
+        t = threading.Thread(target=_fetch_one, args=(sym,), daemon=True)
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join(timeout=30)
+
+    prices.update(results)
     return prices
 
 def _apply_live_prices(tokens, defi, perps):
