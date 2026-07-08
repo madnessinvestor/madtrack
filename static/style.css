@@ -361,6 +361,37 @@ h1 {
   transition: opacity 0.15s, box-shadow 0.15s;
 }
 .btn-primary:active { opacity: 0.78; box-shadow: none; }
+
+/* Floating action button */
+.btn-fab {
+  position: fixed;
+  bottom: 88px;
+  right: 20px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,230,118,0.40);
+  z-index: 15;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-fab:active {
+  transform: scale(0.93);
+  box-shadow: 0 2px 8px rgba(0,230,118,0.25);
+}
+.btn-fab-plus {
+  font-size: 2rem;
+  font-weight: 300;
+  line-height: 1;
+  margin-top: -2px;
+}
 .btn-refresh-main {
   background: var(--surface) !important;
   color: var(--fg) !important;

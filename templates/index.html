@@ -24,12 +24,6 @@
       <button id="btn-refresh" class="btn-primary btn-refresh-main" onclick="refreshAll()">
         ↻ <span data-i18n="btn_refresh">Atualizar</span>
       </button>
-      <button id="btn-add-tracker" class="btn-primary" onclick="openModal()">
-        <span class="btn-icon">+</span><span data-i18n="btn_add">Adicionar</span>
-      </button>
-      <button id="btn-add-trade" class="btn-primary hidden" onclick="openTradeModal()">
-        <span class="btn-icon">+</span><span data-i18n="btn_trade">Trade</span>
-      </button>
     </div>
   </header>
 
@@ -254,6 +248,16 @@
 
     </div>
   </div>
+
+  <!-- Floating action buttons -->
+  <button id="btn-add-tracker" class="btn-fab" onclick="openModal()" aria-label="Adicionar ativo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  </button>
+  <button id="btn-add-trade" class="btn-fab hidden" onclick="openTradeModal()" aria-label="Registrar trade">
+    <span class="btn-fab-plus">+</span>
+  </button>
 
   <!-- Bottom nav -->
   <nav class="bottom-nav">
