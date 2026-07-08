@@ -814,6 +814,13 @@ main {
   color: #000;
 }
 .settings-toggle-btn:active { opacity: 0.75; }
+#btn-theme {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  color: var(--text);
+}
 
 /* Modal */
 .modal {
