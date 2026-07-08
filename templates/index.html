@@ -241,11 +241,10 @@
       </div>
 
       <div class="settings-row">
-        <span class="settings-row-label" data-i18n="set_network">Redes</span>
+        <span class="settings-row-label" data-i18n="set_show_testnet">Exibir Testnets</span>
         <div class="settings-toggle-group">
-          <button class="settings-toggle-btn net-btn active" data-net="mainnet" onclick="setNetworkFilter('mainnet')" data-i18n="set_net_mainnet">Mainnet</button>
-          <button class="settings-toggle-btn net-btn" data-net="testnet" onclick="setNetworkFilter('testnet')" data-i18n="set_net_testnet">Testnet</button>
-          <button class="settings-toggle-btn net-btn" data-net="both" onclick="setNetworkFilter('both')" data-i18n="set_net_both">Ambas</button>
+          <button class="settings-toggle-btn testnet-toggle-btn" id="testnet-toggle-on" onclick="setShowTestnets(true)" data-i18n="set_on">ON</button>
+          <button class="settings-toggle-btn testnet-toggle-btn active" id="testnet-toggle-off" onclick="setShowTestnets(false)" data-i18n="set_off">OFF</button>
         </div>
       </div>
 

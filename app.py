@@ -2026,7 +2026,9 @@ def _parse_token_amount(amount_raw, decimals):
 
 # Chain-key substrings that indicate a testnet (case-insensitive match)
 _TESTNET_CHAIN_PATTERNS = ("sep", "goer", "testnet", "mumbai", "fuji", "chapel",
-                           "ropsten", "rinkeby", "kovan", "holesky")
+                           "ropsten", "rinkeby", "kovan", "holesky",
+                           "bast",   # Base Sepolia Testnet
+                           )
 
 def _is_testnet_chain(chain_key: str) -> bool:
     ck = chain_key.lower()

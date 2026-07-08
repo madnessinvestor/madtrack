@@ -195,10 +195,9 @@ const TRANSLATIONS = {
     set_lang:        "Idioma",
     set_theme:       "Tema",
     set_currency:    "Moeda",
-    set_network:     "Redes",
-    set_net_mainnet: "Mainnet",
-    set_net_testnet: "Testnet",
-    set_net_both:    "Ambas",
+    set_show_testnet: "Exibir Testnets",
+    set_on:           "ON",
+    set_off:          "OFF",
   },
   en: {
     btn_add:          "Add",
@@ -394,10 +393,9 @@ const TRANSLATIONS = {
     set_lang:        "Language",
     set_theme:       "Theme",
     set_currency:    "Currency",
-    set_network:     "Networks",
-    set_net_mainnet: "Mainnet",
-    set_net_testnet: "Testnet",
-    set_net_both:    "Both",
+    set_show_testnet: "Show Testnets",
+    set_on:           "ON",
+    set_off:          "OFF",
   }
 };
 

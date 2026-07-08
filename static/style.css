@@ -2543,7 +2543,7 @@ section.hidden { display: none; }
 .dwc-tab:hover  { color: var(--text); }
 .dwc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .dwc-tab-badge  { font-size: 0.68rem; font-weight: 400; color: inherit; opacity: 0.8; }
-.testnet-badge  { color: #f59e0b; opacity: 1; }
+.testnet-badge  { color: #f59e0b; opacity: 1; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; }
 .testnet-notice {
   font-size: 0.72rem;
   color: #f59e0b;
@@ -2552,6 +2552,28 @@ section.hidden { display: none; }
   border-radius: 6px;
   padding: 6px 10px;
   margin-bottom: 8px;
+}
+
+/* ── Testnet separate section (below mainnet) ────────────────────────────── */
+.dwc-testnet-section {
+  margin-top: 12px;
+  border-top: 1px dashed rgba(245,158,11,0.35);
+  padding-top: 10px;
+}
+.dwc-testnet-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  background: rgba(245,158,11,0.07);
+  border-radius: 6px;
+  border: 1px solid rgba(245,158,11,0.2);
+}
+.dwc-testnet-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.85;
 }
 
 /* ── DeFi rows ───────────────────────────────────────────────────────────── */

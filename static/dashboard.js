@@ -8,23 +8,32 @@ const dashManualExpanded = new Set();
 const dashActiveTab  = {};
 const tokGroupExpanded = new Set();
 
-// ── Network filter (mainnet | testnet | both) ──────────────────────────────────
-let networkFilter = localStorage.getItem("networkFilter") || "mainnet";
+// ── Testnet visibility toggle (ON = show testnets / OFF = mainnet only) ────────
+let showTestnets = localStorage.getItem("showTestnets") === "true";
 
-function setNetworkFilter(val) {
-  networkFilter = val;
-  localStorage.setItem("networkFilter", val);
-  document.querySelectorAll(".net-btn").forEach(b =>
-    b.classList.toggle("active", b.dataset.net === val)
-  );
+function setShowTestnets(val) {
+  showTestnets = !!val;
+  localStorage.setItem("showTestnets", showTestnets);
+  _applyTestnetToggleUI();
   if (dashLoaded) renderDashboard();
 }
 
-function applyNetworkFilterUI() {
-  document.querySelectorAll(".net-btn").forEach(b =>
-    b.classList.toggle("active", b.dataset.net === networkFilter)
-  );
+function _applyTestnetToggleUI() {
+  const onBtn  = document.getElementById("testnet-toggle-on");
+  const offBtn = document.getElementById("testnet-toggle-off");
+  if (onBtn)  onBtn.classList.toggle("active",  showTestnets);
+  if (offBtn) offBtn.classList.toggle("active", !showTestnets);
 }
+
+// Legacy: migrate old "networkFilter" key to the new boolean
+(function _migrateNetworkFilter() {
+  const old = localStorage.getItem("networkFilter");
+  if (old !== null) {
+    showTestnets = (old === "testnet" || old === "both");
+    localStorage.setItem("showTestnets", showTestnets);
+    localStorage.removeItem("networkFilter");
+  }
+})();
 
 const CHAIN_META = {
   // Jumper chain keys
@@ -279,28 +288,21 @@ function safeAddr(addr) { return (addr || "").replace(/'/g, "\\'"); }
 // ── Wallet card ────────────────────────────────────────────────────────────────
 
 function walletCardHtml(w) {
-  const allMainnetTokens = w.tokens         || [];
-  const allDefi          = w.defi           || [];
-  const allPerps         = w.perps          || [];
+  // Mainnet assets — always shown, always counted in totals
+  const tokens   = w.tokens || [];
+  const defi     = w.defi   || [];
+  const perps    = w.perps  || [];
+  // Testnet assets — NEVER counted in totals; shown in separate section only when enabled
   const allTestnetTokens = w.testnet_tokens || [];
-  const netType  = w.network_type || "evm";
+  const testnetTokens    = showTestnets ? allTestnetTokens : [];
 
-  // Apply network filter
-  const showMainnet = (networkFilter !== "testnet");
-  const showTestnet = (networkFilter !== "mainnet");
-
-  const tokens        = showMainnet ? allMainnetTokens : [];
-  const defi          = showMainnet ? allDefi          : [];
-  const perps         = showMainnet ? allPerps         : [];
-  const testnetTokens = showTestnet ? allTestnetTokens : [];
-
-  // Bitcoin and "other" only show Tokens tab
+  const netType    = w.network_type || "evm";
   const hasDeFiTabs = (netType === "evm" || netType === "solana");
 
-  const tokUsd   = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
-  const defiUsd  = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
-  const perpsUsd = perps.reduce((s, p)  => s + (p.net_usd   || 0), 0);
-  // Testnet value intentionally excluded from totalUsd
+  const tokUsd   = tokens.reduce((s, tk) => s + (tk.value_usd || 0), 0);
+  const defiUsd  = defi.reduce((s, d)    => s + (d.net_usd    || 0), 0);
+  const perpsUsd = perps.reduce((s, p)   => s + (p.net_usd    || 0), 0);
+  // Testnet intentionally excluded from totalUsd — never counts as real wealth
   const totalUsd = tokUsd + defiUsd + perpsUsd;
 
   const label    = w.label || shortAddr(w.address);
@@ -338,63 +340,55 @@ function walletCardHtml(w) {
       <button class="dash-load-btn" id="dwc-load-${w.address}" onclick="refreshWallet('${addrSafe}')">${t("dash_load_btn")}</button>
     </div>`;
   } else {
-    const baseTabs = hasDeFiTabs ? [
+    // ── Mainnet tabs ──────────────────────────────────────────────────────────
+    const tabs = hasDeFiTabs ? [
       { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
       { id: "defi",   label: t("dash_tab_defi"),   count: defi.length,   usd: defiUsd },
       { id: "perps",  label: t("dash_tab_perps"),  count: perps.length,  usd: perpsUsd },
     ] : [
       { id: "tokens", label: t("dash_tab_tokens"), count: tokens.length, usd: tokUsd },
     ];
-    const tabs = testnetTokens.length > 0
-      ? [...baseTabs, { id: "testnet", label: t("dash_tab_testnet"), count: testnetTokens.length, usd: null }]
-      : baseTabs;
 
     html += `<div class="dwc-tabbar" id="dwc-tabbar-${w.address}">`;
     for (const tab of tabs) {
       const active = activeTab === tab.id ? " active" : "";
-      const badge  = tab.id === "testnet"
-        ? `<span class="dwc-tab-badge testnet-badge">${tab.count}</span>`
-        : `<span class="dwc-tab-badge">${tab.count > 0 ? tab.count + " · " + fmtDashUsd(tab.usd) : "—"}</span>`;
+      const badge  = `<span class="dwc-tab-badge">${tab.count > 0 ? tab.count + " · " + fmtDashUsd(tab.usd) : "—"}</span>`;
       html += `<button class="dwc-tab${active}" onclick="switchWalletTab('${addrSafe}','${tab.id}',this)">
-        ${tab.label}
-        ${badge}
+        ${tab.label}${badge}
       </button>`;
     }
     html += `</div>`;
 
     // Tokens tab
     html += `<div class="dwc-tab-pane" id="dwc-pane-tokens-${w.address}" style="${activeTab === 'tokens' ? '' : 'display:none'}">`;
-    if (tokens.length === 0) {
-      html += `<div class="dash-token-empty">${t("dash_empty_tokens")}</div>`;
-    } else {
-      html += tokensGroupedHtml(tokens, w.address);
-    }
+    html += tokens.length === 0
+      ? `<div class="dash-token-empty">${t("dash_empty_tokens")}</div>`
+      : tokensGroupedHtml(tokens, w.address);
     html += `</div>`;
 
     if (hasDeFiTabs) {
       // DeFi tab
       html += `<div class="dwc-tab-pane" id="dwc-pane-defi-${w.address}" style="${activeTab === 'defi' ? '' : 'display:none'}">`;
-      if (defi.length === 0) {
-        html += `<div class="dash-token-empty">${t("dash_empty_defi")}</div>`;
-      } else {
-        for (const d of defi) html += defiRowHtml(d);
-      }
+      html += defi.length === 0
+        ? `<div class="dash-token-empty">${t("dash_empty_defi")}</div>`
+        : defi.map(d => defiRowHtml(d)).join("");
       html += `</div>`;
 
       // Perps tab
       html += `<div class="dwc-tab-pane" id="dwc-pane-perps-${w.address}" style="${activeTab === 'perps' ? '' : 'display:none'}">`;
-      if (perps.length === 0) {
-        html += `<div class="dash-token-empty">${t("dash_empty_perps")}</div>`;
-      } else {
-        for (const p of perps) html += defiRowHtml(p);
-      }
+      html += perps.length === 0
+        ? `<div class="dash-token-empty">${t("dash_empty_perps")}</div>`
+        : perps.map(p => defiRowHtml(p)).join("");
       html += `</div>`;
     }
 
-    // Testnet tab (only rendered when testnet tokens exist)
+    // ── Testnet section — separate from mainnet, never in totals ─────────────
     if (testnetTokens.length > 0) {
-      html += `<div class="dwc-tab-pane" id="dwc-pane-testnet-${w.address}" style="${activeTab === 'testnet' ? '' : 'display:none'}">`;
-      html += `<div class="testnet-notice">${t("dash_testnet_notice")}</div>`;
+      html += `<div class="dwc-testnet-section">
+        <div class="dwc-testnet-header">
+          <span class="testnet-badge">TESTNET</span>
+          <span class="dwc-testnet-sub">${t("dash_testnet_notice")}</span>
+        </div>`;
       html += tokensGroupedHtml(testnetTokens, w.address + "-testnet");
       html += `</div>`;
     }
@@ -1021,7 +1015,7 @@ function startDashAutoRefresh() {
 }
 
 startDashAutoRefresh();
-applyNetworkFilterUI();
+_applyTestnetToggleUI();
 
 function showDashError(address, msg) {
   const card = document.getElementById(`dwc-${address}`);
