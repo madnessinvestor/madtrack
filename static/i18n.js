@@ -106,9 +106,9 @@ const TRANSLATIONS = {
     ai_input_ph:        "Pergunte sobre seu portfólio...",
     ai_no_key:          "⚠️ API Key não configurada. Adicione OPENROUTER_API_KEY nos Secrets do Replit.",
     // dashboard
-    dash_wallets_title: "🔗 Carteiras On-Chain",
+    dash_wallets_title: "Carteiras On-Chain",
     dash_add_wallet:    "+ Carteira",
-    dash_manual_title:  "📝 Ativos Manuais",
+    dash_manual_title:  "Ativos Manuais",
     dash_add_manual:    "+ Ativo",
     dash_total_label:   "Total On-Chain",
     dash_load_btn:      "Carregar ativos desta carteira",
@@ -304,9 +304,9 @@ const TRANSLATIONS = {
     ai_input_ph:        "Ask about your portfolio...",
     ai_no_key:          "⚠️ API Key not configured. Add OPENROUTER_API_KEY to Replit Secrets.",
     // dashboard
-    dash_wallets_title: "🔗 On-Chain Wallets",
+    dash_wallets_title: "On-Chain Wallets",
     dash_add_wallet:    "+ Wallet",
-    dash_manual_title:  "📝 Manual Assets",
+    dash_manual_title:  "Manual Assets",
     dash_add_manual:    "+ Asset",
     dash_total_label:   "Total On-Chain",
     dash_load_btn:      "Load assets from this wallet",

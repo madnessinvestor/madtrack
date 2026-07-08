@@ -174,7 +174,12 @@ function renderDashboard() {
 
   // ── Wallets section ────────────────────────────────────────────────────────
   html += `<div class="dash-section-header">
-    <span class="dash-section-title">${t("dash_wallets_title")}</span>
+    <span class="dash-section-title">
+      <span class="dash-section-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </span>
+      ${t("dash_wallets_title")}
+    </span>
     <button class="dash-add-btn" onclick="openDashWalletModal()">${t("dash_add_wallet")}</button>
   </div>`;
 
@@ -193,7 +198,12 @@ function renderDashboard() {
 
   // ── Manual assets section ──────────────────────────────────────────────────
   html += `<div class="dash-section-header" style="margin-top:18px">
-    <span class="dash-section-title">${t("dash_manual_title")}</span>
+    <span class="dash-section-title">
+      <span class="dash-section-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </span>
+      ${t("dash_manual_title")}
+    </span>
     <button class="dash-add-btn" onclick="openDashManualModal()">${t("dash_add_manual")}</button>
   </div>`;
 
