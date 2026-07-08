@@ -7,8 +7,45 @@ let _selectedHashNet = "";
 
 function selectHashNet(btn, net) {
   document.querySelectorAll(".hash-net-chip").forEach(c => c.classList.remove("active"));
-  btn.classList.add("active");
+  if (btn) btn.classList.add("active");
   _selectedHashNet = net;
+  const hash = document.getElementById("trade-hash-input")?.value?.trim();
+  if (hash && hash.length >= 20) {
+    clearTimeout(_txHashTimer);
+    _txHashTimer = setTimeout(() => _lookupTxHash(hash), 300);
+  }
+}
+
+const _EVM_NETS = ['hyperevm','ethereum','base','arbitrum','optimism','bsc','polygon','avalanche','zksync','linea','scroll','mantle'];
+
+function syncHashCatFromNet(net) {
+  let cat = "auto";
+  if (net === "solana")        cat = "solana";
+  else if (net === "bitcoin")  cat = "bitcoin";
+  else if (_EVM_NETS.includes(net)) cat = "evm";
+  else if (net)                cat = "other";
+  document.querySelectorAll(".hash-cat-btn").forEach(c =>
+    c.classList.toggle("active", c.dataset.cat === cat));
+  const evmSubrow = document.getElementById("hash-evm-subrow");
+  if (cat === "evm") evmSubrow?.classList.remove("hidden");
+  else               evmSubrow?.classList.add("hidden");
+}
+
+function selectHashCat(btn, cat) {
+  document.querySelectorAll(".hash-cat-btn").forEach(c => c.classList.remove("active"));
+  btn.classList.add("active");
+  const evmSubrow = document.getElementById("hash-evm-subrow");
+  document.querySelectorAll(".hash-net-chip").forEach(c => c.classList.remove("active"));
+  if (cat === "evm") {
+    evmSubrow?.classList.remove("hidden");
+    _selectedHashNet = "";          // let user pick a sub-chip
+  } else {
+    evmSubrow?.classList.add("hidden");
+    if      (cat === "auto")    _selectedHashNet = "";
+    else if (cat === "solana")  _selectedHashNet = "solana";
+    else if (cat === "bitcoin") _selectedHashNet = "bitcoin";
+    else if (cat === "other")   _selectedHashNet = "other";
+  }
   const hash = document.getElementById("trade-hash-input")?.value?.trim();
   if (hash && hash.length >= 20) {
     clearTimeout(_txHashTimer);
@@ -75,6 +112,7 @@ function onTxHashInput(val) {
       c.classList.toggle("active", active);
       if (active) _selectedHashNet = chipNet;
     });
+    syncHashCatFromNet(detectedNet);
   }
 
   const extracted = _extractHash(raw);
@@ -552,8 +590,10 @@ function openTradeModal(prefillTicker) {
   const _v  = (id, val)  => { const el = document.getElementById(id); if (el) el.value = val; };
   const _add = (id, cls) => document.getElementById(id)?.classList.add(cls);
   const _rm  = (id, cls) => document.getElementById(id)?.classList.remove(cls);
-  // reset network chips to Auto
-  document.querySelectorAll(".hash-net-chip").forEach((c, i) => c.classList.toggle("active", i === 0));
+  // reset network selector to Auto
+  document.querySelectorAll(".hash-net-chip").forEach(c => c.classList.remove("active"));
+  document.querySelectorAll(".hash-cat-btn").forEach((c, i) => c.classList.toggle("active", i === 0));
+  document.getElementById("hash-evm-subrow")?.classList.add("hidden");
   _v("trade-hash-input", "");
   _v("trade-qty", "");
   _v("trade-price", "");

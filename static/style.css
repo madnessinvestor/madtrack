@@ -1889,27 +1889,50 @@ section.hidden { display: none; }
   color: var(--red);
   font-size: 12px;
 }
-.hash-net-row {
+.hash-net-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.hash-net-cats {
   display: flex;
   gap: 5px;
-  margin-top: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
 }
-.hash-net-row::-webkit-scrollbar { display: none; }
+.hash-cat-btn {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted2);
+  border-radius: 8px;
+  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  text-align: center;
+}
+.hash-cat-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.hash-cat-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+.hash-net-subrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.hash-net-subrow.hidden { display: none; }
 .hash-net-chip {
-  flex-shrink: 0;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--muted2);
   border-radius: 20px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   font-size: 11px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
 }
+.hash-net-chip:hover { border-color: var(--accent); color: var(--accent); }
 .hash-net-chip.active {
   background: rgba(0,230,118,0.15);
   border-color: var(--accent);

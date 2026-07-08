@@ -351,22 +351,28 @@
                  oninput="onTxHashInput(this.value)" />
           <span id="trade-hash-spinner" class="spinner hidden"></span>
         </div>
-        <div class="hash-net-row" id="hash-net-row">
-          <button class="hash-net-chip active" onclick="selectHashNet(this,'')">Auto</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'hyperevm')">HyperEVM</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'ethereum')">Ethereum</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'base')">Base</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'arbitrum')">Arbitrum</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'optimism')">Optimism</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'bsc')">BSC</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'polygon')">Polygon</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'avalanche')">Avalanche</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'zksync')">zkSync</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'linea')">Linea</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'scroll')">Scroll</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'mantle')">Mantle</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'bitcoin')">Bitcoin</button>
-          <button class="hash-net-chip" onclick="selectHashNet(this,'solana')">Solana</button>
+        <div class="hash-net-selector" id="hash-net-row">
+          <div class="hash-net-cats">
+            <button class="hash-cat-btn active" data-cat="auto"    onclick="selectHashCat(this,'auto')">Auto</button>
+            <button class="hash-cat-btn"        data-cat="evm"     onclick="selectHashCat(this,'evm')">⬡ EVM</button>
+            <button class="hash-cat-btn"        data-cat="solana"  onclick="selectHashCat(this,'solana')">◎ Solana</button>
+            <button class="hash-cat-btn"        data-cat="bitcoin" onclick="selectHashCat(this,'bitcoin')">₿ Bitcoin</button>
+            <button class="hash-cat-btn"        data-cat="other"   onclick="selectHashCat(this,'other')">◈ Outras</button>
+          </div>
+          <div class="hash-net-subrow hidden" id="hash-evm-subrow">
+            <button class="hash-net-chip" onclick="selectHashNet(this,'hyperevm')">HyperEVM</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'ethereum')">Ethereum</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'base')">Base</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'arbitrum')">Arbitrum</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'optimism')">Optimism</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'bsc')">BSC</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'polygon')">Polygon</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'avalanche')">Avalanche</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'zksync')">zkSync</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'linea')">Linea</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'scroll')">Scroll</button>
+            <button class="hash-net-chip" onclick="selectHashNet(this,'mantle')">Mantle</button>
+          </div>
         </div>
         <div id="trade-hash-result" class="hash-result hidden"></div>
       </div>
