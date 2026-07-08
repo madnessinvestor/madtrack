@@ -544,6 +544,7 @@ main {
 
 .asset-symbol { font-weight: 700; font-size: 0.85rem; }
 .asset-source { font-size: 0.62rem; color: var(--muted); margin-top: 1px; }
+.asset-cur-price { color: var(--text); }
 .asset-mcap   { font-size: 0.62rem; color: var(--muted); margin-top: 1px; }
 
 .asset-right {

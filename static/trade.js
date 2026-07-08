@@ -476,7 +476,7 @@ function portfolioCardHTML(tok) {
         </div>
         <div class="asset-name-wrap">
           <div class="asset-symbol">${sym}</div>
-          <div class="asset-source">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
+          <div class="asset-source asset-cur-price">${hasPrice ? formatUSD(tok.current_price) : "—"}</div>
           <div class="asset-source">${fmtQty(total_qty)} ${sym}</div>
           <div class="card-alert-badges" data-sym="${sym}"></div>
         </div>
