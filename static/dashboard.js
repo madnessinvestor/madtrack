@@ -598,6 +598,7 @@ function tokenRowHtml(t, subRow = false) {
     <div class="dash-tok-right">
       <span class="dash-tok-val">${fmtDashUsd(t.value_usd)}</span>
       <span class="dash-tok-bal">${fmtDashBal(t.balance)} ${escHtml(t.symbol)}</span>
+      ${fmtUnitPrice(t.price_usd) ? `<span class="dash-tok-price">@ ${fmtUnitPrice(t.price_usd)}</span>` : ""}
     </div>
   </div>`;
 }
@@ -617,6 +618,7 @@ function defiRowHtml(d) {
       allToks.map(t => `<span class="defi-tok-chip">
         ${t.logo ? `<img class="defi-tok-chip-img" src="${escHtml(t.logo)}" onerror="this.style.display='none'" />` : ""}
         ${fmtDashBal(t.balance)} ${escHtml(t.symbol)}
+        ${fmtUnitPrice(t.price_usd) ? `<span class="defi-tok-chip-price">@ ${fmtUnitPrice(t.price_usd)}</span>` : ""}
         <span class="defi-tok-chip-usd">${fmtDashUsd(t.value_usd)}</span>
       </span>`).join("") +
     `</div>`;
@@ -949,7 +951,9 @@ async function refreshAllWallets() {
     const listRes = await fetch("/api/dashboard/wallets");
     if (!listRes.ok) return;
     const wallets = await listRes.json();
-    const onChain = wallets.filter(w => w.network_type === "evm" || w.network_type === "solana" || w.network_type === "bitcoin");
+    // Treat any wallet without an explicit network_type as EVM (legacy records),
+    // matching the backend's own default — never drop a wallet from bulk refresh.
+    const onChain = wallets.filter(w => w.address);
     await Promise.allSettled([
       ...onChain.map(w =>
         fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" })
@@ -970,7 +974,7 @@ function startDashAutoRefresh() {
   _dashRefreshTimer = setInterval(async () => {
     const dashSection = document.getElementById("section-dashboard");
     if (!dashSection || dashSection.classList.contains("hidden")) return;
-    const toRefresh = dashWallets.filter(w => w.last_updated);
+    const toRefresh = dashWallets.filter(w => w.last_updated && w.address);
     // Always refresh manual asset prices; refresh loaded wallets in parallel
     await Promise.allSettled([
       ...toRefresh.map(w =>

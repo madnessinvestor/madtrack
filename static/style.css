@@ -2234,6 +2234,11 @@ section.hidden { display: none; }
   font-size: 0.68rem;
   color: var(--muted);
 }
+.dash-tok-price {
+  font-size: 0.66rem;
+  color: var(--muted);
+  opacity: 0.85;
+}
 .dash-del-inline {
   background: none;
   border: none;
@@ -2583,6 +2588,7 @@ section.hidden { display: none; }
 }
 .defi-tok-chip-img { width: 12px; height: 12px; border-radius: 50%; }
 .defi-tok-chip-usd { color: var(--muted); font-size: 0.66rem; }
+.defi-tok-chip-price { color: var(--muted); font-size: 0.64rem; opacity: 0.8; }
 .defi-debt-line { font-size: 0.72rem; color: var(--red); display: block; margin-top: 2px; }
 
 /* ── Perps rows ──────────────────────────────────────────────────────────── */
