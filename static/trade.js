@@ -215,8 +215,11 @@ function _applyTxResult(data) {
   html += `<span class="hash-trade-type ${isSwap ? "swap" : (data.is_sell ? "sell" : "buy")}">${tradeTypeLabel}</span>`;
   const details = [];
   if (isSwap && data.from_qty) {
-    // Show the full swap: what was given up → what was received
+    // Token-for-token swap: show both legs
     details.push(`<span class="hash-detail-item">${fmtQty(data.from_qty)} ${data.from_ticker} → <strong>${fmtQty(data.qty)} ${data.ticker}</strong></span>`);
+  } else if (data.is_sell && data.received_ticker && data.received_qty) {
+    // Sell: show "sold → received stablecoin" on a single line
+    details.push(`<span class="hash-detail-item">${fmtQty(data.qty)} ${data.ticker} → <strong>${fmtQty(data.received_qty)} ${data.received_ticker}</strong></span>`);
   } else if (data.ticker && data.qty) {
     details.push(`<span class="hash-detail-item">${t("qty_label")}: <strong>${fmtQty(data.qty)} ${data.ticker}</strong></span>`);
   }
