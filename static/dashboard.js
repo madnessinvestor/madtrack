@@ -283,7 +283,6 @@ function walletCardHtml(w) {
         <span class="dwc-total">${fmtDashUsd(totalUsd)}</span>
         <div class="dwc-btns" onclick="event.stopPropagation()">
           <button class="dash-icon-btn" onclick="openEditWalletModal('${addrSafe}')" title="${t('dash_edit_title')}">✎</button>
-          <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${addrSafe}')" title="${t('dash_refresh_title')}">↻</button>
           <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${addrSafe}')" title="${t('dash_remove_title')}">✕</button>
         </div>
       </div>
@@ -667,24 +666,37 @@ async function submitDashManual() {
 // ── Actions ────────────────────────────────────────────────────────────────────
 
 async function refreshWallet(address) {
-  const refBtn  = document.getElementById(`dwc-ref-${address}`);
   const loadBtn = document.getElementById(`dwc-load-${address}`);
-  if (refBtn)  { refBtn.style.opacity = "0.4"; refBtn.style.pointerEvents = "none"; }
   if (loadBtn) { loadBtn.textContent = t("dash_loading"); loadBtn.disabled = true; }
   try {
     const r = await fetch(`/api/dashboard/wallets/${address}/refresh`, { method: "POST" });
     const d = await r.json();
     if (!r.ok) {
       showDashError(address, d.error || t("dash_err_load"));
-      if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
       return;
     }
   } catch (e) {
     showDashError(address, t("dash_err_network"));
-    if (refBtn) { refBtn.style.opacity = ""; refBtn.style.pointerEvents = ""; }
     return;
   }
   await loadDashboard();
+}
+
+async function refreshAllWallets() {
+  const btn = document.getElementById("btn-refresh-all-wallets");
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
+  try {
+    const listRes = await fetch("/api/dashboard/wallets");
+    if (!listRes.ok) return;
+    const wallets = await listRes.json();
+    const onChain = wallets.filter(w => w.network_type === "evm" || w.network_type === "solana" || w.network_type === "bitcoin");
+    await Promise.allSettled(onChain.map(w =>
+      fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" })
+    ));
+    await loadDashboard();
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ""; }
+  }
 }
 
 // ── Auto-refresh all wallets every 3 minutes when dashboard is visible ─────────
@@ -695,12 +707,13 @@ function startDashAutoRefresh() {
   _dashRefreshTimer = setInterval(async () => {
     const dashSection = document.getElementById("section-dashboard");
     if (!dashSection || dashSection.classList.contains("hidden")) return;
-    for (const w of dashWallets) {
-      if (w.last_updated) {
-        // fire-and-forget; refreshWallet already calls loadDashboard when done
-        refreshWallet(w.address).catch(() => {});
-      }
-    }
+    const toRefresh = dashWallets.filter(w => w.last_updated);
+    if (!toRefresh.length) return;
+    // Refresh all loaded wallets in parallel, then do a single re-render
+    await Promise.allSettled(toRefresh.map(w =>
+      fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" }).catch(() => {})
+    ));
+    await loadDashboard();
   }, 3 * 60 * 1000); // every 3 minutes
 }
 
