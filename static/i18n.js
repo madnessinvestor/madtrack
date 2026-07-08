@@ -78,7 +78,7 @@ const TRANSLATIONS = {
     vol24h:   "VOLUME 24H",
     mcap:     "MARKET CAP",
     // alerts
-    alert_title:        "🔔 Alertas de Preço",
+    alert_title:        "Alertas de Preço",
     alert_add_btn:      "Criar Alerta",
     alert_above:        "Acima de",
     alert_below:        "Abaixo de",
@@ -276,7 +276,7 @@ const TRANSLATIONS = {
     vol24h:   "VOLUME 24H",
     mcap:     "MARKET CAP",
     // alerts
-    alert_title:        "🔔 Price Alerts",
+    alert_title:        "Price Alerts",
     alert_add_btn:      "Create Alert",
     alert_above:        "Above",
     alert_below:        "Below",
