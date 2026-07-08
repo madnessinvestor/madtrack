@@ -654,26 +654,108 @@ async function submitDashWallet() {
 
 // ── Manual modal ───────────────────────────────────────────────────────────────
 
+let _dmmFetchedPrice = null;   // price from ticker lookup
+let _dmmFetchedSrc   = null;   // source label
+let _dmmLookupTimer  = null;
+let _dmmReqSeq       = 0;      // monotonic counter for race-safe responses
+
 function openDashManualModal() {
   document.getElementById("dash-manual-modal").classList.remove("hidden");
-  ["dmm-sym","dmm-name","dmm-net","dmm-bal","dmm-price"].forEach(id => {
+  ["dmm-sym","dmm-qty","dmm-invest","dmm-date"].forEach(id => {
     document.getElementById(id).value = "";
   });
   document.getElementById("dmm-err").textContent = "";
+  document.getElementById("dmm-ppt").textContent = "--";
+  const info = document.getElementById("dmm-price-info");
+  info.textContent = "";
+  info.classList.add("hidden");
+  _dmmFetchedPrice = null;
+  _dmmFetchedSrc   = null;
+  // pre-fill date with now in local time (datetime-local needs YYYY-MM-DDTHH:mm)
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const localDt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById("dmm-date").value = localDt;
   setTimeout(() => document.getElementById("dmm-sym").focus(), 50);
 }
 
 function closeDashManualModal() {
   document.getElementById("dash-manual-modal").classList.add("hidden");
+  clearTimeout(_dmmLookupTimer);
+}
+
+function onDmmSymInput() {
+  clearTimeout(_dmmLookupTimer);
+  _dmmFetchedPrice = null;
+  _dmmFetchedSrc   = null;
+  _dmmReqSeq++;                           // invalidate any in-flight request
+  const info = document.getElementById("dmm-price-info");
+  info.classList.add("hidden");
+  info.textContent = "";
+  onDmmCalc();
+  const sym = document.getElementById("dmm-sym").value.trim();
+  if (!sym) return;
+  info.textContent = "…";
+  info.classList.remove("hidden");
+  const seq = _dmmReqSeq;
+  _dmmLookupTimer = setTimeout(() => _dmmLookup(sym, seq), 500);
+}
+
+function _dmmSetInfo(info, cls, ...texts) {
+  info.textContent = "";
+  texts.forEach(({ css, text }) => {
+    const sp = document.createElement("span");
+    sp.className = css;
+    sp.textContent = text;
+    info.appendChild(sp);
+  });
+}
+
+async function _dmmLookup(sym, seq) {
+  const info = document.getElementById("dmm-price-info");
+  try {
+    const r = await fetch(`/api/price-lookup?symbol=${encodeURIComponent(sym)}`);
+    if (seq !== _dmmReqSeq) return;       // stale — a newer request is in flight
+    const d = await r.json();
+    if (d.price) {
+      _dmmFetchedPrice = d.price;
+      _dmmFetchedSrc   = d.source || "";
+      const fmt = new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:2, maximumFractionDigits:8 });
+      const parts = [{ css: "dmm-price-val", text: `${t("dmm_cur_price")} ${fmt.format(d.price)}` }];
+      if (d.source) parts.push({ css: "dmm-source-val", text: `${t("dmm_data_source")} ${d.source}` });
+      _dmmSetInfo(info, null, ...parts);
+      info.classList.remove("hidden");
+    } else {
+      _dmmFetchedPrice = null;
+      _dmmSetInfo(info, null, { css: "dmm-price-notfound", text: t("dmm_not_found") });
+    }
+  } catch {
+    if (seq !== _dmmReqSeq) return;
+    _dmmFetchedPrice = null;
+    _dmmSetInfo(info, null, { css: "dmm-price-notfound", text: t("dmm_err_lookup") });
+  }
+  onDmmCalc();
+}
+
+function onDmmCalc() {
+  const qty    = parseFloat(document.getElementById("dmm-qty").value)    || 0;
+  const invest = parseFloat(document.getElementById("dmm-invest").value) || 0;
+  const pptEl  = document.getElementById("dmm-ppt");
+  if (qty > 0 && invest > 0) {
+    const ppt = invest / qty;
+    const fmt = new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:2, maximumFractionDigits:8 });
+    pptEl.textContent = fmt.format(ppt);
+  } else {
+    pptEl.textContent = "--";
+  }
 }
 
 async function submitDashManual() {
-  const symbol    = document.getElementById("dmm-sym").value.trim();
-  const name      = document.getElementById("dmm-name").value.trim();
-  const network   = document.getElementById("dmm-net").value.trim();
-  const balance   = parseFloat(document.getElementById("dmm-bal").value)   || 0;
-  const price_usd = parseFloat(document.getElementById("dmm-price").value) || 0;
-  const errEl = document.getElementById("dmm-err");
+  const symbol  = document.getElementById("dmm-sym").value.trim().toUpperCase();
+  const qty     = parseFloat(document.getElementById("dmm-qty").value)    || 0;
+  const invest  = parseFloat(document.getElementById("dmm-invest").value) || 0;
+  const dateVal = document.getElementById("dmm-date").value.trim();
+  const errEl   = document.getElementById("dmm-err");
   if (!symbol) { errEl.textContent = t("dash_err_symbol"); return; }
   errEl.textContent = "";
   const btn = document.getElementById("dmm-submit");
@@ -682,7 +764,14 @@ async function submitDashManual() {
     const r = await fetch("/api/dashboard/manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol, name, network, balance, price_usd })
+      body: JSON.stringify({
+        symbol,
+        balance:    qty,
+        price_usd:  _dmmFetchedPrice || 0,
+        investment: invest,
+        source:     _dmmFetchedSrc || "",
+        purchase_date: dateVal || null
+      })
     });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || t("dash_err_generic"); return; }

@@ -632,49 +632,35 @@
   <!-- Dashboard: Add Manual Asset modal -->
   <div class="dash-modal hidden" id="dash-manual-modal" onclick="if(event.target===this)closeDashManualModal()">
     <div class="dash-modal-box">
-      <div class="dash-modal-title">📝 Ativo Manual</div>
+      <div class="dash-modal-title" data-i18n="dmm_title">📝 Ativo Manual</div>
+      <div>
+        <label for="dmm-sym" data-i18n="dmm_label_ticker">ASSET (TICKER)</label>
+        <input id="dmm-sym" type="text" placeholder="BTC" autocomplete="off" style="text-transform:uppercase"
+               oninput="onDmmSymInput()" />
+        <div id="dmm-price-info" class="dmm-price-info hidden"></div>
+      </div>
       <div class="dash-modal-row2">
         <div>
-          <label for="dmm-sym">Símbolo *</label>
-          <input id="dmm-sym" type="text" placeholder="ETH" autocomplete="off" style="text-transform:uppercase" />
+          <label for="dmm-qty" data-i18n="dmm_label_qty">QUANTITY</label>
+          <input id="dmm-qty" type="number" placeholder="0" step="any" min="0" oninput="onDmmCalc()" />
         </div>
         <div>
-          <label for="dmm-name">Nome</label>
-          <input id="dmm-name" type="text" placeholder="Ethereum" autocomplete="off" />
+          <label for="dmm-invest" data-i18n="dmm_label_invest">INVESTMENT (USD)</label>
+          <input id="dmm-invest" type="number" placeholder="0" step="any" min="0" oninput="onDmmCalc()" />
         </div>
+      </div>
+      <div class="dmm-ppt-row">
+        <span data-i18n="dmm_label_ppt">Price Paid per Token:</span>
+        <span id="dmm-ppt">--</span>
       </div>
       <div>
-        <label for="dmm-net">Rede</label>
-        <select id="dmm-net">
-          <option value="">— selecione —</option>
-          <option value="eth">Ethereum</option>
-          <option value="bsc">BNB Chain</option>
-          <option value="polygon">Polygon</option>
-          <option value="arbitrum">Arbitrum</option>
-          <option value="optimism">Optimism</option>
-          <option value="avalanche">Avalanche</option>
-          <option value="base">Base</option>
-          <option value="fantom">Fantom</option>
-          <option value="gnosis">Gnosis</option>
-          <option value="zksync">zkSync</option>
-          <option value="linea">Linea</option>
-          <option value="scroll">Scroll</option>
-        </select>
-      </div>
-      <div class="dash-modal-row2">
-        <div>
-          <label for="dmm-bal">Saldo</label>
-          <input id="dmm-bal" type="number" placeholder="1.5" step="any" min="0" />
-        </div>
-        <div>
-          <label for="dmm-price">Preço USD</label>
-          <input id="dmm-price" type="number" placeholder="3200.00" step="any" min="0" />
-        </div>
+        <label for="dmm-date" data-i18n="dmm_label_date">PURCHASE DATE (optional)</label>
+        <input id="dmm-date" type="datetime-local" />
       </div>
       <div class="dash-modal-err" id="dmm-err"></div>
       <div class="dash-modal-actions">
-        <button class="btn-cancel" onclick="closeDashManualModal()">Cancelar</button>
-        <button class="btn-confirm" id="dmm-submit" onclick="submitDashManual()">Adicionar</button>
+        <button class="btn-cancel" onclick="closeDashManualModal()" data-i18n="cancel">Cancelar</button>
+        <button class="btn-confirm" id="dmm-submit" onclick="submitDashManual()" data-i18n="dash_add_btn">Adicionar</button>
       </div>
     </div>
   </div>

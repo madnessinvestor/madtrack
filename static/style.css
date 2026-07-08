@@ -2385,6 +2385,31 @@ section.hidden { display: none; }
 }
 .dash-modal-actions .btn-confirm:disabled { opacity: 0.5; }
 
+/* ── Manual asset modal extras ───────────────────────────────────────────── */
+.dmm-price-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.8rem;
+  margin-top: 5px;
+  min-height: 18px;
+}
+.dmm-price-val   { color: var(--accent); font-weight: 600; }
+.dmm-source-val  { color: var(--accent); opacity: 0.75; }
+.dmm-price-notfound { color: var(--muted2); font-style: italic; }
+.dmm-ppt-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--muted2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+.dmm-ppt-row span:last-child { color: var(--text); font-weight: 600; font-size: 0.88rem; }
+
 .dash-ankr-warn {
   display: flex;
   gap: 12px;

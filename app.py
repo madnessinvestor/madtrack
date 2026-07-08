@@ -582,6 +582,17 @@ def get_price():
         return jsonify(result)
     return jsonify({"error": "not found"}), 404
 
+@app.route("/api/price-lookup")
+def price_lookup():
+    """Lightweight ticker lookup for the manual asset modal."""
+    sym = request.args.get("symbol", "").strip().upper()
+    if not sym:
+        return jsonify({"error": "no symbol"}), 400
+    result = fetch_price(sym)
+    if result and result.get("price"):
+        return jsonify({"price": result["price"], "source": result.get("source", "")})
+    return jsonify({"price": None, "source": None}), 404
+
 @app.route("/api/assets", methods=["GET"])
 def get_assets():
     assets = load_assets()
@@ -2296,19 +2307,30 @@ def get_dash_manual():
 
 @app.route("/api/dashboard/manual", methods=["POST"])
 def add_dash_manual():
+    import re as _re
     body   = request.get_json() or {}
     symbol = body.get("symbol", "").strip().upper()
     if not symbol:
         return jsonify({"error": "Símbolo obrigatório"}), 400
+    try:
+        balance    = max(0.0, float(body.get("balance",    0) or 0))
+        price_usd  = max(0.0, float(body.get("price_usd",  0) or 0))
+        investment = max(0.0, float(body.get("investment",  0) or 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Valores numéricos inválidos"}), 400
+    raw_date = body.get("purchase_date") or None
+    if raw_date and not _re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}', str(raw_date)):
+        raw_date = None   # reject malformed dates silently
     from datetime import datetime
     asset = {
-        "id":        str(uuid.uuid4())[:8],
-        "symbol":    symbol,
-        "name":      body.get("name",      "").strip(),
-        "network":   body.get("network",   "").strip().lower(),
-        "balance":   float(body.get("balance",   0) or 0),
-        "price_usd": float(body.get("price_usd", 0) or 0),
-        "added_at":  datetime.utcnow().isoformat(),
+        "id":            str(uuid.uuid4())[:8],
+        "symbol":        symbol,
+        "balance":       balance,
+        "price_usd":     price_usd,
+        "investment":    investment,
+        "source":        body.get("source", "").strip()[:64],
+        "purchase_date": raw_date,
+        "added_at":      datetime.utcnow().isoformat(),
     }
     manual = load_dash_manual()
     manual.append(asset)
