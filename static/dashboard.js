@@ -944,6 +944,24 @@ async function refreshWallet(address) {
   await loadDashboard();
 }
 
+// ── Staggered wallet refresh: 50 ms between each wallet to avoid API rate-limiting ──
+// EVM and Solana share the same Jumper API endpoint; firing them all at once
+// triggers 403 responses. Manual assets use a different endpoint and are always
+// fired immediately alongside the staggered chain.
+async function _staggeredWalletRefresh(wallets, { silent = false } = {}) {
+  const STAGGER_MS = 50;
+  const promises = wallets.map((w, i) =>
+    new Promise(resolve => setTimeout(resolve, i * STAGGER_MS))
+      .then(() =>
+        fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" })
+          .catch(() => {})
+      )
+  );
+  // Manual asset prices don't hit the chain APIs — fire immediately in parallel
+  promises.push(fetch("/api/dashboard/manual/refresh", { method: "POST" }).catch(() => {}));
+  return Promise.allSettled(promises);
+}
+
 async function refreshAllWallets() {
   const btn = document.getElementById("btn-refresh-all-wallets");
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
@@ -954,12 +972,7 @@ async function refreshAllWallets() {
     // Treat any wallet without an explicit network_type as EVM (legacy records),
     // matching the backend's own default — never drop a wallet from bulk refresh.
     const onChain = wallets.filter(w => w.address);
-    await Promise.allSettled([
-      ...onChain.map(w =>
-        fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" })
-      ),
-      fetch("/api/dashboard/manual/refresh", { method: "POST" }),
-    ]);
+    await _staggeredWalletRefresh(onChain);
     await loadDashboard();
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = ""; }
@@ -975,13 +988,7 @@ function startDashAutoRefresh() {
     const dashSection = document.getElementById("section-dashboard");
     if (!dashSection || dashSection.classList.contains("hidden")) return;
     const toRefresh = dashWallets.filter(w => w.last_updated && w.address);
-    // Always refresh manual asset prices; refresh loaded wallets in parallel
-    await Promise.allSettled([
-      ...toRefresh.map(w =>
-        fetch(`/api/dashboard/wallets/${w.address}/refresh`, { method: "POST" }).catch(() => {})
-      ),
-      fetch("/api/dashboard/manual/refresh", { method: "POST" }).catch(() => {}),
-    ]);
+    await _staggeredWalletRefresh(toRefresh, { silent: true });
     await loadDashboard();
   }, 3 * 60 * 1000); // every 3 minutes
 }

@@ -1912,16 +1912,42 @@ PERP_PROTOCOLS = {"hyperliquid", "lighter", "polymarket", "dydx", "kwenta",
                   "synthetix", "gains network", "foxify"}
 
 def _parse_token_amount(amount_raw, decimals):
-    """Parse a token amount that may be an integer string or decimal string."""
+    """Parse a token amount that may be raw on-chain integer units or already
+    a human-readable decimal value.
+
+    Jumper can return amounts as:
+      - A large integer string  ("6669014962512595915") → raw on-chain units
+      - A decimal string        ("101.13")              → already human-readable
+      - A Python float          (1.5)                   → already human-readable
+      - A Python int            (1000000)               → ambiguous; treat as
+                                                          raw on-chain units only
+                                                          when value > 10^8 to
+                                                          avoid misreading small
+                                                          human-readable integers
+    The previous implementation called int() on float values without checking,
+    silently truncating 1.5 → 1 and then dividing by 10^decimals, producing
+    near-zero balances for tokens whose amount came back as a JSON number.
+    """
+    if amount_raw is None:
+        return 0.0
+    # Already a Python float → human-readable, return as-is
+    if isinstance(amount_raw, float):
+        return amount_raw
     try:
-        # Try integer first (raw on-chain units, e.g. "6669014962512595915")
-        raw = int(amount_raw)
-        return raw / (10 ** int(decimals))
-    except (ValueError, TypeError):
-        pass
-    try:
-        # Fallback: already a human-readable float (e.g. "101.13")
-        return float(amount_raw)
+        s = str(amount_raw).strip()
+        # String contains a decimal point → already human-readable
+        if '.' in s:
+            return float(s)
+        # Pure integer string
+        raw = int(s)
+        dec = int(decimals)
+        divisor = 10 ** dec
+        # Heuristic: if the raw value is not large enough to be on-chain units
+        # (i.e. raw < 10^4 for any decimals ≥ 6, or raw < divisor/1000),
+        # treat it as already human-readable to avoid dividing small counts.
+        if dec >= 1 and raw < max(10_000, divisor // 1_000):
+            return float(raw)
+        return raw / divisor
     except (ValueError, TypeError):
         return 0.0
 
