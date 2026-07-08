@@ -312,12 +312,9 @@ function switchTab(tab) {
   if (isDashboard) {
     if (!dashLoaded) {
       loadDashboard();
-    } else {
-      // Refresh all loaded wallets when switching back to dashboard
-      for (const w of dashWallets) {
-        if (w.last_updated) refreshWallet(w.address).catch(() => {});
-      }
     }
+    // No auto-refresh on tab switch — the 3-minute timer handles background
+    // updates, and manual refresh is available per-wallet via the ↻ button.
   }
 }
 
