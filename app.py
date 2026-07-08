@@ -1873,6 +1873,18 @@ def delete_dash_wallet(address):
     save_dash_wallets(wallets)
     return jsonify({"ok": True})
 
+def _jumper_history_total(params, timeout=25):
+    """Call balance/history and return the latest total USD value (last data point).
+    Returns None on failure."""
+    try:
+        result = _jumper_get("balance/history", params + "&chartPeriod=all", timeout=timeout)
+        pts = (result.get("data") or {}).get("points") or []
+        if pts:
+            return float(pts[-1].get("v", 0) or 0)
+    except Exception:
+        pass
+    return None
+
 def _jumper_get(path, params, timeout=25):
     JUMPER_HDR = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -2047,7 +2059,7 @@ def _dedup_tokens(tokens, defi, perps):
         deduped.append(tok)
     return deduped
 
-def _save_wallet_result(wallets, address, tokens, defi, perps):
+def _save_wallet_result(wallets, address, tokens, defi, perps, history_total_usd=None):
     from datetime import datetime
     for w in wallets:
         if w["address"] == address:
@@ -2055,12 +2067,16 @@ def _save_wallet_result(wallets, address, tokens, defi, perps):
             w["defi"]         = defi
             w["perps"]        = perps
             w["last_updated"] = datetime.utcnow().isoformat()
+            if history_total_usd is not None:
+                w["history_total_usd"] = history_total_usd
             break
     save_dash_wallets(wallets)
 
 def _refresh_evm(wallet, wallets, address):
     errors = []
     params = f"evm={address}"
+    # Fetch current total from balance/history (most up-to-date portfolio value)
+    history_total_usd = _jumper_history_total(params)
     try:
         result = _jumper_get("tokens", params)
         tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
@@ -2074,13 +2090,16 @@ def _refresh_evm(wallet, wallets, address):
         defi, perps = [], []
         errors.append(f"positions: {ex}")
     tokens = _dedup_tokens(tokens, defi, perps)
-    _save_wallet_result(wallets, address, tokens, defi, perps)
+    _save_wallet_result(wallets, address, tokens, defi, perps, history_total_usd)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
-                    "perps": len(perps), "errors": errors})
+                    "perps": len(perps), "history_total_usd": history_total_usd,
+                    "errors": errors})
 
 def _refresh_solana(wallet, wallets, address):
     errors = []
     params = f"svm={address}"
+    # Fetch current total from balance/history (most up-to-date portfolio value)
+    history_total_usd = _jumper_history_total(params)
     try:
         result = _jumper_get("tokens", params)
         tokens = _jumper_parse_tokens(result.get("data", {}).get("balances", []))
@@ -2094,9 +2113,10 @@ def _refresh_solana(wallet, wallets, address):
         defi, perps = [], []
         errors.append(f"positions: {ex}")
     tokens = _dedup_tokens(tokens, defi, perps)
-    _save_wallet_result(wallets, address, tokens, defi, perps)
+    _save_wallet_result(wallets, address, tokens, defi, perps, history_total_usd)
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
-                    "perps": len(perps), "errors": errors})
+                    "perps": len(perps), "history_total_usd": history_total_usd,
+                    "errors": errors})
 
 def _get_btc_price_usd():
     """Fetch current BTC price in USD from public APIs."""

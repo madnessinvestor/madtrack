@@ -115,6 +115,10 @@ function renderDashboard() {
   }
 
   const totalWalletUsd = dashWallets.reduce((s, w) => {
+    // Prefer history_total_usd (from balance/history API) as it's the most accurate current value
+    if (w.history_total_usd != null && w.history_total_usd > 0) {
+      return s + w.history_total_usd;
+    }
     const tok   = (w.tokens || []).reduce((ts, t) => ts + (t.value_usd || 0), 0);
     const dfi   = (w.defi   || []).reduce((ts, d) => ts + (d.net_usd   || 0), 0);
     const prps  = (w.perps  || []).reduce((ts, p) => ts + (p.net_usd   || 0), 0);
@@ -257,7 +261,10 @@ function walletCardHtml(w) {
   const tokUsd   = tokens.reduce((s, t) => s + (t.value_usd || 0), 0);
   const defiUsd  = defi.reduce((s, d)   => s + (d.net_usd   || 0), 0);
   const perpsUsd = perps.reduce((s, p)  => s + (p.net_usd   || 0), 0);
-  const totalUsd = tokUsd + defiUsd + perpsUsd;
+  // Prefer history_total_usd (from balance/history API) — it's the most up-to-date value from Jumper
+  const totalUsd = (w.history_total_usd != null && w.history_total_usd > 0)
+    ? w.history_total_usd
+    : tokUsd + defiUsd + perpsUsd;
 
   const label    = w.label || shortAddr(w.address);
   const isLoaded = !!w.last_updated;
