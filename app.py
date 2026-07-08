@@ -641,6 +641,32 @@ def search_symbols():
         cache = list(_search_cache)
     matches = [s for s in cache if q in s["symbol"].upper()]
     matches.sort(key=lambda s: (not s["symbol"].upper().startswith(q), s["symbol"]))
+    # Fallback: when local Hyperliquid cache has no hits, also try CoinGecko search
+    # so tokens like VKHYPE (not on any CEX) can still be found and added.
+    if not matches and len(q) >= 2:
+        try:
+            cg = http_get(
+                f"https://api.coingecko.com/api/v3/search?query={q.lower()}",
+                timeout=6)
+            if cg and cg.get("coins"):
+                seen_syms = set()
+                for c in cg["coins"][:20]:
+                    sym  = (c.get("symbol") or "").upper()
+                    name = c.get("name", "")
+                    if not sym or sym in seen_syms:
+                        continue
+                    # Only include if the query matches symbol or name
+                    if q in sym or q.lower() in name.lower():
+                        seen_syms.add(sym)
+                        matches.append({
+                            "symbol":   sym,
+                            "name":     name,
+                            "exchange": "CoinGecko",
+                        })
+                matches.sort(key=lambda s: (
+                    not s["symbol"].upper().startswith(q), s["symbol"]))
+        except Exception:
+            pass
     return jsonify(matches[:15])
 
 @app.route("/api/icon")
