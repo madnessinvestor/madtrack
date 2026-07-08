@@ -143,18 +143,16 @@ function changeHTML(change, size = "") {
 
 // ─── Watchlist ────────────────────────────────────────────────────────────────
 
-function refreshCurrent() {
-  const tradeSection = document.getElementById("section-trade");
-  if (!tradeSection.classList.contains("hidden")) {
-    if (typeof loadPortfolio === "function") loadPortfolio();
-  } else {
-    loadAssets();
-  }
+function refreshAll() {
+  loadAssets();
+  if (typeof loadPortfolio   === "function") loadPortfolio();
+  if (typeof loadDashboard   === "function") loadDashboard();
 }
 
 async function loadAssets() {
-  const list       = document.getElementById("asset-list");
-  const lastUpdate = document.getElementById("last-update");
+  const list   = document.getElementById("asset-list");
+  const luTime = document.getElementById("last-update-time");
+  const luDate = document.getElementById("last-update-date");
 
   try {
     const res    = await fetch("/api/assets");
@@ -174,7 +172,8 @@ async function loadAssets() {
     }
 
     const now = new Date();
-    lastUpdate.textContent = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
+    if (luTime) luTime.textContent = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
+    if (luDate) luDate.textContent = `${now.getDate().toString().padStart(2,"0")}/${(now.getMonth()+1).toString().padStart(2,"0")}`;
   } catch {
     list.innerHTML = `<div class="empty-state"><p>${t("error_load")}</p></div>`;
   }
