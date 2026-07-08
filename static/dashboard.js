@@ -145,9 +145,11 @@ function renderDashboard() {
       <p>${t("dash_wallet_empty")}</p>
     </div>`;
   } else {
+    html += `<div id="dash-wallets-list">`;
     for (const w of dashWallets) {
       html += walletCardHtml(w);
     }
+    html += `</div>`;
   }
 
   // ── Manual assets section ──────────────────────────────────────────────────
@@ -189,6 +191,35 @@ function renderDashboard() {
   }
 
   el.innerHTML = html;
+  initDashSortable();
+}
+
+// ── Drag-and-drop reorder ──────────────────────────────────────────────────────
+
+let _dashSortable = null;
+
+function initDashSortable() {
+  const list = document.getElementById("dash-wallets-list");
+  if (_dashSortable) { _dashSortable.destroy(); _dashSortable = null; }
+  if (!list || typeof Sortable === "undefined") return;
+  _dashSortable = new Sortable(list, {
+    handle: ".dwc-drag-handle",
+    animation: 150,
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    onEnd: async () => {
+      const cards     = list.querySelectorAll(".dash-wallet-card[data-addr]");
+      const addresses = [...cards].map(c => c.dataset.addr);
+      // Update local order immediately so subsequent renders stay consistent
+      const addrMap   = Object.fromEntries(dashWallets.map(w => [w.address, w]));
+      dashWallets     = addresses.map(a => addrMap[a]).filter(Boolean);
+      await fetch("/api/dashboard/wallets/order", {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ addresses }),
+      });
+    },
+  });
 }
 
 // ── Network type helpers ───────────────────────────────────────────────────────
@@ -235,9 +266,10 @@ function walletCardHtml(w) {
   const chevron  = isOpen ? "▼" : "▶";
   const addrSafe = safeAddr(w.address);
 
-  let html = `<div class="dash-wallet-card" id="dwc-${w.address}">
+  let html = `<div class="dash-wallet-card" id="dwc-${w.address}" data-addr="${escHtml(w.address)}">
     <div class="dwc-header" onclick="toggleWalletCard('${addrSafe}')">
       <div class="dwc-header-left">
+        <span class="dwc-drag-handle drag-handle" title="Arrastar para reordenar">⠿</span>
         <span class="dwc-chevron" id="dwc-chev-${w.address}">${chevron}</span>
         <div class="dwc-info">
           <div class="dwc-label-row">
@@ -250,8 +282,6 @@ function walletCardHtml(w) {
       <div class="dwc-header-right">
         <span class="dwc-total">${fmtDashUsd(totalUsd)}</span>
         <div class="dwc-btns" onclick="event.stopPropagation()">
-          <button class="dash-icon-btn dwc-move-btn" onclick="moveWallet('${addrSafe}','up')"   title="${t('dash_move_up')}">↑</button>
-          <button class="dash-icon-btn dwc-move-btn" onclick="moveWallet('${addrSafe}','down')" title="${t('dash_move_down')}">↓</button>
           <button class="dash-icon-btn" onclick="openEditWalletModal('${addrSafe}')" title="${t('dash_edit_title')}">✎</button>
           <button class="dash-icon-btn" id="dwc-ref-${w.address}" onclick="refreshWallet('${addrSafe}')" title="${t('dash_refresh_title')}">↻</button>
           <button class="dash-icon-btn dash-del-btn" onclick="deleteWallet('${addrSafe}')" title="${t('dash_remove_title')}">✕</button>
@@ -326,6 +356,11 @@ function toggleWalletCard(address) {
   if (chev) chev.textContent = opening ? "▼" : "▶";
   if (opening) dashExpanded.add(address); else dashExpanded.delete(address);
 }
+
+// Prevent drag handle from triggering card toggle
+document.addEventListener("click", e => {
+  if (e.target.closest(".dwc-drag-handle")) e.stopImmediatePropagation();
+}, true);
 
 function switchWalletTab(address, tab, btn) {
   ["tokens","defi","perps"].forEach(t => {
@@ -729,17 +764,6 @@ async function submitEditWallet() {
   } finally {
     btn.disabled = false; btn.textContent = t("dash_save_btn");
   }
-}
-
-// ── Reorder wallet ─────────────────────────────────────────────────────────────
-
-async function moveWallet(address, direction) {
-  await fetch(`/api/dashboard/wallets/${address}/move`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ direction }),
-  });
-  await loadDashboard();
 }
 
 async function deleteManualAsset(id) {

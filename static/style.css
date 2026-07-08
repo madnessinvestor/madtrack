@@ -1981,8 +1981,6 @@ section.hidden { display: none; }
 }
 .dash-icon-btn:hover { color: var(--text); border-color: var(--muted2); }
 .dash-del-btn:hover  { color: var(--red); border-color: var(--red); }
-.dwc-move-btn        { font-size: 13px; }
-.dwc-move-btn:hover  { color: var(--accent); border-color: var(--accent); }
 
 .dash-unloaded {
   padding: 14px 12px;

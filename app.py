@@ -2211,19 +2211,17 @@ def edit_dash_wallet(address):
     save_dash_wallets(wallets)
     return jsonify({"ok": True})
 
-@app.route("/api/dashboard/wallets/<path:address>/move", methods=["POST"])
-def move_dash_wallet(address):
-    """Move a wallet up or down in the list."""
-    direction = (request.get_json() or {}).get("direction", "up")
-    wallets = load_dash_wallets()
-    idx = next((i for i, w in enumerate(wallets) if w["address"] == address), None)
-    if idx is None:
-        return jsonify({"error": "Carteira não encontrada"}), 404
-    if direction == "up" and idx > 0:
-        wallets[idx - 1], wallets[idx] = wallets[idx], wallets[idx - 1]
-    elif direction == "down" and idx < len(wallets) - 1:
-        wallets[idx + 1], wallets[idx] = wallets[idx], wallets[idx + 1]
-    save_dash_wallets(wallets)
+@app.route("/api/dashboard/wallets/order", methods=["PUT"])
+def reorder_dash_wallets():
+    """Persist a full wallet reorder sent from the drag-and-drop UI."""
+    addresses = (request.get_json() or {}).get("addresses", [])
+    wallets   = load_dash_wallets()
+    addr_map  = {w["address"]: w for w in wallets}
+    reordered = [addr_map[a] for a in addresses if a in addr_map]
+    # Append any wallets not mentioned in the new order (safety net)
+    seen = set(addresses)
+    reordered += [w for w in wallets if w["address"] not in seen]
+    save_dash_wallets(reordered)
     return jsonify({"ok": True})
 
 @app.route("/api/dashboard/wallets/<path:address>", methods=["DELETE"])
