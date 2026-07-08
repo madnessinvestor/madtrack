@@ -465,6 +465,10 @@ function portfolioCardHTML(tok) {
           <span class="pdetail-label">${t("p_avg")}</span>
           <span class="pdetail-val">${formatUSD(avg_price)}</span>
         </div>
+        <div class="pdetail-item">
+          <span class="pdetail-label">${t("p_cur_price")}</span>
+          <span class="pdetail-val">${hasPrice ? formatUSD(tok.current_price) : "—"}</span>
+        </div>
       </div>
 
       <div class="trade-history-wrap">
