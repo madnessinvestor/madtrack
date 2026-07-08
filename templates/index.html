@@ -470,10 +470,11 @@
         <div class="alert-repeat-row">
           <span class="alert-repeat-label" data-i18n="alert_repeat_label">Repetir se persistir:</span>
           <div class="alert-repeat-chips">
-            <button class="alert-repeat-chip active" data-val="0"    onclick="selectRepeat(this)" data-i18n="alert_repeat_once">1x</button>
+            <button class="alert-repeat-chip active" data-val="0"    onclick="selectRepeat(this)" data-i18n="alert_repeat_once">Once</button>
             <button class="alert-repeat-chip"        data-val="60"   onclick="selectRepeat(this)">1 min</button>
             <button class="alert-repeat-chip"        data-val="300"  onclick="selectRepeat(this)">5 min</button>
             <button class="alert-repeat-chip"        data-val="900"  onclick="selectRepeat(this)">15 min</button>
+            <button class="alert-repeat-chip"        data-val="1800" onclick="selectRepeat(this)">30 min</button>
             <button class="alert-repeat-chip"        data-val="3600" onclick="selectRepeat(this)">60 min</button>
           </div>
         </div>
@@ -481,9 +482,6 @@
         <div class="alert-form-actions">
           <button class="btn-confirm" onclick="submitAlert()">
             + <span data-i18n="alert_add_btn">Criar Alerta</span>
-          </button>
-          <button class="btn-confirm btn-refresh-wallets" id="btn-refresh-all-wallets" onclick="refreshAllWallets()">
-            ↻ <span data-i18n="dash_refresh_all">Atualizar Wallets</span>
           </button>
         </div>
       </div>

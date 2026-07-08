@@ -285,6 +285,7 @@ function _repeatLabel(interval) {
   if (interval === 60)   return "↻ 1 min";
   if (interval === 300)  return "↻ 5 min";
   if (interval === 900)  return "↻ 15 min";
+  if (interval === 1800) return "↻ 30 min";
   if (interval === 3600) return "↻ 60 min";
   return `↻ ${interval}s`;
 }
