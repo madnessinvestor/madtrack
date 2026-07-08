@@ -1,6 +1,6 @@
 // HTML pages are never cached — always fetched fresh from the server.
 // Only static assets (JS, CSS) are cached for offline performance.
-const CACHE = "madtracker-v13";
+const CACHE = "madtracker-v14";
 const STATIC = [
   "/static/style.css",
   "/static/app.js",
