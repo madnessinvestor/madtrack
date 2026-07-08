@@ -1935,7 +1935,8 @@ def _is_testnet_chain(chain_key: str) -> bool:
 
 def _jumper_parse_tokens(balances):
     """Parse Jumper /tokens balances into our token list format.
-    Uses amountUSD as the authoritative USD value; balance is display-only.
+    Jumper's amountUSD is used only as a fallback; the authoritative USD value
+    is recomputed later (see _apply_live_prices) from balance x live market price.
     Skips tokens where amountUSD < 1.0.
     Returns (mainnet_tokens, testnet_tokens) — testnet tokens are separated so
     they can be displayed in a dedicated tab and excluded from the wallet total.
@@ -1974,23 +1975,40 @@ def _jumper_parse_positions(data):
     """Parse Jumper /positions data into defi + perps lists.
     Reads supplyTokens, assetTokens, collateralTokens, rewardTokens, borrowTokens.
     Stores address+chain on each token for precise deduplication.
+    Jumper's amountUSD/netUsd are used only as a fallback; the authoritative
+    values are recomputed later (see _apply_live_prices) from live market prices.
     """
     def _tok_list(p, *keys):
-        """Collect tokens from one or more position token arrays."""
-        out = []
+        """Collect tokens from position token arrays.
+        Jumper duplicates the same holdings under multiple synonym keys
+        (e.g. supplyTokens and assetTokens are identical for Hyperliquid
+        positions), so entries are deduped by (address, chain, amount) —
+        a true synonym duplicate always has an identical amount for the same
+        instrument, while two genuinely distinct tokens/amounts are both kept.
+        """
+        out  = []
+        seen = set()
         for key in keys:
             for t in (p.get(key) or []):
                 amt_usd = float(t.get("amountUSD", 0) or 0)
                 if amt_usd < 0.0001:
                     continue
-                bal       = _parse_token_amount(t.get("amount", "0"), t.get("decimals", 18))
+                addr      = t.get("address", "").lower()
+                amount    = t.get("amount", "0")
                 chain_key = (t.get("chain") or {}).get("chainKey", "")
+                dedup_key = (addr, chain_key, str(amount))
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+                bal       = _parse_token_amount(amount, t.get("decimals", 18))
+                price_usd = (amt_usd / bal) if bal > 0 else 0.0
                 out.append({
                     "symbol":    t.get("symbol", ""),
                     "balance":   bal,
+                    "price_usd": price_usd,
                     "value_usd": amt_usd,
                     "logo":      t.get("logo", ""),
-                    "address":   t.get("address", "").lower(),
+                    "address":   addr,
                     "network":   chain_key,
                 })
         return out
@@ -2026,6 +2044,72 @@ def _jumper_parse_positions(data):
     defi.sort(key=lambda x: x["net_usd"], reverse=True)
     perps.sort(key=lambda x: x["net_usd"], reverse=True)
     return defi, perps
+
+def _collect_live_prices(symbols):
+    """Fetch live market prices (via the app's own price sources, Hyperliquid
+    first) for a set of symbols, in parallel. Returns {SYMBOL: price}."""
+    symbols = {s.strip().upper() for s in symbols if s and s.strip()}
+    # Stablecoins: skip network round-trips, price is always ~1.
+    prices = {}
+    STABLES = {"USDC", "USDT", "DAI", "USDC.E", "USDBC", "FDUSD", "TUSD", "USDE"}
+    to_fetch = set()
+    for s in symbols:
+        if s in STABLES:
+            prices[s] = 1.0
+        else:
+            to_fetch.add(s)
+    if not to_fetch:
+        return prices
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(16, len(to_fetch))) as ex:
+        futures = {ex.submit(fetch_price, s): s for s in to_fetch}
+        for future in concurrent.futures.as_completed(futures):
+            sym = futures[future]
+            try:
+                r = future.result()
+                if r and r.get("price"):
+                    prices[sym] = float(r["price"])
+            except Exception:
+                pass
+    return prices
+
+def _apply_live_prices(tokens, defi, perps):
+    """Recompute price_usd/value_usd for wallet tokens and defi/perp position
+    tokens using live market prices instead of Jumper's (often stale) cached
+    amountUSD. Jumper is still used for quantities (balance) and discovery;
+    only the pricing math is redone here. Falls back to the Jumper-provided
+    value when a live price can't be found for a symbol.
+    """
+    symbols = {t.get("symbol", "") for t in tokens}
+    for row in defi + perps:
+        for t in row.get("supply_tokens", []) + row.get("reward_tokens", []) + row.get("borrow_tokens", []):
+            symbols.add(t.get("symbol", ""))
+
+    price_map = _collect_live_prices(symbols)
+
+    def _reprice(t):
+        sym = t.get("symbol", "").strip().upper()
+        price = price_map.get(sym)
+        if price is not None and t.get("balance", 0) > 0:
+            t["price_usd"] = price
+            t["value_usd"] = t["balance"] * price
+        return t
+
+    for t in tokens:
+        _reprice(t)
+
+    for row in defi + perps:
+        for key in ("supply_tokens", "reward_tokens", "borrow_tokens"):
+            row[key] = [_reprice(t) for t in row.get(key, [])]
+        asset_usd = sum(t["value_usd"] for t in row["supply_tokens"] + row["reward_tokens"])
+        debt_usd  = sum(t["value_usd"] for t in row["borrow_tokens"])
+        row["asset_usd"] = asset_usd
+        row["debt_usd"]  = debt_usd
+        row["net_usd"]   = asset_usd - debt_usd
+
+    tokens.sort(key=lambda x: x["value_usd"], reverse=True)
+    defi.sort(key=lambda x: x["net_usd"], reverse=True)
+    perps.sort(key=lambda x: x["net_usd"], reverse=True)
+    return tokens, defi, perps
 
 def _dedup_tokens(tokens, defi, perps):
     """Remove wallet tokens that are already counted inside DeFi/Perp positions.
@@ -2112,6 +2196,8 @@ def _refresh_evm(wallet, wallets, address):
     except Exception as ex:
         defi, perps = old_defi, old_perps
         errors.append(f"positions: {ex}")
+    if tok_ok or pos_ok:
+        tokens, defi, perps = _apply_live_prices(tokens, defi if pos_ok else [], perps if pos_ok else [])
     if tok_ok:
         tokens = _dedup_tokens(tokens, defi if pos_ok else [], perps if pos_ok else [])
     _save_wallet_result(wallets, address, tokens, defi, perps, testnet_tokens)
@@ -2141,6 +2227,8 @@ def _refresh_solana(wallet, wallets, address):
     except Exception as ex:
         defi, perps = old_defi, old_perps
         errors.append(f"positions: {ex}")
+    if tok_ok or pos_ok:
+        tokens, defi, perps = _apply_live_prices(tokens, defi if pos_ok else [], perps if pos_ok else [])
     if tok_ok:
         tokens = _dedup_tokens(tokens, defi if pos_ok else [], perps if pos_ok else [])
     _save_wallet_result(wallets, address, tokens, defi, perps, testnet_tokens)
