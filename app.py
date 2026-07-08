@@ -1540,10 +1540,13 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
             if best_buyer is None or score > best_buyer[0]:
                 best_buyer = (score, addr, recv_sym, recv_qty, stable_spent)
 
-        # SELL pattern: received stable + spent non-stable
-        if pos_stable and neg_non_stable:
+        # SELL pattern: received stable + spent non-stable OR wrapped native
+        # (e.g. WETH → USDC or AERO → USDC).  Wrapped tokens are excluded from
+        # neg_non_stable but they can absolutely be sold, so we combine both lists.
+        neg_sellable = neg_non_stable + neg_wrapped
+        if pos_stable and neg_sellable:
             stable_recv = sum(v for _, v in pos_stable)
-            sold_sym, sold_qty = max(neg_non_stable, key=lambda x: x[1])
+            sold_sym, sold_qty = max(neg_sellable, key=lambda x: x[1])
             # Track the dominant received stablecoin ticker + qty for the counterpart trade
             recv_stable_sym, recv_stable_qty = max(pos_stable, key=lambda x: x[1])
             score = stable_recv + tiebreak * 1e-9 + wallet_boost
@@ -1599,6 +1602,30 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
                 best_buyer = (
                     _stable_spent + 1e12,   # dominant: always beats unrelated legs
                     _cand, native_sym, wrapped_native_burned, _stable_spent,
+                )
+                break
+
+    # --- Step 2c: native ETH/BNB → stablecoin SELL detection ---
+    # Handles swaps like ETH → USDC routed through an aggregator (LiFi, 1inch…).
+    # The user spends native ETH (tx.value > 0); the aggregator wraps it internally
+    # to WETH, swaps via a DEX pool, and forwards USDC directly to the user.
+    # No ERC-20 transfer ever leaves the user's address (ETH is not an ERC-20),
+    # so no pattern above fires for the user.
+    # Signal: tx.value > 0 AND the user's address received only stablecoins (no
+    # non-stable ERC-20), meaning they swapped native coin for a stable.
+    if native_val > 0 and best_seller is None:
+        _sell_candidates = (list(known_wallets) if known_wallets else []) + [tx_from]
+        for _cand in _sell_candidates:
+            _cd = addr_delta.get(_cand, {})
+            _pos_st = [(s, d) for s, d in _cd.items() if d > 0 and is_stable.get(s)]
+            _pos_nonstable = any(d > 0 and not is_stable.get(s) for s, d in _cd.items())
+            if _pos_st and not _pos_nonstable:
+                _stable_recv = sum(d for _, d in _pos_st)
+                _recv_sym, _recv_qty = max(_pos_st, key=lambda x: x[1])
+                # Dominant score so this always beats any unrelated pool-BUY legs
+                best_seller = (
+                    _stable_recv + 1e12,
+                    _cand, native_sym, round(native_val, 10), _stable_recv, _recv_sym, round(_recv_qty, 6),
                 )
                 break
 
