@@ -3105,6 +3105,50 @@ section.hidden { display: none; }
   color: var(--text);
 }
 
+/* Multi-setting row inside a card (label + inline pills) */
+.wgt-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+.wgt-card-row:last-child { border-bottom: none; padding-bottom: 0; }
+.wgt-card-row:first-child { padding-top: 0; }
+.wgt-card-row-label { font-size: 0.85rem; font-weight: 500; color: var(--text); flex: 1; }
+.wgt-card-row-pills { display: flex; border: 1.5px solid var(--border); border-radius: 20px; overflow: hidden; flex-shrink: 0; }
+.wgt-card-row-pills button {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-card-row-pills button.active { background: rgba(0,230,118,0.18); color: var(--accent); }
+.wgt-card-row-pills button:not(:last-child) { border-right: 1.5px solid var(--border); }
+
+/* Toggle row inside a card */
+.wgt-card-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-card-toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+.wgt-card-toggle-row:first-child { padding-top: 0; }
+
 /* Save button */
 .wgt-save-btn {
   margin-top: 4px;

@@ -111,163 +111,188 @@
 
   <!-- Widget section -->
   <section id="section-widget" class="hidden">
-    <div class="ws-page">
+    <div class="wgt-page">
 
-      <!-- Live preview -->
-      <div class="ws-preview-wrap">
-        <div class="ws-preview-label">Pré-visualização</div>
-        <div class="ws-preview-row">
-          <span>BTC</span>
-          <span id="ws-pv-price1">$59,960.00</span>
-          <span class="ws-pv-chg ws-pos" id="ws-pv-chg1">+1.15%</span>
+      <!-- Hero card -->
+      <div class="wgt-hero">
+        <div class="wgt-hero-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="2" width="9" height="9" rx="2.5" fill="#00e676"/>
+            <rect x="13" y="2" width="9" height="9" rx="2.5" fill="#00e676" opacity="0.7"/>
+            <rect x="2" y="13" width="9" height="9" rx="2.5" fill="#00e676" opacity="0.7"/>
+            <rect x="13" y="13" width="9" height="9" rx="2.5" fill="#00e676" opacity="0.4"/>
+          </svg>
         </div>
-        <div class="ws-preview-row">
-          <span>ETH</span>
-          <span id="ws-pv-price2">$1,576.00</span>
-          <span class="ws-pv-chg ws-neg" id="ws-pv-chg2">-0.03%</span>
+        <div>
+          <div class="wgt-hero-title">Widget</div>
+          <div class="wgt-hero-sub">Configure your home screen widget</div>
         </div>
       </div>
 
-      <!-- EXIBIÇÃO -->
-      <div class="ws-section-label">Exibição</div>
-
-      <div class="ws-setting-row">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Moeda</div>
-          <div class="ws-setting-desc">Converter preços para a moeda selecionada</div>
-        </div>
-        <div class="ws-pill-sel" id="ws-ccy-sel">
-          <button data-v="USD" onclick="wsSet('ccy','USD')">$ USD</button>
-          <button data-v="BRL" onclick="wsSet('ccy','BRL')">R$ BRL</button>
-          <button data-v="EUR" onclick="wsSet('ccy','EUR')">€ EUR</button>
-        </div>
-      </div>
-
-      <div class="ws-setting-row">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Variação</div>
-          <div class="ws-setting-desc">Exibir variação em percentual ou valor</div>
-        </div>
-        <div class="ws-pill-sel" id="ws-chg-sel">
-          <button data-v="pct" onclick="wsSet('chg','pct')">%</button>
-          <button data-v="val" onclick="wsSet('chg','val')">Valor</button>
+      <!-- Preview -->
+      <div class="wgt-slbl">PREVIEW</div>
+      <div class="wgt-preview-box">
+        <div id="widget-preview-card" class="widget-preview-card">
+          <div class="wpc-header" id="wpv-topbar">
+            <span class="wpc-logo">CryptoAIO</span>
+            <span class="wpc-time" id="wpc-time">12:34</span>
+          </div>
+          <div id="wpc-rows" class="wpc-rows">
+            <div class="wpc-row">
+              <span class="wpc-ticker">BTC</span>
+              <span class="wpc-price" id="wpv-p1">$64,000</span>
+              <span class="wpc-chg wpc-up" id="wpv-c1">+1.8%</span>
+            </div>
+            <div class="wpc-row">
+              <span class="wpc-ticker">ETH</span>
+              <span class="wpc-price" id="wpv-p2">$3,200</span>
+              <span class="wpc-chg wpc-dn" id="wpv-c2">-0.5%</span>
+            </div>
+          </div>
+          <div class="wpc-footer">Updated just now</div>
         </div>
       </div>
 
-      <div class="ws-setting-row">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Número de colunas</div>
-          <div class="ws-setting-desc">Quantas colunas de ativos exibir</div>
-        </div>
-        <div class="ws-pill-sel" id="ws-cols-sel">
-          <button data-v="1" onclick="wsSet('cols','1')">1</button>
-          <button data-v="2" onclick="wsSet('cols','2')">2</button>
+      <!-- Displayed Assets -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">DISPLAYED ASSETS</div>
+        <div class="wgt-card-sub">Select up to 5 assets from your Watchlist</div>
+        <div class="wgt-asset-chips" id="wgt-asset-chips">
+          <span class="wgt-asset-empty">Loading…</span>
         </div>
       </div>
 
-      <!-- TEXTO -->
-      <div class="ws-section-label">Texto</div>
-
-      <div class="ws-setting-row">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Tamanho do texto</div>
-          <div class="ws-setting-desc">Tamanho da fonte nos ativos</div>
+      <!-- EXIBIÇÃO: Moeda / Variação / Colunas -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">EXIBIÇÃO</div>
+        <div class="wgt-card-row">
+          <span class="wgt-card-row-label">Moeda</span>
+          <div class="wgt-card-row-pills" id="wt-ccy">
+            <button data-v="USD" onclick="wSet('ccy','USD')">$ USD</button>
+            <button data-v="BRL" onclick="wSet('ccy','BRL')">R$ BRL</button>
+            <button data-v="EUR" onclick="wSet('ccy','EUR')">€ EUR</button>
+          </div>
         </div>
-        <div class="ws-pill-sel" id="ws-fs-sel">
-          <button data-v="sm" onclick="wsSet('fontSize','sm')">P</button>
-          <button data-v="md" onclick="wsSet('fontSize','md')">M</button>
-          <button data-v="lg" onclick="wsSet('fontSize','lg')">G</button>
+        <div class="wgt-card-row">
+          <span class="wgt-card-row-label">Variação</span>
+          <div class="wgt-card-row-pills" id="wt-chg">
+            <button data-v="pct" onclick="wSet('chg','pct')">%</button>
+            <button data-v="val" onclick="wSet('chg','val')">Valor</button>
+          </div>
+        </div>
+        <div class="wgt-card-row">
+          <span class="wgt-card-row-label">Colunas</span>
+          <div class="wgt-card-row-pills" id="wt-cols">
+            <button data-v="1" onclick="wSet('cols','1')">1</button>
+            <button data-v="2" onclick="wSet('cols','2')">2</button>
+          </div>
         </div>
       </div>
 
-      <div class="ws-setting-row" onclick="wsToggle('bold')">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Negrito</div>
-          <div class="ws-setting-desc">Exibir preços e variação em negrito</div>
+      <!-- TEXTO: Tamanho + Negrito + Símbolo -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">TEXTO</div>
+        <div class="wgt-card-row">
+          <span class="wgt-card-row-label">Tamanho da fonte</span>
+          <div class="wgt-card-row-pills" id="wt-fontSize">
+            <button data-v="sm" onclick="wSet('fontSize','sm')">P</button>
+            <button data-v="md" onclick="wSet('fontSize','md')">M</button>
+            <button data-v="lg" onclick="wSet('fontSize','lg')">G</button>
+          </div>
         </div>
-        <div class="ws-toggle-wrap">
-          <label class="ws-toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="ws-chk-bold" onchange="wsToggle('bold')">
-            <span class="ws-toggle-track"></span>
-            <span class="ws-toggle-thumb"></span>
+        <div class="wgt-card-toggle-row" onclick="wToggle('bold')">
+          <span class="wgt-toggle-label">Negrito</span>
+          <label class="wgt-switch" onclick="event.stopPropagation()">
+            <input type="checkbox" id="wt-bold" onchange="wToggle('bold')">
+            <span class="wgt-slider"></span>
+          </label>
+        </div>
+        <div class="wgt-card-toggle-row" onclick="wToggle('showCcy')">
+          <span class="wgt-toggle-label">Mostrar símbolo ($  R$  €)</span>
+          <label class="wgt-switch" onclick="event.stopPropagation()">
+            <input type="checkbox" id="wt-showCcy" onchange="wToggle('showCcy')">
+            <span class="wgt-slider"></span>
           </label>
         </div>
       </div>
 
-      <div class="ws-setting-row" onclick="wsToggle('showCcy')">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Mostrar símbolo da moeda</div>
-          <div class="ws-setting-desc">Exibe $ / R$ / € antes do preço</div>
-        </div>
-        <div class="ws-toggle-wrap">
-          <label class="ws-toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="ws-chk-showCcy" onchange="wsToggle('showCcy')">
-            <span class="ws-toggle-track"></span>
-            <span class="ws-toggle-thumb"></span>
-          </label>
+      <!-- Size -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">SIZE</div>
+        <div class="wgt-pills-group" id="wt-size">
+          <button class="wgt-pill" data-v="sm"  onclick="wSet('size','sm')">Small (2×1)</button>
+          <button class="wgt-pill" data-v="md"  onclick="wSet('size','md')">Medium (2×2)</button>
+          <button class="wgt-pill" data-v="lg"  onclick="wSet('size','lg')">Large (4×2)</button>
         </div>
       </div>
 
-      <!-- LAYOUT -->
-      <div class="ws-section-label">Layout</div>
-
-      <div class="ws-setting-row" onclick="wsToggle('showHeader')">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Mostrar cabeçalho</div>
-          <div class="ws-setting-desc">Exibe "Last fetch: HH:MM" no topo</div>
-        </div>
-        <div class="ws-toggle-wrap">
-          <label class="ws-toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="ws-chk-showHeader" onchange="wsToggle('showHeader')">
-            <span class="ws-toggle-track"></span>
-            <span class="ws-toggle-thumb"></span>
-          </label>
+      <!-- Widget Theme -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">WIDGET THEME</div>
+        <div class="wgt-pills-group" id="wt-theme">
+          <button class="wgt-pill" data-v="dark"  onclick="wSet('theme','dark')">Dark</button>
+          <button class="wgt-pill" data-v="light" onclick="wSet('theme','light')">Light</button>
+          <button class="wgt-pill" data-v="auto"  onclick="wSet('theme','auto')">Auto</button>
         </div>
       </div>
 
-      <div class="ws-setting-row" onclick="wsToggle('autoSort')">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Ordenar por variação</div>
-          <div class="ws-setting-desc">Ativos ordenados do maior ao menor % de variação</div>
-        </div>
-        <div class="ws-toggle-wrap">
-          <label class="ws-toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="ws-chk-autoSort" onchange="wsToggle('autoSort')">
-            <span class="ws-toggle-track"></span>
-            <span class="ws-toggle-thumb"></span>
-          </label>
+      <!-- Auto Refresh -->
+      <div class="wgt-card">
+        <div class="wgt-card-title">AUTO REFRESH</div>
+        <div class="wgt-pills-group" id="wt-refresh">
+          <button class="wgt-pill" data-v="5"  onclick="wSet('refresh','5')">5 min</button>
+          <button class="wgt-pill" data-v="15" onclick="wSet('refresh','15')">15 min</button>
+          <button class="wgt-pill" data-v="30" onclick="wSet('refresh','30')">30 min</button>
+          <button class="wgt-pill" data-v="60" onclick="wSet('refresh','60')">1 hour</button>
         </div>
       </div>
 
-      <div class="ws-setting-row" onclick="wsToggle('showRefresh')">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Mostrar botão de atualizar</div>
-          <div class="ws-setting-desc">Exibe ↻ no cabeçalho para forçar atualização</div>
-        </div>
-        <div class="ws-toggle-wrap">
-          <label class="ws-toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="ws-chk-showRefresh" onchange="wsToggle('showRefresh')">
-            <span class="ws-toggle-track"></span>
-            <span class="ws-toggle-thumb"></span>
-          </label>
-        </div>
+      <!-- Toggles -->
+      <div class="wgt-toggle-row" onclick="wToggle('showChg')">
+        <span class="wgt-toggle-label">Show % change</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-showChg" onchange="wToggle('showChg')">
+          <span class="wgt-slider"></span>
+        </label>
+      </div>
+      <div class="wgt-toggle-row" onclick="wToggle('showIcon')">
+        <span class="wgt-toggle-label">Show asset icon</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-showIcon" onchange="wToggle('showIcon')">
+          <span class="wgt-slider"></span>
+        </label>
+      </div>
+      <div class="wgt-toggle-row" onclick="wToggle('showHeader')">
+        <span class="wgt-toggle-label">Mostrar cabeçalho</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-showHeader" onchange="wToggle('showHeader')">
+          <span class="wgt-slider"></span>
+        </label>
+      </div>
+      <div class="wgt-toggle-row" onclick="wToggle('autoSort')">
+        <span class="wgt-toggle-label">Ordenar por variação</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-autoSort" onchange="wToggle('autoSort')">
+          <span class="wgt-slider"></span>
+        </label>
+      </div>
+      <div class="wgt-toggle-row" onclick="wToggle('showRefresh')">
+        <span class="wgt-toggle-label">Botão de atualizar</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-showRefresh" onchange="wToggle('showRefresh')">
+          <span class="wgt-slider"></span>
+        </label>
+      </div>
+      <div class="wgt-toggle-row wgt-toggle-last" onclick="wToggle('showControls')">
+        <span class="wgt-toggle-label">Controles rápidos (moeda / %)</span>
+        <label class="wgt-switch" onclick="event.stopPropagation()">
+          <input type="checkbox" id="wt-showControls" onchange="wToggle('showControls')">
+          <span class="wgt-slider"></span>
+        </label>
       </div>
 
-      <div class="ws-setting-row" onclick="wsToggle('showControls')">
-        <div class="ws-setting-info">
-          <div class="ws-setting-title">Mostrar controles rápidos</div>
-          <div class="ws-setting-desc">Botões de moeda e % no topo do widget</div>
-        </div>
-        <div class="ws-toggle-wrap">
-          <label class="ws-toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="ws-chk-showControls" onchange="wsToggle('showControls')">
-            <span class="ws-toggle-track"></span>
-            <span class="ws-toggle-thumb"></span>
-          </label>
-        </div>
-      </div>
-
-      <a href="/widget" class="ws-open-btn">← Abrir Widget</a>
+      <!-- Save -->
+      <button class="wgt-save-btn" onclick="wSaveConfig()">Save configuration</button>
 
     </div>
   </section>
