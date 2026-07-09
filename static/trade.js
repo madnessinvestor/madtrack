@@ -354,6 +354,7 @@ function switchTab(tab) {
   if (widgetTab) widgetTab.classList.toggle("active", isWidget);
 
   if (isWidget) widgetOnEnter();
+  else if (typeof wltTimer !== "undefined" && wltTimer) { clearInterval(wltTimer); wltTimer = null; }
 
   document.getElementById("btn-add-tracker").classList.toggle("hidden", !isTracker);
   document.getElementById("btn-add-trade").classList.toggle("hidden",    !isTrade);

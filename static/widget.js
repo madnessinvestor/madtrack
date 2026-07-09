@@ -47,7 +47,7 @@ function wSet(key, val) {
   wtCfg[key] = val;
   wtSave(wtCfg);
   wtApplyUI();
-  wtUpdatePreview();
+  wltRender();
 }
 
 // Called by toggle switches
@@ -55,7 +55,7 @@ function wToggle(key) {
   wtCfg[key] = !wtCfg[key];
   wtSave(wtCfg);
   wtApplyUI();
-  wtUpdatePreview();
+  wltRender();
 }
 
 // Toggle an asset chip on/off (max 5 selected)
@@ -73,6 +73,7 @@ function wToggleAsset(sym) {
   document.querySelectorAll(".wgt-asset-chip").forEach(chip => {
     chip.classList.toggle("active", selected.includes(chip.dataset.sym));
   });
+  wltRender();
 }
 
 // Save button feedback
@@ -259,16 +260,177 @@ function wLoadAssets() {
 // ── Entry point called by switchTab('widget') ─────────────────────────────────
 function widgetOnEnter() {
   wtCfg = wtLoad();
-  // Fetch real rates for accurate preview
-  fetch("/api/rates").then(r => r.json()).then(d => {
-    if (d.BRL) WT_RATES.BRL = d.BRL;
-    if (d.EUR) WT_RATES.EUR = d.EUR;
-    wtUpdatePreview();
-  }).catch(() => {});
   wtApplyUI();
-  wtUpdatePreview();
   wLoadAssets();
+  wltLoad();
+  if (!wltTimer) wltTimer = setInterval(wltLoad, 60000);
 }
+
+// ─── Live Widget (Widget tab inline display) ──────────────────────────────────
+// Mirrors /widget rendering but operates on #wlt-* elements inside the SPA.
+
+const WLT_FS_MAP  = { sm: "10.5px", md: "12px", lg: "14px" };
+const WLT_CCY_SYM = { USD: "$", BRL: "R$", EUR: "€" };
+let wltRates    = { BRL: 5.70, EUR: 0.92 };
+let wltLastData = [];
+let wltAlertMap = {};
+let wltTimer    = null;
+
+function wltCcyRate() {
+  return { USD: 1, BRL: wltRates.BRL, EUR: wltRates.EUR }[wtCfg.ccy] || 1;
+}
+
+function wltFmtPrice(usdP) {
+  if (usdP == null) return "—";
+  const p   = usdP * wltCcyRate();
+  const sym = wtCfg.showCcy ? WLT_CCY_SYM[wtCfg.ccy] : "";
+  const a   = Math.abs(p);
+  if (a >= 10000) return sym + p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (a >= 1)     return sym + p.toFixed(2);
+  if (a >= 0.01)  return sym + p.toFixed(4);
+  return sym + p.toPrecision(3);
+}
+
+function wltFmtChg(usdP, pct) {
+  if (wtCfg.chg === "pct") {
+    if (pct == null) return { text: "—", cls: "wlt-neu" };
+    const s   = pct >= 0 ? "+" : "";
+    const cls = pct > 0.005 ? "wlt-pos" : pct < -0.005 ? "wlt-neg" : "wlt-neu";
+    return { text: s + pct.toFixed(2) + "%", cls };
+  } else {
+    if (usdP == null || pct == null) return { text: "—", cls: "wlt-neu" };
+    const prev = usdP / (1 + pct / 100);
+    const abs  = (usdP - prev) * wltCcyRate();
+    const sym  = wtCfg.showCcy ? WLT_CCY_SYM[wtCfg.ccy] : "";
+    const s    = abs >= 0 ? "+" : "-";
+    const cls  = abs > 0.000005 ? "wlt-pos" : abs < -0.000005 ? "wlt-neg" : "wlt-neu";
+    const a    = Math.abs(abs);
+    let num;
+    if (a >= 100)       num = a.toFixed(2);
+    else if (a >= 1)    num = a.toFixed(2);
+    else if (a >= 0.01) num = a.toFixed(4);
+    else                num = a.toPrecision(2);
+    return { text: s + sym + num, cls };
+  }
+}
+
+function wltEsc(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function wltCellsHtml(a, fs) {
+  if (!a) return `<span class="wlt-ticker"></span><span class="wlt-price"></span><span class="wlt-chg"></span>`;
+  const { text: chg, cls } = wltFmtChg(a.price, a.change24h);
+  const fw  = wtCfg.bold ? "font-weight:700;" : "";
+  const fss = `font-size:${fs};`;
+  const tickerAlerts = wltAlertMap[(a.symbol || "").toUpperCase()] || [];
+  const activeAlerts = tickerAlerts.filter(al => !al.triggered);
+  const bellTitle = activeAlerts.map(al =>
+    (al.direction === "above" ? "↑" : "↓") + " $" + Number(al.target).toLocaleString("en-US")
+  ).join(" • ");
+  const bell = activeAlerts.length
+    ? `<span class="wlt-bell" title="${wltEsc(bellTitle)}">🔔</span>`
+    : "";
+  const rawSym = a.symbol || "";
+  const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
+  const sym = wltEsc(symTrunc);
+  const price = wltEsc(wltFmtPrice(a.price));
+  const chgEsc = wltEsc(chg);
+  return `<span class="wlt-ticker" style="${fss}">${sym}${bell}</span>` +
+         `<span class="wlt-price"  style="${fss}${fw}">${price}</span>` +
+         `<span class="wlt-chg ${cls}" style="${fss}${fw}">${chgEsc}</span>`;
+}
+
+function wltApplyLayout() {
+  const topbar     = document.getElementById("wlt-topbar");
+  const header     = document.getElementById("wlt-header");
+  const controls   = document.getElementById("wlt-controls");
+  const refreshBtn = document.getElementById("wlt-refresh-btn");
+  const c2         = document.getElementById("wlt-c2");
+  const valBtn     = document.getElementById("wlt-chg-val-btn");
+  if (!topbar) return;
+
+  topbar.style.display    = (wtCfg.showHeader || wtCfg.showControls) ? "" : "none";
+  if (header)     header.style.display     = wtCfg.showHeader   ? "" : "none";
+  if (refreshBtn) refreshBtn.style.display = wtCfg.showRefresh  ? "" : "none";
+  if (controls)   controls.style.display   = wtCfg.showControls ? "" : "none";
+  if (c2)         c2.style.display         = wtCfg.cols === "1" ? "none" : "";
+
+  document.querySelectorAll("#wlt-ccy-group .wgt-live-pill").forEach(b =>
+    b.classList.toggle("active", b.dataset.ccy === wtCfg.ccy));
+  document.querySelectorAll("#wlt-chg-group .wgt-live-pill").forEach(b =>
+    b.classList.toggle("active", b.dataset.chg === wtCfg.chg));
+  if (valBtn) valBtn.textContent = "±" + (wtCfg.showCcy ? WLT_CCY_SYM[wtCfg.ccy] : "$");
+}
+
+function wltRender() {
+  wltApplyLayout();
+  let data = [...wltLastData];
+
+  // Filter to selected assets (chips), preserving chip order
+  const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
+  if (selected.length) {
+    data = data.filter(a => selected.includes((a.symbol || "").toUpperCase()));
+    data.sort((a, b) =>
+      selected.indexOf((a.symbol || "").toUpperCase()) -
+      selected.indexOf((b.symbol || "").toUpperCase())
+    );
+  }
+
+  if (wtCfg.autoSort) data.sort((a, b) => (b.change24h || 0) - (a.change24h || 0));
+
+  const fs   = WLT_FS_MAP[wtCfg.fontSize] || "12px";
+  const half = wtCfg.cols === "1" ? data.length : Math.ceil(data.length / 2);
+  const col1 = data.slice(0, half);
+  const col2 = wtCfg.cols === "1" ? [] : data.slice(half);
+
+  const c1 = document.getElementById("wlt-c1");
+  const c2 = document.getElementById("wlt-c2");
+  if (c1) c1.innerHTML = col1.map(a => wltCellsHtml(a, fs)).join("");
+  if (c2) c2.innerHTML = col2.map(a => wltCellsHtml(a, fs)).join("");
+}
+
+async function wltLoad() {
+  try {
+    const [ra, rr, ral] = await Promise.all([
+      fetch("/api/assets"),
+      fetch("/api/rates"),
+      fetch("/api/alerts")
+    ]);
+    const data   = await ra.json();
+    const rdata  = await rr.json();
+    const alData = await ral.json().catch(() => []);
+
+    if (rdata.BRL) wltRates.BRL = rdata.BRL;
+    if (rdata.EUR) wltRates.EUR = rdata.EUR;
+    wltLastData = Array.isArray(data) ? data : [];
+    wltAlertMap = {};
+    for (const al of (Array.isArray(alData) ? alData : [])) {
+      const k = (al.ticker || "").toUpperCase();
+      if (!wltAlertMap[k]) wltAlertMap[k] = [];
+      wltAlertMap[k].push(al);
+    }
+
+    const now = new Date();
+    const hh  = now.getHours().toString().padStart(2, "0");
+    const mm  = now.getMinutes().toString().padStart(2, "0");
+    const txt = document.getElementById("wlt-text");
+    if (txt) txt.textContent = "Atualizado às " + hh + ":" + mm;
+
+    wltRender();
+  } catch(e) {
+    const txt = document.getElementById("wlt-text");
+    if (txt) txt.textContent = "Erro ao carregar";
+  }
+}
+
+// Quick-control handlers — sync both the live widget AND the settings pills below
+function wltSetCcy(v) { wSet("ccy", v); }
+function wltSetChg(v) { wSet("chg", v); }
 
 // ── Backwards-compat aliases ──────────────────────────────────────────────────
 function wsSet(key, val)      { wSet(key, val); }

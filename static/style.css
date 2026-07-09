@@ -3168,6 +3168,120 @@ section.hidden { display: none; }
 }
 .wgt-save-btn:active { opacity: 0.78; }
 
+/* ── Live Widget inline (Widget tab) ───────────────────────────────────── */
+.wgt-live-box {
+  background: #0f0f14;
+  border-radius: 14px;
+  padding: 10px 14px 14px;
+  margin-bottom: 4px;
+  font-family: 'Roboto Mono', 'Droid Sans Mono', 'Courier New', monospace;
+}
+.wgt-live-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 6px;
+}
+.wgt-live-header {
+  font-size: 11px;
+  color: #aaaaaa;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  white-space: nowrap;
+}
+.wgt-live-refresh-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-live-refresh-btn:active { color: #4dff8e; }
+.wgt-live-controls {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.wgt-live-pill-group {
+  display: flex;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.wgt-live-pill {
+  font-family: 'Roboto Mono', 'Droid Sans Mono', 'Courier New', monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #888;
+  background: transparent;
+  border: none;
+  padding: 3px 7px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.wgt-live-pill.active {
+  background: rgba(0,210,100,0.25);
+  color: #4dff8e;
+}
+.wgt-live-pill:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.15); }
+.wgt-live-cols {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  overflow: hidden;
+}
+.wgt-live-col {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr max-content max-content;
+  column-gap: 6px;
+  align-content: start;
+  overflow: hidden;
+}
+.wlt-ticker,
+.wlt-price,
+.wlt-chg {
+  padding: 2px 0;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wlt-ticker {
+  color: #e4e4e4;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.wlt-price {
+  color: #e4e4e4;
+  text-align: right;
+  font-size: 12px;
+}
+.wlt-chg {
+  text-align: right;
+  min-width: 52px;
+  font-size: 12px;
+}
+.wlt-bell {
+  color: #f59e0b;
+  font-size: 0.75em;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+.wlt-pos { color: #4dff8e; }
+.wlt-neg { color: #ff4d4d; }
+.wlt-neu { color: #888888; }
+
 /* ── Widget Settings Tab (ws-*) ─────────────────────────────────────────── */
 .ws-page {
   padding: 0 0 32px;
