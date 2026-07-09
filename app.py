@@ -7,12 +7,19 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 @app.after_request
 def no_cache_static(response):
     if request.path.startswith("/static/"):
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        # Token icon images are immutable once saved — allow browser to cache them
+        if request.path.startswith("/static/icons/tokens/"):
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        else:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
     return response
 
 DATA_FILE = "assets.json"
+ICON_DIR   = "static/icons/tokens"
+os.makedirs(ICON_DIR, exist_ok=True)
+
 _icon_cache  = {}
 _mcap_cache  = {}
 MCAP_TTL     = 600
@@ -422,31 +429,174 @@ def api_forex(sym):
             }
     return None
 
+ICON_URL_CACHE_FILE = "static/icons/icon_urls.json"  # persisted CoinGecko URL cache
+_icon_cache_lock    = threading.Lock()               # guards _icon_cache + JSON writes
+_icon_file_locks    = {}                             # per-symbol file-write locks
+_icon_file_locks_mu = threading.Lock()              # guards the dict above
+
+import re as _re
+_VALID_SYMBOL = _re.compile(r'^[A-Z0-9]{1,20}$')
+
+
+def _symbol_valid(sym):
+    """Return True only for safe ticker strings (alphanumeric, 1-20 chars)."""
+    return bool(_VALID_SYMBOL.match(sym))
+
+def _file_lock_for(sym):
+    """Return a per-symbol threading.Lock (creates one on first use)."""
+    with _icon_file_locks_mu:
+        if sym not in _icon_file_locks:
+            _icon_file_locks[sym] = threading.Lock()
+        return _icon_file_locks[sym]
+
+def _load_icon_url_cache():
+    """Load persisted icon URL cache from disk into _icon_cache."""
+    try:
+        with open(ICON_URL_CACHE_FILE) as f:
+            _icon_cache.update(json.load(f))
+    except Exception:
+        pass
+
+def _save_icon_url_cache():
+    """Atomically persist icon URL cache to disk (confirmed URLs only, never None)."""
+    try:
+        to_save = {k: v for k, v in _icon_cache.items() if v}
+        tmp = ICON_URL_CACHE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(to_save, f)
+        os.replace(tmp, ICON_URL_CACHE_FILE)
+    except Exception:
+        pass
+
+_load_icon_url_cache()  # restore previous session cache immediately
+
 def _fetch_icon_url(symbol):
-    """Fetch icon URL using a single CoinGecko search call (faster, less rate-limit pressure)."""
+    """Fetch icon URL via CoinGecko search.
+    * Results cached in memory AND persisted to disk (survives restarts).
+    * 429 / transient network errors do NOT poison the in-memory cache.
+    * Confirmed misses are cached as None in memory but never written to disk.
+    """
     sym = symbol.upper()
-    if sym in _icon_cache:
-        return _icon_cache[sym]
+    with _icon_cache_lock:
+        if sym in _icon_cache:
+            return _icon_cache[sym]
     s = sym.lower()
-    search = http_get(f"https://api.coingecko.com/api/v3/search?query={s}", timeout=8)
     url = None
-    if search and search.get("coins"):
-        # 1st pass: exact symbol match
-        for c in search["coins"]:
-            if c.get("symbol", "").lower() == s:
-                url = c.get("large") or c.get("thumb")
-                break
-        # 2nd pass: symbol contained in id or name
-        if not url:
+    rate_limited = False
+    try:
+        req = urllib.request.Request(
+            f"https://api.coingecko.com/api/v3/search?query={s}",
+            headers={"User-Agent": "CryptoAIO/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            search = json.loads(r.read().decode())
+        if search and search.get("coins"):
             for c in search["coins"]:
-                cid = c.get("id", "").lower()
-                cname = c.get("name", "").lower()
-                if s in cid or s in cname:
+                if c.get("symbol", "").lower() == s:
                     url = c.get("large") or c.get("thumb")
                     break
-        # Never blindly use first result — wrong icon is worse than no icon
-    _icon_cache[sym] = url
+            if not url:
+                for c in search["coins"]:
+                    cid   = c.get("id",   "").lower()
+                    cname = c.get("name", "").lower()
+                    if s in cid or s in cname:
+                        url = c.get("large") or c.get("thumb")
+                        break
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            rate_limited = True
+    except Exception:
+        rate_limited = True
+
+    if not rate_limited:
+        with _icon_cache_lock:
+            _icon_cache[sym] = url
+            if url:
+                _save_icon_url_cache()
     return url
+
+def _local_icon_path(sym):
+    return os.path.join(ICON_DIR, f"{sym.upper()}.png")
+
+def _local_icon_url(sym):
+    return f"/static/icons/tokens/{sym.upper()}.png"
+
+def _download_bytes(url):
+    """Download raw bytes from a URL; returns None on failure or tiny response."""
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "CryptoAIO/1.0",
+            "Accept":     "image/*,*/*"
+        })
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = r.read()
+        return data if len(data) > 200 else None
+    except Exception:
+        return None
+
+def _download_icon_to_disk(sym):
+    """Download and cache a token icon to disk.
+    Returns the local URL path (/static/icons/tokens/SYM.png) on success, else None.
+    Sources tried in order:
+      1. CoinGecko search URL
+      2. ErikThiart/cryptocurrency-icons PNG
+      3. spothq cryptocurrency-icons PNG
+      4. CoinCap assets CDN
+    Writes are atomic (temp file + os.replace) and serialised per symbol.
+    """
+    sym  = sym.upper()
+    if not _symbol_valid(sym):
+        return None
+    path = _local_icon_path(sym)
+
+    # Already on disk and non-trivial?
+    if os.path.exists(path) and os.path.getsize(path) > 200:
+        return _local_icon_url(sym)
+
+    urls_to_try = []
+
+    # 1. CoinGecko (highest quality, broadest coverage)
+    remote = _fetch_icon_url(sym)
+    if remote:
+        urls_to_try.append(remote)
+
+    # 2. ErikThiart open-source crypto icons (GitHub CDN)
+    urls_to_try.append(
+        f"https://cdn.jsdelivr.net/gh/ErikThiart/cryptocurrency-icons@master/icons/{sym.lower()}.png"
+    )
+
+    # 3. spothq cryptocurrency-icons (another common set)
+    urls_to_try.append(
+        f"https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/32/color/{sym.lower()}.png"
+    )
+
+    # 4. CoinCap assets CDN
+    urls_to_try.append(
+        f"https://assets.coincap.io/assets/icons/{sym.lower()}@2x.png"
+    )
+
+    lock = _file_lock_for(sym)
+    with lock:
+        # Re-check inside the lock in case another thread finished while we waited
+        if os.path.exists(path) and os.path.getsize(path) > 200:
+            return _local_icon_url(sym)
+
+        for url in urls_to_try:
+            data = _download_bytes(url)
+            if data:
+                try:
+                    tmp = path + ".tmp"
+                    with open(tmp, "wb") as f:
+                        f.write(data)
+                    os.replace(tmp, path)   # atomic on POSIX
+                    return _local_icon_url(sym)
+                except Exception:
+                    try:
+                        os.remove(tmp)
+                    except Exception:
+                        pass
+
+    return None
 
 # Priority order — Hyperliquid perp first, then spot, then working CEXes, then stocks/forex
 APIS = [
@@ -695,11 +845,16 @@ def search_symbols():
 @app.route("/api/icon")
 def get_icon():
     sym = request.args.get("symbol", "").strip().upper()
-    if not sym:
-        return jsonify({"error": "no symbol"}), 400
-    url = _fetch_icon_url(sym)
-    if url:
-        return jsonify({"url": url})
+    if not sym or not _symbol_valid(sym):
+        return jsonify({"error": "invalid symbol"}), 400
+    # Return local cached icon immediately if available
+    path = _local_icon_path(sym)
+    if os.path.exists(path) and os.path.getsize(path) > 200:
+        return jsonify({"url": _local_icon_url(sym)})
+    # Otherwise try to download, save, and return local URL
+    local_url = _download_icon_to_disk(sym)
+    if local_url:
+        return jsonify({"url": local_url})
     return jsonify({"error": "not found"}), 404
 
 @app.route("/api/price")
@@ -969,14 +1124,18 @@ def _warmup():
     """Background: warm up symbol list, market caps, and icons for tracked assets."""
 
     def _load_icons():
-        """Pre-fetch icons for all currently tracked assets sequentially to avoid rate-limits."""
+        """Download and cache icons to disk for all tracked assets."""
         try:
             assets = load_assets()
             syms = [a.get("symbol", "").upper() for a in assets if a.get("symbol")]
-            to_fetch = [s for s in syms if len(s) != 6 and s not in _icon_cache]
+            # Skip forex pairs (6-char like USDBRL) — they use flag images
+            to_fetch = [s for s in syms if len(s) != 6]
             for sym in to_fetch:
-                _fetch_icon_url(sym)
-                time.sleep(0.3)   # gentle pacing — avoids CoinGecko rate-limit
+                path = _local_icon_path(sym)
+                if os.path.exists(path) and os.path.getsize(path) > 200:
+                    continue  # already on disk, skip network call
+                _download_icon_to_disk(sym)
+                time.sleep(1.5)   # conservative pacing — CoinGecko free tier: ~30 req/min
         except Exception:
             pass
 

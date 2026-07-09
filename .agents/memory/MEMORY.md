@@ -1,0 +1,1 @@
+- [Icon disk cache](icon-disk-cache.md) — ícones baixados e servidos localmente em static/icons/tokens/; não editar app.py com sed (destrói arquivo)

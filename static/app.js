@@ -305,12 +305,16 @@ function tryLoadImage(img, text, src, fallbackFn) {
 }
 
 function tryCryptoIcon(img, text, sym) {
+  // Local server-cached icon (pre-downloaded at startup for tracked assets)
+  const localUrl = `/static/icons/tokens/${sym.toUpperCase()}.png`;
   tryLoadImage(img, text, CDN1(sym), () =>
     tryLoadImage(img, text, CDN2(sym), () =>
-      fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => tryLoadImage(img, text, data.url, null))
-        .catch(() => {})
+      tryLoadImage(img, text, localUrl, () =>
+        fetch(`/api/icon?symbol=${encodeURIComponent(sym)}`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => tryLoadImage(img, text, data.url, null))
+          .catch(() => {})
+      )
     )
   );
 }
