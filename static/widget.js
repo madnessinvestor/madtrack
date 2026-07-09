@@ -1,19 +1,23 @@
-// ─── Widget Settings Tab ──────────────────────────────────────────────────────
-// Uses the same localStorage keys (w_*) as /widget.
-// Changes here are reflected immediately when the user opens the actual widget.
+// ─── Widget Settings Tab (ws-*) ───────────────────────────────────────────────
+// Manages the Widget tab in the main SPA.
+// Shares localStorage keys (w_*) with /widget and /widget/settings.
 
-const WT_DEFAULTS = {
-  size:     "sm",    // sm | md | lg
-  theme:    "dark",  // dark | light | auto
-  refresh:  "15",    // minutes: 5 | 15 | 30 | 60
-  showChg:  true,    // show % change
-  showIcon: true,    // show asset icon
-  assets:   ""       // comma-separated selected symbols (up to 5)
+const WS_DEFAULTS = {
+  ccy:          "USD",   // USD | BRL | EUR
+  chg:          "pct",   // pct | val
+  cols:         "2",     // 1 | 2
+  fontSize:     "md",    // sm | md | lg
+  bold:         false,
+  showCcy:      true,
+  showHeader:   true,
+  autoSort:     false,
+  showRefresh:  false,
+  showControls: true
 };
 
-function wtLoad() {
+function wsLoad() {
   const c = {};
-  for (const [k, def] of Object.entries(WT_DEFAULTS)) {
+  for (const [k, def] of Object.entries(WS_DEFAULTS)) {
     const raw = localStorage.getItem("w_" + k);
     if (raw === null) c[k] = def;
     else if (typeof def === "boolean") c[k] = raw === "1";
@@ -22,172 +26,126 @@ function wtLoad() {
   return c;
 }
 
-function wtSave(cfg) {
+function wsSave(cfg) {
   for (const [k, v] of Object.entries(cfg)) {
     localStorage.setItem("w_" + k, typeof v === "boolean" ? (v ? "1" : "0") : v);
   }
 }
 
-let wtCfg = Object.assign({}, WT_DEFAULTS);
+let wsCfg = Object.assign({}, WS_DEFAULTS);
 
 // Called by pill buttons
-function wSet(key, val) {
-  wtCfg[key] = val;
-  wtSave(wtCfg);
-  wtApplyUI();
-  wtUpdatePreview();
+function wsSet(key, val) {
+  wsCfg[key] = val;
+  wsSave(wsCfg);
+  wsApplyUI();
+  wsUpdatePreview();
 }
 
 // Called by toggle switches
-function wToggle(key) {
-  wtCfg[key] = !wtCfg[key];
-  wtSave(wtCfg);
-  wtApplyUI();
-  wtUpdatePreview();
-}
-
-// Toggle an asset chip on/off (max 5 selected)
-function wToggleAsset(sym) {
-  const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
-  const idx = selected.indexOf(sym);
-  if (idx >= 0) {
-    selected.splice(idx, 1);
-  } else {
-    if (selected.length >= 5) return; // limit reached, do nothing
-    selected.push(sym);
-  }
-  wtCfg.assets = selected.join(",");
-  wtSave(wtCfg);
-  // Refresh chip visuals only (no full UI rebuild)
-  document.querySelectorAll(".wgt-asset-chip").forEach(chip => {
-    chip.classList.toggle("active", selected.includes(chip.dataset.sym));
-  });
-}
-
-// Save button feedback
-function wSaveConfig() {
-  wtSave(wtCfg);
-  const btn = document.querySelector(".wgt-save-btn");
-  if (!btn) return;
-  const orig = btn.textContent;
-  btn.textContent = "Saved ✓";
-  btn.style.opacity = "0.8";
-  setTimeout(() => { btn.textContent = orig; btn.style.opacity = ""; }, 1500);
+function wsToggle(key) {
+  wsCfg[key] = !wsCfg[key];
+  wsSave(wsCfg);
+  wsApplyUI();
+  wsUpdatePreview();
 }
 
 // ── Sync UI controls to current config ────────────────────────────────────────
-function wtApplyUI() {
-  // Pill groups
+function wsApplyUI() {
+  // Pill selectors
   [
-    ["wt-size",    "size"],
-    ["wt-theme",   "theme"],
-    ["wt-refresh", "refresh"],
+    ["ws-ccy-sel",  "ccy"],
+    ["ws-chg-sel",  "chg"],
+    ["ws-cols-sel", "cols"],
+    ["ws-fs-sel",   "fontSize"],
   ].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.querySelectorAll(".wgt-pill").forEach(b =>
-      b.classList.toggle("active", b.dataset.v === String(wtCfg[key]))
+    el.querySelectorAll("button").forEach(b =>
+      b.classList.toggle("active", b.dataset.v === String(wsCfg[key]))
     );
   });
 
   // Toggle checkboxes
   [
-    ["wt-showChg",  "showChg"],
-    ["wt-showIcon", "showIcon"],
+    ["ws-chk-bold",         "bold"],
+    ["ws-chk-showCcy",      "showCcy"],
+    ["ws-chk-showHeader",   "showHeader"],
+    ["ws-chk-autoSort",     "autoSort"],
+    ["ws-chk-showRefresh",  "showRefresh"],
+    ["ws-chk-showControls", "showControls"],
   ].forEach(([id, key]) => {
     const el = document.getElementById(id);
-    if (el) el.checked = !!wtCfg[key];
-  });
-
-  // Asset chips (if already rendered)
-  const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
-  document.querySelectorAll(".wgt-asset-chip").forEach(chip => {
-    chip.classList.toggle("active", selected.includes(chip.dataset.sym));
+    if (el) el.checked = !!wsCfg[key];
   });
 }
 
 // ── Live preview ───────────────────────────────────────────────────────────────
-function wtUpdatePreview() {
-  const card = document.getElementById("widget-preview-card");
-  if (!card) return;
+const WS_RATES = { USD: 1, BRL: 5.70, EUR: 0.92 };
+const WS_SYM   = { USD: "$", BRL: "R$", EUR: "€" };
 
-  // Theme
-  card.classList.toggle("wpc-light", wtCfg.theme === "light");
+function wsFmtP(p) {
+  const cv  = p * (WS_RATES[wsCfg.ccy] || 1);
+  const sym = wsCfg.showCcy ? WS_SYM[wsCfg.ccy] : "";
+  if (cv >= 10000) return sym + cv.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (cv >= 1)     return sym + cv.toFixed(2);
+  return sym + cv.toFixed(4);
+}
 
-  // Clock
-  const timeEl = document.getElementById("wpc-time");
-  if (timeEl) {
-    const now = new Date();
-    timeEl.textContent =
-      now.getHours().toString().padStart(2, "0") + ":" +
-      now.getMinutes().toString().padStart(2, "0");
+function wsFmtC(p, pct) {
+  if (wsCfg.chg === "pct") {
+    const s = pct >= 0 ? "+" : "";
+    return { text: s + pct.toFixed(2) + "%", cls: pct > 0 ? "ws-pos" : "ws-neg" };
+  } else {
+    const prev = p / (1 + pct / 100);
+    const abs  = (p - prev) * (WS_RATES[wsCfg.ccy] || 1);
+    const sym  = wsCfg.showCcy ? WS_SYM[wsCfg.ccy] : "";
+    const s    = abs >= 0 ? "+" : "-";
+    return { text: s + sym + Math.abs(abs).toFixed(2), cls: abs >= 0 ? "ws-pos" : "ws-neg" };
   }
+}
 
-  // Show / hide % change column
-  document.querySelectorAll("#wpc-rows .wpc-chg").forEach(el => {
-    el.style.display = wtCfg.showChg ? "" : "none";
+function wsUpdatePreview() {
+  const fs = wsCfg.fontSize === "sm" ? "11px" : wsCfg.fontSize === "lg" ? "15px" : "13px";
+  const fw = wsCfg.bold ? "700" : "400";
+  document.querySelectorAll(".ws-preview-row").forEach(r => {
+    r.style.fontSize = fs;
+    const chgEl = r.querySelector(".ws-pv-chg");
+    if (chgEl) chgEl.style.fontWeight = wsCfg.bold ? "700" : "600";
+    r.querySelectorAll("span:not(.ws-pv-chg)").forEach(s => s.style.fontWeight = fw);
   });
+
+  const btc = wsFmtC(59960, 1.15);
+  const eth = wsFmtC(1576, -0.03);
+
+  const p1 = document.getElementById("ws-pv-price1");
+  const p2 = document.getElementById("ws-pv-price2");
+  const c1 = document.getElementById("ws-pv-chg1");
+  const c2 = document.getElementById("ws-pv-chg2");
+
+  if (p1) p1.textContent = wsFmtP(59960);
+  if (p2) p2.textContent = wsFmtP(1576);
+  if (c1) { c1.textContent = btc.text; c1.className = "ws-pv-chg " + btc.cls; }
+  if (c2) { c2.textContent = eth.text; c2.className = "ws-pv-chg " + eth.cls; }
 }
 
-// ── Sanitise a symbol to safe alphanumeric chars only ─────────────────────────
-const WT_SYM_RE = /[^A-Z0-9._\-]/g;
-function wtSanitiseSym(raw) {
-  return String(raw).toUpperCase().replace(WT_SYM_RE, "").slice(0, 20);
-}
-
-// ── Load watchlist assets as selectable chips (DOM-safe, no innerHTML inject) ──
-function wLoadAssets() {
-  const container = document.getElementById("wgt-asset-chips");
-  if (!container) return;
-
-  fetch("/api/assets")
-    .then(r => {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    })
-    .then(data => {
-      const assets = Array.isArray(data) ? data : (data.assets || []);
-      const selected = wtCfg.assets ? wtCfg.assets.split(",").filter(Boolean) : [];
-
-      // Clear container safely
-      while (container.firstChild) container.removeChild(container.firstChild);
-
-      if (!assets.length) {
-        const msg = document.createElement("span");
-        msg.className = "wgt-asset-empty";
-        msg.textContent = "No assets in Watchlist yet";
-        container.appendChild(msg);
-        return;
-      }
-
-      assets.forEach(a => {
-        const sym = wtSanitiseSym(a.symbol || a.ticker || a.id || String(a));
-        if (!sym) return;
-        const btn = document.createElement("button");
-        btn.className = "wgt-asset-chip" + (selected.includes(sym) ? " active" : "");
-        btn.dataset.sym = sym;
-        btn.textContent = sym;
-        btn.addEventListener("click", () => wToggleAsset(sym));
-        container.appendChild(btn);
-      });
-    })
-    .catch(() => {
-      while (container.firstChild) container.removeChild(container.firstChild);
-      const msg = document.createElement("span");
-      msg.className = "wgt-asset-empty";
-      msg.textContent = "Could not load assets";
-      container.appendChild(msg);
-    });
-}
-
-// ── Backwards-compat aliases (guard against SW-cached old HTML) ───────────────
-function widgetUpdatePreview() { wtUpdatePreview(); }
-function widgetSaveConfig()    { wSaveConfig(); }
-
-// ── Entry point called by switchTab('widget') in trade.js ─────────────────────
+// ── Entry point called by switchTab('widget') ─────────────────────────────────
 function widgetOnEnter() {
-  wtCfg = wtLoad();
-  wtApplyUI();
-  wtUpdatePreview();
-  wLoadAssets();
+  wsCfg = wsLoad();
+  // Fetch real rates for accurate preview
+  fetch("/api/rates").then(r => r.json()).then(d => {
+    if (d.BRL) WS_RATES.BRL = d.BRL;
+    if (d.EUR) WS_RATES.EUR = d.EUR;
+    wsUpdatePreview();
+  }).catch(() => {});
+  wsApplyUI();
+  wsUpdatePreview();
 }
+
+// ── Backwards-compat aliases ──────────────────────────────────────────────────
+function wSet(key, val)  { wsSet(key, val); }
+function wToggle(key)    { wsToggle(key); }
+function wSaveConfig()   {}
+function wLoadAssets()   {}
+function wtApplyUI()     { wsApplyUI(); }
+function wtUpdatePreview() { wsUpdatePreview(); }

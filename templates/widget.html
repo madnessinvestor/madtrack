@@ -9,21 +9,21 @@
 
   html, body {
     width: 100%;
-    height: 100%;
-    background: transparent;
+    min-height: 100%;
+    background: #0f0f14;
     font-family: 'Roboto Mono', 'Droid Sans Mono', 'Courier New', monospace;
     color: #ffffff;
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .widget {
     width: 100%;
-    height: 100%;
-    padding: 5px 10px 4px;
+    min-height: 100vh;
+    padding: 8px 12px 80px;
     display: flex;
     flex-direction: column;
-    background: rgba(8, 10, 20, 0.75);
-    border-radius: 16px;
+    background: #0f0f14;
   }
 
   /* ── Top bar ──────────────────────────────────────────────── */

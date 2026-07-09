@@ -3123,3 +3123,129 @@ section.hidden { display: none; }
   -webkit-tap-highlight-color: transparent;
 }
 .wgt-save-btn:active { opacity: 0.78; }
+
+/* ── Widget Settings Tab (ws-*) ─────────────────────────────────────────── */
+.ws-page {
+  padding: 0 0 32px;
+}
+
+.ws-preview-wrap {
+  margin: 14px 16px 0;
+  background: rgba(8,10,20,0.85);
+  border-radius: 14px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.ws-preview-label {
+  font-size: 10px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.ws-preview-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+  padding: 2px 0;
+  color: #e4e4e4;
+}
+.ws-preview-row .ws-pv-chg { font-weight: 600; }
+.ws-pos { color: #4dff8e; }
+.ws-neg { color: #ff4d4d; }
+.ws-neu { color: #888; }
+
+.ws-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 18px 20px 6px;
+}
+
+.ws-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ws-setting-row:active { background: rgba(255,255,255,0.04); }
+
+.ws-setting-info { flex: 1; min-width: 0; }
+.ws-setting-title { font-size: 15px; font-weight: 500; color: #e8e8e8; }
+.ws-setting-desc  { font-size: 12px; color: #888; margin-top: 2px; }
+
+.ws-toggle-wrap { flex-shrink: 0; }
+.ws-toggle { position: relative; width: 46px; height: 26px; cursor: pointer; display: inline-block; }
+.ws-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.ws-toggle-track {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,0.12);
+  border-radius: 26px;
+  transition: background 0.2s;
+}
+.ws-toggle input:checked ~ .ws-toggle-track { background: var(--accent); }
+.ws-toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 20px; height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.ws-toggle input:checked ~ .ws-toggle-thumb { transform: translateX(20px); }
+
+.ws-pill-sel {
+  display: flex;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ws-pill-sel button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  background: transparent;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ws-pill-sel button.active {
+  background: rgba(0,230,118,0.18);
+  color: var(--accent);
+}
+.ws-pill-sel button:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.12); }
+
+.ws-open-btn {
+  display: block;
+  width: calc(100% - 40px);
+  margin: 24px 20px 0;
+  padding: 14px;
+  background: var(--accent);
+  color: #000;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 16px rgba(0,230,118,0.3);
+}
+.ws-open-btn:active { opacity: 0.8; }
