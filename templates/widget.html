@@ -264,7 +264,7 @@
     if (cfg.chg === "both") {
       const p = _fmtPct(pct);
       const v = _fmtVal(usdP, pct);
-      return { text: p.text, text2: v.text, cls: p.cls };
+      return { text: v.text + " (" + p.text + ")", cls: p.cls };
     }
     return _fmtPct(pct);
   }
@@ -279,7 +279,7 @@
 
   function cellsHtml(a) {
     if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
-    const { text: chg, text2: chg2, cls } = fmtChg(a.price, a.change24h);
+    const { text: chg, cls } = fmtChg(a.price, a.change24h);
     const fw = cfg.bold ? "font-weight:700;" : "";
     const tickerAlerts = alertsByTicker[(a.symbol || "").toUpperCase()] || [];
     const activeAlerts = tickerAlerts.filter(al => !al.triggered);
@@ -289,12 +289,9 @@
     const bell = activeAlerts.length
       ? `<span class="w-bell" title="${esc(bellTitle)}">🔔</span>` : "";
     const symTrunc = trunc(a.symbol || "", 12);
-    const chgContent = chg2
-      ? `<span style="display:block">${esc(chg)}</span><span style="display:block;font-size:0.82em;opacity:0.8">${esc(chg2)}</span>`
-      : esc(chg);
     return `<span class="w-ticker">${esc(symTrunc)}${bell}</span>` +
            `<span class="w-price" style="${fw}">${esc(fmtPrice(a.price))}</span>` +
-           `<span class="w-chg ${cls}" style="${fw}">${chgContent}</span>`;
+           `<span class="w-chg ${cls}" style="${fw}">${esc(chg)}</span>`;
   }
 
   // ── Render ──────────────────────────────────────────────────

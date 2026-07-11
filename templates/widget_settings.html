@@ -429,17 +429,11 @@
     if (cfg.chg === "val") return { text: valText, text2: null, cls };
     // both
     const pctText = (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%";
-    return { text: pctText, text2: valText, cls };
+    return { text: valText + " (" + pctText + ")", text2: null, cls };
   }
 
   function setChgEl(el, result) {
-    if (result.text2) {
-      el.innerHTML =
-        `<span style="display:block">${result.text}</span>` +
-        `<span style="display:block;font-size:0.82em;opacity:0.8">${result.text2}</span>`;
-    } else {
-      el.textContent = result.text;
-    }
+    el.textContent = result.text;
     el.className = "pv-chg " + result.cls;
   }
 

@@ -320,7 +320,7 @@ function wltFmtChg(usdP, pct) {
   if (wtCfg.chg === "both") {
     const p = _wltPct(pct);
     const v = _wltVal(usdP, pct);
-    return { text: p.text, text2: v.text, cls: p.cls };
+    return { text: v.text + " (" + p.text + ")", cls: p.cls };
   }
   return _wltPct(pct);
 }
@@ -335,7 +335,7 @@ function wltEsc(str) {
 
 function wltCellsHtml(a, fs) {
   if (!a) return `<span class="wlt-ticker"></span><span class="wlt-price"></span><span class="wlt-chg"></span>`;
-  const { text: chg, text2: chg2, cls } = wltFmtChg(a.price, a.change24h);
+  const { text: chg, cls } = wltFmtChg(a.price, a.change24h);
   const fw  = wtCfg.bold ? "font-weight:700;" : "";
   const fss = `font-size:${fs};`;
   const tickerAlerts = wltAlertMap[(a.symbol || "").toUpperCase()] || [];
@@ -350,12 +350,9 @@ function wltCellsHtml(a, fs) {
   const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
   const sym   = wltEsc(symTrunc);
   const price = wltEsc(wltFmtPrice(a.price));
-  const chgContent = chg2
-    ? `<span style="display:block">${wltEsc(chg)}</span><span style="display:block;font-size:0.82em;opacity:0.8">${wltEsc(chg2)}</span>`
-    : wltEsc(chg);
   return `<span class="wlt-ticker" style="${fss}">${sym}${bell}</span>` +
          `<span class="wlt-price"  style="${fss}${fw}">${price}</span>` +
-         `<span class="wlt-chg ${cls}" style="${fss}${fw}">${chgContent}</span>`;
+         `<span class="wlt-chg ${cls}" style="${fss}${fw}">${wltEsc(chg)}</span>`;
 }
 
 function wltApplyLayout() {
