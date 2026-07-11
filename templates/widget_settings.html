@@ -221,11 +221,12 @@
   <div class="setting-row">
     <div class="setting-info">
       <div class="setting-title">Variação</div>
-      <div class="setting-desc">Exibir variação em percentual ou valor</div>
+      <div class="setting-desc">Percentual, valor ou ambos juntos</div>
     </div>
     <div class="pill-sel" id="chg-sel">
-      <button data-v="pct" onclick="set('chg','pct')">%</button>
-      <button data-v="val" onclick="set('chg','val')">Valor</button>
+      <button data-v="pct"  onclick="set('chg','pct')">%</button>
+      <button data-v="val"  onclick="set('chg','val')">Valor</button>
+      <button data-v="both" onclick="set('chg','both')">% + Valor</button>
     </div>
   </div>
 
@@ -414,17 +415,32 @@
     return sym + cv.toFixed(4);
   }
 
-  function fmtC(p, pct, cls) {
+  function fmtC(p, pct) {
+    const cls = pct > 0 ? "pos" : pct < 0 ? "neg" : "neu";
     if (cfg.chg === "pct") {
       const s = pct >= 0 ? "+" : "";
-      return { text: s + pct.toFixed(2) + "%", cls: pct > 0 ? "pos" : "neg" };
-    } else {
-      const prev = p / (1 + pct / 100);
-      const abs  = (p - prev) * (RATES[cfg.ccy] || 1);
-      const sym  = cfg.showCcy ? SYM[cfg.ccy] : "";
-      const s    = abs >= 0 ? "+" : "-";
-      return { text: s + sym + Math.abs(abs).toFixed(2), cls: abs >= 0 ? "pos" : "neg" };
+      return { text: s + pct.toFixed(2) + "%", text2: null, cls };
     }
+    const prev = p / (1 + pct / 100);
+    const abs  = (p - prev) * (RATES[cfg.ccy] || 1);
+    const sym  = cfg.showCcy ? SYM[cfg.ccy] : "";
+    const s    = abs >= 0 ? "+" : "-";
+    const valText = s + sym + Math.abs(abs).toFixed(2);
+    if (cfg.chg === "val") return { text: valText, text2: null, cls };
+    // both
+    const pctText = (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%";
+    return { text: pctText, text2: valText, cls };
+  }
+
+  function setChgEl(el, result) {
+    if (result.text2) {
+      el.innerHTML =
+        `<span style="display:block">${result.text}</span>` +
+        `<span style="display:block;font-size:0.82em;opacity:0.8">${result.text2}</span>`;
+    } else {
+      el.textContent = result.text;
+    }
+    el.className = "pv-chg " + result.cls;
   }
 
   function updatePreview() {
@@ -436,14 +452,10 @@
       r.querySelectorAll("span:not(.pv-chg)").forEach(s => s.style.fontWeight = fw);
     });
 
-    const btc = fmtC(59960, 1.15);
-    const eth = fmtC(1576, -0.03);
     document.getElementById("pv-price").textContent  = fmtP(59960);
     document.getElementById("pv-price2").textContent = fmtP(1576);
-    const pc1 = document.getElementById("pv-chg");
-    pc1.textContent = btc.text; pc1.className = "pv-chg " + btc.cls;
-    const pc2 = document.getElementById("pv-chg2");
-    pc2.textContent = eth.text; pc2.className = "pv-chg " + eth.cls;
+    setChgEl(document.getElementById("pv-chg"),  fmtC(59960,  1.15));
+    setChgEl(document.getElementById("pv-chg2"), fmtC(1576,  -0.03));
   }
 
   function goWidget() {
