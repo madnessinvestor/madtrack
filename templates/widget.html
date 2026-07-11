@@ -175,6 +175,7 @@
       <div class="pill-group" id="chg-group">
         <button class="pill" data-chg="pct"  onclick="setChg('pct')">%</button>
         <button class="pill" data-chg="val"  onclick="setChg('val')" id="chg-val-btn">±$</button>
+        <button class="pill" data-chg="both" onclick="setChg('both')">%+$</button>
       </div>
     </div>
     <button class="settings-btn" onclick="openSettings()" title="Configurar">⚙</button>
@@ -234,45 +235,66 @@
     return sym + p.toPrecision(3);
   }
 
+  function _fmtPct(pct) {
+    if (pct == null) return { text: "—", cls: "neu" };
+    const s   = pct >= 0 ? "+" : "";
+    const cls = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
+    return { text: s + pct.toFixed(2) + "%", cls };
+  }
+
+  function _fmtVal(usdP, pct) {
+    if (usdP == null || pct == null) return { text: "—", cls: "neu" };
+    const prev = usdP / (1 + pct / 100);
+    const abs  = (usdP - prev) * ccyRate();
+    const sym  = cfg.showCcy ? CCY_SYM[cfg.ccy] : "";
+    const s    = abs >= 0 ? "+" : "-";
+    const cls  = abs > 0.000005 ? "pos" : abs < -0.000005 ? "neg" : "neu";
+    const a    = Math.abs(abs);
+    let num;
+    if (a >= 100) num = a.toFixed(2);
+    else if (a >= 1) num = a.toFixed(2);
+    else if (a >= 0.01) num = a.toFixed(4);
+    else num = a.toPrecision(2);
+    return { text: s + sym + num, cls };
+  }
+
   function fmtChg(usdP, pct) {
-    if (cfg.chg === "pct") {
-      if (pct == null) return { text: "—", cls: "neu" };
-      const s   = pct >= 0 ? "+" : "";
-      const cls = pct > 0.005 ? "pos" : pct < -0.005 ? "neg" : "neu";
-      return { text: s + pct.toFixed(2) + "%", cls };
-    } else {
-      if (usdP == null || pct == null) return { text: "—", cls: "neu" };
-      const prev = usdP / (1 + pct / 100);
-      const abs  = (usdP - prev) * ccyRate();
-      const sym  = cfg.showCcy ? CCY_SYM[cfg.ccy] : "";
-      const s    = abs >= 0 ? "+" : "-";
-      const cls  = abs > 0.000005 ? "pos" : abs < -0.000005 ? "neg" : "neu";
-      const a    = Math.abs(abs);
-      let num;
-      if (a >= 100) num = a.toFixed(2);
-      else if (a >= 1) num = a.toFixed(2);
-      else if (a >= 0.01) num = a.toFixed(4);
-      else num = a.toPrecision(2);
-      return { text: s + sym + num, cls };
+    if (cfg.chg === "pct")  return _fmtPct(pct);
+    if (cfg.chg === "val")  return _fmtVal(usdP, pct);
+    if (cfg.chg === "both") {
+      const p = _fmtPct(pct);
+      const v = _fmtVal(usdP, pct);
+      return { text: p.text, text2: v.text, cls: p.cls };
     }
+    return _fmtPct(pct);
   }
 
   function trunc(sym, n) {
     return sym.length > n ? sym.slice(0, n - 3) + "..." : sym;
   }
 
+  function esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
   function cellsHtml(a) {
     if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
-    const { text: chg, cls } = fmtChg(a.price, a.change24h);
+    const { text: chg, text2: chg2, cls } = fmtChg(a.price, a.change24h);
     const fw = cfg.bold ? "font-weight:700;" : "";
-    const tickerAlerts = alertsByTicker[a.symbol.toUpperCase()] || [];
+    const tickerAlerts = alertsByTicker[(a.symbol || "").toUpperCase()] || [];
     const activeAlerts = tickerAlerts.filter(al => !al.triggered);
+    const bellTitle = activeAlerts.map(al =>
+      (al.direction === "above" ? "↑" : "↓") + " $" + Number(al.target).toLocaleString("en-US")
+    ).join(" • ");
     const bell = activeAlerts.length
-      ? `<span class="w-bell" title="${activeAlerts.map(al => (al.direction === 'above' ? '↑' : '↓') + ' $' + al.target.toLocaleString('en-US')).join(' • ')}">🔔</span>`
-      : "";
-    return `<span class="w-ticker">${trunc(a.symbol, 12)}${bell}</span>` +
-           `<span class="w-price" style="${fw}">${fmtPrice(a.price)}</span>` +
-           `<span class="w-chg ${cls}" style="${fw}">${chg}</span>`;
+      ? `<span class="w-bell" title="${esc(bellTitle)}">🔔</span>` : "";
+    const symTrunc = trunc(a.symbol || "", 12);
+    const chgContent = chg2
+      ? `<span style="display:block">${esc(chg)}</span><span style="display:block;font-size:0.82em;opacity:0.8">${esc(chg2)}</span>`
+      : esc(chg);
+    return `<span class="w-ticker">${esc(symTrunc)}${bell}</span>` +
+           `<span class="w-price" style="${fw}">${esc(fmtPrice(a.price))}</span>` +
+           `<span class="w-chg ${cls}" style="${fw}">${chgContent}</span>`;
   }
 
   // ── Render ──────────────────────────────────────────────────

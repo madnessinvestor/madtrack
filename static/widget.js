@@ -291,27 +291,38 @@ function wltFmtPrice(usdP) {
   return sym + p.toPrecision(3);
 }
 
+function _wltPct(pct) {
+  if (pct == null) return { text: "—", cls: "wlt-neu" };
+  const s   = pct >= 0 ? "+" : "";
+  const cls = pct > 0.005 ? "wlt-pos" : pct < -0.005 ? "wlt-neg" : "wlt-neu";
+  return { text: s + pct.toFixed(2) + "%", cls };
+}
+
+function _wltVal(usdP, pct) {
+  if (usdP == null || pct == null) return { text: "—", cls: "wlt-neu" };
+  const prev = usdP / (1 + pct / 100);
+  const abs  = (usdP - prev) * wltCcyRate();
+  const sym  = wtCfg.showCcy ? WLT_CCY_SYM[wtCfg.ccy] : "";
+  const s    = abs >= 0 ? "+" : "-";
+  const cls  = abs > 0.000005 ? "wlt-pos" : abs < -0.000005 ? "wlt-neg" : "wlt-neu";
+  const a    = Math.abs(abs);
+  let num;
+  if (a >= 100)       num = a.toFixed(2);
+  else if (a >= 1)    num = a.toFixed(2);
+  else if (a >= 0.01) num = a.toFixed(4);
+  else                num = a.toPrecision(2);
+  return { text: s + sym + num, cls };
+}
+
 function wltFmtChg(usdP, pct) {
-  if (wtCfg.chg === "pct") {
-    if (pct == null) return { text: "—", cls: "wlt-neu" };
-    const s   = pct >= 0 ? "+" : "";
-    const cls = pct > 0.005 ? "wlt-pos" : pct < -0.005 ? "wlt-neg" : "wlt-neu";
-    return { text: s + pct.toFixed(2) + "%", cls };
-  } else {
-    if (usdP == null || pct == null) return { text: "—", cls: "wlt-neu" };
-    const prev = usdP / (1 + pct / 100);
-    const abs  = (usdP - prev) * wltCcyRate();
-    const sym  = wtCfg.showCcy ? WLT_CCY_SYM[wtCfg.ccy] : "";
-    const s    = abs >= 0 ? "+" : "-";
-    const cls  = abs > 0.000005 ? "wlt-pos" : abs < -0.000005 ? "wlt-neg" : "wlt-neu";
-    const a    = Math.abs(abs);
-    let num;
-    if (a >= 100)       num = a.toFixed(2);
-    else if (a >= 1)    num = a.toFixed(2);
-    else if (a >= 0.01) num = a.toFixed(4);
-    else                num = a.toPrecision(2);
-    return { text: s + sym + num, cls };
+  if (wtCfg.chg === "pct")  return _wltPct(pct);
+  if (wtCfg.chg === "val")  return _wltVal(usdP, pct);
+  if (wtCfg.chg === "both") {
+    const p = _wltPct(pct);
+    const v = _wltVal(usdP, pct);
+    return { text: p.text, text2: v.text, cls: p.cls };
   }
+  return _wltPct(pct);
 }
 
 function wltEsc(str) {
@@ -324,7 +335,7 @@ function wltEsc(str) {
 
 function wltCellsHtml(a, fs) {
   if (!a) return `<span class="wlt-ticker"></span><span class="wlt-price"></span><span class="wlt-chg"></span>`;
-  const { text: chg, cls } = wltFmtChg(a.price, a.change24h);
+  const { text: chg, text2: chg2, cls } = wltFmtChg(a.price, a.change24h);
   const fw  = wtCfg.bold ? "font-weight:700;" : "";
   const fss = `font-size:${fs};`;
   const tickerAlerts = wltAlertMap[(a.symbol || "").toUpperCase()] || [];
@@ -337,12 +348,14 @@ function wltCellsHtml(a, fs) {
     : "";
   const rawSym = a.symbol || "";
   const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
-  const sym = wltEsc(symTrunc);
+  const sym   = wltEsc(symTrunc);
   const price = wltEsc(wltFmtPrice(a.price));
-  const chgEsc = wltEsc(chg);
+  const chgContent = chg2
+    ? `<span style="display:block">${wltEsc(chg)}</span><span style="display:block;font-size:0.82em;opacity:0.8">${wltEsc(chg2)}</span>`
+    : wltEsc(chg);
   return `<span class="wlt-ticker" style="${fss}">${sym}${bell}</span>` +
          `<span class="wlt-price"  style="${fss}${fw}">${price}</span>` +
-         `<span class="wlt-chg ${cls}" style="${fss}${fw}">${chgEsc}</span>`;
+         `<span class="wlt-chg ${cls}" style="${fss}${fw}">${chgContent}</span>`;
 }
 
 function wltApplyLayout() {

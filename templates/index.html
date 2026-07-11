@@ -144,8 +144,9 @@
               <button class="wgt-live-pill" data-ccy="EUR" onclick="wltSetCcy('EUR')">€</button>
             </div>
             <div class="wgt-live-pill-group" id="wlt-chg-group">
-              <button class="wgt-live-pill" data-chg="pct" onclick="wltSetChg('pct')">%</button>
-              <button class="wgt-live-pill" data-chg="val" onclick="wltSetChg('val')" id="wlt-chg-val-btn">±$</button>
+              <button class="wgt-live-pill" data-chg="pct"  onclick="wltSetChg('pct')">%</button>
+              <button class="wgt-live-pill" data-chg="val"  onclick="wltSetChg('val')" id="wlt-chg-val-btn">±$</button>
+              <button class="wgt-live-pill" data-chg="both" onclick="wltSetChg('both')">%+$</button>
             </div>
           </div>
         </div>
@@ -178,8 +179,9 @@
         <div class="wgt-card-row">
           <span class="wgt-card-row-label">Variação</span>
           <div class="wgt-card-row-pills" id="wt-chg">
-            <button data-v="pct" onclick="wSet('chg','pct')">%</button>
-            <button data-v="val" onclick="wSet('chg','val')">Valor</button>
+            <button data-v="pct"  onclick="wSet('chg','pct')">%</button>
+            <button data-v="val"  onclick="wSet('chg','val')">Valor</button>
+            <button data-v="both" onclick="wSet('chg','both')">% + Valor</button>
           </div>
         </div>
         <div class="wgt-card-row">
