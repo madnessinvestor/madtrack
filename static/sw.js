@@ -1,6 +1,6 @@
 // HTML pages are never cached — always fetched fresh from the server.
 // Only static assets (JS, CSS) are cached for offline performance.
-const CACHE = "cryptoaio-v1";
+const CACHE = "cryptoaio-v2";
 const STATIC = [
   "/static/style.css",
   "/static/app.js",
