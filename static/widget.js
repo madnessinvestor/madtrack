@@ -315,6 +315,7 @@ function _wltVal(usdP, pct) {
 }
 
 function wltFmtChg(usdP, pct) {
+  if (!wtCfg.showChg) return { text: "", cls: "wlt-neu" };
   if (wtCfg.chg === "pct")  return _wltPct(pct);
   if (wtCfg.chg === "val")  return _wltVal(usdP, pct);
   if (wtCfg.chg === "both") {
