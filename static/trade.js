@@ -365,9 +365,10 @@ function switchTab(tab) {
     if (!dashLoaded) {
       loadDashboard();
     } else {
-      // Re-render from cache to apply any currency change made since last visit.
-      // Does NOT trigger new API calls — the 3-min auto-refresh handles that.
-      if (typeof renderDashboard === "function") renderDashboard();
+      // Re-render from cache immediately for instant feedback, then refresh
+      // prices in background so the user always sees up-to-date data on entry.
+      if (typeof renderDashboard    === "function") renderDashboard();
+      if (typeof refreshAllWallets  === "function") refreshAllWallets();
     }
   }
 }
