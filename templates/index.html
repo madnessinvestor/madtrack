@@ -158,8 +158,8 @@
 
       <!-- Displayed Assets -->
       <div class="wgt-card">
-        <div class="wgt-card-title">DISPLAYED ASSETS</div>
-        <div class="wgt-card-sub">Select up to 5 assets from your Watchlist</div>
+        <div class="wgt-card-title" data-i18n="wgt_assets">DISPLAYED ASSETS</div>
+        <div class="wgt-card-sub" data-i18n="wgt_assets_hint">Select up to 5 assets from your Watchlist</div>
         <div class="wgt-asset-chips" id="wgt-asset-chips">
           <span class="wgt-asset-empty">Loading…</span>
         </div>
@@ -167,9 +167,9 @@
 
       <!-- EXIBIÇÃO: Moeda / Variação / Colunas -->
       <div class="wgt-card">
-        <div class="wgt-card-title">EXIBIÇÃO</div>
+        <div class="wgt-card-title" data-i18n="wgt_section_display">EXIBIÇÃO</div>
         <div class="wgt-card-row">
-          <span class="wgt-card-row-label">Moeda</span>
+          <span class="wgt-card-row-label" data-i18n="wgt_label_currency">Moeda</span>
           <div class="wgt-card-row-pills" id="wt-ccy">
             <button data-v="USD" onclick="wSet('ccy','USD')">$ USD</button>
             <button data-v="BRL" onclick="wSet('ccy','BRL')">R$ BRL</button>
@@ -177,15 +177,15 @@
           </div>
         </div>
         <div class="wgt-card-row">
-          <span class="wgt-card-row-label">Variação</span>
+          <span class="wgt-card-row-label" data-i18n="wgt_label_change">Variação</span>
           <div class="wgt-card-row-pills" id="wt-chg">
             <button data-v="pct"  onclick="wSet('chg','pct')">%</button>
-            <button data-v="val"  onclick="wSet('chg','val')">Valor</button>
-            <button data-v="both" onclick="wSet('chg','both')">% + Valor</button>
+            <button data-v="val"  onclick="wSet('chg','val')"  data-i18n="wgt_label_val">Valor</button>
+            <button data-v="both" onclick="wSet('chg','both')" data-i18n="wgt_label_both">% + Valor</button>
           </div>
         </div>
         <div class="wgt-card-row">
-          <span class="wgt-card-row-label">Colunas</span>
+          <span class="wgt-card-row-label" data-i18n="wgt_label_cols">Colunas</span>
           <div class="wgt-card-row-pills" id="wt-cols">
             <button data-v="1" onclick="wSet('cols','1')">1</button>
             <button data-v="2" onclick="wSet('cols','2')">2</button>
@@ -195,9 +195,9 @@
 
       <!-- TEXTO: Tamanho + Negrito + Símbolo -->
       <div class="wgt-card">
-        <div class="wgt-card-title">TEXTO</div>
+        <div class="wgt-card-title" data-i18n="wgt_section_text">TEXTO</div>
         <div class="wgt-card-row">
-          <span class="wgt-card-row-label">Tamanho da fonte</span>
+          <span class="wgt-card-row-label" data-i18n="wgt_font_size">Tamanho da fonte</span>
           <div class="wgt-card-row-pills" id="wt-fontSize">
             <button data-v="sm" onclick="wSet('fontSize','sm')">P</button>
             <button data-v="md" onclick="wSet('fontSize','md')">M</button>
@@ -205,14 +205,14 @@
           </div>
         </div>
         <div class="wgt-card-toggle-row" onclick="wToggle('bold')">
-          <span class="wgt-toggle-label">Negrito</span>
+          <span class="wgt-toggle-label" data-i18n="wgt_bold">Negrito</span>
           <label class="wgt-switch" onclick="event.stopPropagation()">
             <input type="checkbox" id="wt-bold" onchange="wToggle('bold')">
             <span class="wgt-slider"></span>
           </label>
         </div>
         <div class="wgt-card-toggle-row" onclick="wToggle('showCcy')">
-          <span class="wgt-toggle-label">Mostrar símbolo ($  R$  €)</span>
+          <span class="wgt-toggle-label" data-i18n="wgt_show_ccy_sym">Mostrar símbolo ($  R$  €)</span>
           <label class="wgt-switch" onclick="event.stopPropagation()">
             <input type="checkbox" id="wt-showCcy" onchange="wToggle('showCcy')">
             <span class="wgt-slider"></span>
@@ -222,11 +222,11 @@
 
       <!-- Widget Theme -->
       <div class="wgt-card">
-        <div class="wgt-card-title">WIDGET THEME</div>
+        <div class="wgt-card-title" data-i18n="wgt_theme">WIDGET THEME</div>
         <div class="wgt-pills-group" id="wt-theme">
-          <button class="wgt-pill" data-v="dark"  onclick="wSet('theme','dark')">Dark</button>
-          <button class="wgt-pill" data-v="light" onclick="wSet('theme','light')">Light</button>
-          <button class="wgt-pill" data-v="auto"  onclick="wSet('theme','auto')">Auto</button>
+          <button class="wgt-pill" data-v="dark"  onclick="wSet('theme','dark')"  data-i18n="wgt_theme_dark">Dark</button>
+          <button class="wgt-pill" data-v="light" onclick="wSet('theme','light')" data-i18n="wgt_theme_light">Light</button>
+          <button class="wgt-pill" data-v="auto"  onclick="wSet('theme','auto')"  data-i18n="wgt_theme_auto">Auto</button>
         </div>
         <div class="wgt-opacity-row">
           <div class="wgt-opacity-label">Transparência <span id="wt-opacity-val">100%</span></div>
@@ -238,13 +238,13 @@
 
       <!-- Auto Refresh -->
       <div class="wgt-card">
-        <div class="wgt-card-title">AUTO REFRESH</div>
+        <div class="wgt-card-title" data-i18n="wgt_refresh">AUTO REFRESH</div>
         <div class="wgt-pills-group" id="wt-refresh">
           <button class="wgt-pill" data-v="1"  onclick="wSet('refresh','1')">1 min</button>
-          <button class="wgt-pill" data-v="5"  onclick="wSet('refresh','5')">5 min</button>
-          <button class="wgt-pill" data-v="15" onclick="wSet('refresh','15')">15 min</button>
-          <button class="wgt-pill" data-v="30" onclick="wSet('refresh','30')">30 min</button>
-          <button class="wgt-pill" data-v="60" onclick="wSet('refresh','60')">1 hour</button>
+          <button class="wgt-pill" data-v="5"  onclick="wSet('refresh','5')"  data-i18n="wgt_ref_5">5 min</button>
+          <button class="wgt-pill" data-v="15" onclick="wSet('refresh','15')" data-i18n="wgt_ref_15">15 min</button>
+          <button class="wgt-pill" data-v="30" onclick="wSet('refresh','30')" data-i18n="wgt_ref_30">30 min</button>
+          <button class="wgt-pill" data-v="60" onclick="wSet('refresh','60')" data-i18n="wgt_ref_60">1 hour</button>
         </div>
       </div>
 
