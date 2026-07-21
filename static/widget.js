@@ -48,6 +48,7 @@ function wSet(key, val) {
   wtSave(wtCfg);
   wtApplyUI();
   wltRender();
+  if (key === "refresh") wltScheduleRefresh();
 }
 
 // Called by toggle switches
@@ -263,7 +264,13 @@ function widgetOnEnter() {
   wtApplyUI();
   wLoadAssets();
   wltLoad();
-  if (!wltTimer) wltTimer = setInterval(wltLoad, 60000);
+  wltScheduleRefresh();
+}
+
+function wltScheduleRefresh() {
+  if (wltTimer) clearInterval(wltTimer);
+  const mins = parseInt(wtCfg.refresh, 10) || 15;
+  wltTimer = setInterval(wltLoad, mins * 60 * 1000);
 }
 
 // ─── Live Widget (Widget tab inline display) ──────────────────────────────────
@@ -351,7 +358,9 @@ function wltCellsHtml(a, fs) {
   const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
   const sym   = wltEsc(symTrunc);
   const price = wltEsc(wltFmtPrice(a.price));
-  return `<span class="wlt-ticker" style="${fss}">${sym}${bell}</span>` +
+  const iconHtml = `<img class="wlt-icon" src="/static/icons/tokens/${wltEsc(rawSym.toUpperCase())}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`;
+  return iconHtml +
+         `<span class="wlt-ticker" style="${fss}${fw}">${sym}${bell}</span>` +
          `<span class="wlt-price"  style="${fss}${fw}">${price}</span>` +
          `<span class="wlt-chg ${cls}" style="${fss}${fw}">${wltEsc(chg)}</span>`;
 }
@@ -370,6 +379,17 @@ function wltApplyLayout() {
   if (refreshBtn) refreshBtn.style.display = wtCfg.showRefresh  ? "" : "none";
   if (controls)   controls.style.display   = wtCfg.showControls ? "" : "none";
   if (c2)         c2.style.display         = wtCfg.cols === "1" ? "none" : "";
+
+  // Icon column: toggle grid and icon visibility
+  const gridCols = wtCfg.showIcon
+    ? "max-content 1fr max-content max-content"
+    : "1fr max-content max-content";
+  document.querySelectorAll(".wgt-live-col").forEach(col => {
+    col.style.gridTemplateColumns = gridCols;
+  });
+  document.querySelectorAll(".wlt-icon").forEach(img => {
+    img.style.display = wtCfg.showIcon ? "" : "none";
+  });
 
   document.querySelectorAll("#wlt-ccy-group .wgt-live-pill").forEach(b =>
     b.classList.toggle("active", b.dataset.ccy === wtCfg.ccy));

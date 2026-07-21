@@ -113,12 +113,19 @@
   .widget-col {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr max-content max-content;
-    column-gap: 6px;
+    grid-template-columns: max-content 1fr max-content max-content;
+    column-gap: 5px;
     align-content: start;
     overflow: hidden;
   }
 
+  .w-icon {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    object-fit: cover;
+    align-self: center;
+    flex-shrink: 0;
+  }
   .w-ticker, .w-price, .w-chg {
     padding: 2px 0;
     line-height: 1.35;
@@ -268,10 +275,11 @@
     return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
-  function cellsHtml(a) {
-    if (!a) return `<span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
+  function cellsHtml(a, fs) {
+    if (!a) return `<img class="w-icon"><span class="w-ticker"></span><span class="w-price"></span><span class="w-chg"></span>`;
     const { text: chg, cls } = fmtChg(a.price, a.change24h);
-    const fw = cfg.bold ? "font-weight:700;" : "";
+    const fw  = cfg.bold ? "font-weight:700;" : "";
+    const fss = `font-size:${fs};`;
     const tickerAlerts = alertsByTicker[(a.symbol || "").toUpperCase()] || [];
     const activeAlerts = tickerAlerts.filter(al => !al.triggered);
     const bellTitle = activeAlerts.map(al =>
@@ -279,10 +287,13 @@
     ).join(" • ");
     const bell = activeAlerts.length
       ? `<span class="w-bell" title="${esc(bellTitle)}">🔔</span>` : "";
-    const symTrunc = trunc(a.symbol || "", 12);
-    return `<span class="w-ticker">${esc(symTrunc)}${bell}</span>` +
-           `<span class="w-price" style="${fw}">${esc(fmtPrice(a.price))}</span>` +
-           `<span class="w-chg ${cls}" style="${fw}">${esc(chg)}</span>`;
+    const rawSym  = a.symbol || "";
+    const symTrunc = trunc(rawSym, 12);
+    const iconHtml = `<img class="w-icon" src="/static/icons/tokens/${esc(rawSym.toUpperCase())}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`;
+    return iconHtml +
+           `<span class="w-ticker" style="${fss}${fw}">${esc(symTrunc)}${bell}</span>` +
+           `<span class="w-price"  style="${fss}${fw}">${esc(fmtPrice(a.price))}</span>` +
+           `<span class="w-chg ${cls}" style="${fss}${fw}">${esc(chg)}</span>`;
   }
 
   // ── Render ──────────────────────────────────────────────────
@@ -298,16 +309,26 @@
     const topbar = document.getElementById("topbar");
     topbar.style.display = (cfg.showHeader || cfg.showControls) ? "" : "none";
 
-    document.getElementById("wh").style.display       = cfg.showHeader   ? "" : "none";
-    document.getElementById("refresh-btn").style.display = cfg.showRefresh ? "" : "none";
-    document.getElementById("controls").style.display = cfg.showControls ? "" : "none";
+    document.getElementById("wh").style.display          = cfg.showHeader   ? "" : "none";
+    document.getElementById("refresh-btn").style.display = cfg.showRefresh  ? "" : "none";
+    document.getElementById("controls").style.display    = cfg.showControls ? "" : "none";
+
+    // Icon column: adjust grid and visibility
+    const gridCols = cfg.showIcon
+      ? "max-content 1fr max-content max-content"
+      : "1fr max-content max-content";
+    document.querySelectorAll(".widget-col").forEach(col => {
+      col.style.gridTemplateColumns = gridCols;
+    });
+    document.querySelectorAll(".w-icon").forEach(img => {
+      img.style.display = cfg.showIcon ? "" : "none";
+    });
 
     document.querySelectorAll("#ccy-group .pill").forEach(b =>
       b.classList.toggle("active", b.dataset.ccy === cfg.ccy));
     document.querySelectorAll("#chg-group .pill").forEach(b =>
       b.classList.toggle("active", b.dataset.chg === cfg.chg));
 
-    const sym = cfg.showCcy ? CCY_SYM[cfg.ccy] : "";
     const vb = document.getElementById("chg-val-btn");
     if (vb) vb.textContent = "±" + (cfg.showCcy ? CCY_SYM[cfg.ccy] : "$");
   }
@@ -335,13 +356,8 @@
     const col1 = data.slice(0, half);
     const col2 = cfg.cols === "1" ? [] : data.slice(half);
 
-    const mk = (arr) => arr.map(a => {
-      const html = cellsHtml(a);
-      return html.replace(/class="w-/g, `style="font-size:${fs};" class="w-`);
-    }).join("");
-
-    document.getElementById("wc1").innerHTML = mk(col1);
-    document.getElementById("wc2").innerHTML = mk(col2);
+    document.getElementById("wc1").innerHTML = col1.map(a => cellsHtml(a, fs)).join("");
+    document.getElementById("wc2").innerHTML = col2.map(a => cellsHtml(a, fs)).join("");
   }
 
   // ── Quick-control handlers ──────────────────────────────────

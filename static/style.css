@@ -3259,10 +3259,18 @@ section.hidden { display: none; }
 .wgt-live-col {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr max-content max-content;
-  column-gap: 6px;
+  grid-template-columns: max-content 1fr max-content max-content;
+  column-gap: 5px;
   align-content: start;
   overflow: hidden;
+}
+.wlt-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: cover;
+  align-self: center;
+  flex-shrink: 0;
 }
 .wlt-ticker,
 .wlt-price,
@@ -3275,17 +3283,14 @@ section.hidden { display: none; }
 .wlt-ticker {
   color: #e4e4e4;
   text-overflow: ellipsis;
-  font-size: 12px;
 }
 .wlt-price {
   color: #e4e4e4;
   text-align: right;
-  font-size: 12px;
 }
 .wlt-chg {
   text-align: right;
   min-width: 52px;
-  font-size: 12px;
 }
 .wlt-bell {
   color: #f59e0b;
