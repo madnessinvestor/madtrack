@@ -3349,6 +3349,18 @@ section.hidden { display: none; }
   color: #e4e4e4;
   text-align: right;
 }
+
+/* Live preview box — light theme overrides */
+.wgt-live-box.wgt-live-light .wgt-live-header,
+.wgt-live-box.wgt-live-light .wgt-live-refresh-btn { color: rgba(0,0,0,0.45); }
+.wgt-live-box.wgt-live-light .wgt-live-pill-group { border-color: rgba(0,0,0,0.15); }
+.wgt-live-box.wgt-live-light .wgt-live-pill { color: rgba(0,0,0,0.45); }
+.wgt-live-box.wgt-live-light .wgt-live-pill:not(:last-child) { border-right-color: rgba(0,0,0,0.1); }
+.wgt-live-box.wgt-live-light .wgt-live-pill.active { background: rgba(0,150,70,0.15); color: rgba(0,0,0,0.85); }
+.wgt-live-box.wgt-live-light .wlt-ticker { color: rgba(0,0,0,0.85); }
+.wgt-live-box.wgt-live-light .wlt-price  { color: rgba(0,0,0,0.65); }
+.wgt-live-box.wgt-live-light .wlt-neu    { color: rgba(0,0,0,0.4); }
+.wgt-live-box.wgt-live-light .wlt-bell   { color: #d97706; }
 .wlt-chg {
   text-align: right;
   min-width: 52px;

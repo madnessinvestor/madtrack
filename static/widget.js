@@ -126,6 +126,21 @@ function wtApplyUI() {
     if (opVal) opVal.textContent = opSlider.value + "%";
   }
 
+  // Apply theme + opacity to the live preview box
+  const liveBox = document.querySelector(".wgt-live-box");
+  if (liveBox) {
+    let resolved = wtCfg.theme;
+    if (resolved === "auto") {
+      resolved = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    const isLight = resolved === "light";
+    liveBox.classList.toggle("wgt-live-light", isLight);
+    const alpha = (Math.max(0, Math.min(100, parseInt(wtCfg.bgOpacity ?? "100"))) / 100).toFixed(2);
+    liveBox.style.background = isLight
+      ? `rgba(244,244,248,${alpha})`
+      : `rgba(15,15,20,${alpha})`;
+  }
+
   // Toggle checkboxes
   [
     ["wt-bold",         "bold"],
