@@ -197,6 +197,7 @@
     showIcon:     true,
     size:         "sm",
     theme:        "dark",
+    bgOpacity:    "100",
     refresh:      "15",
     assets:       "",
   };
@@ -322,6 +323,15 @@
     cfg = readCfg();
 
     applyTheme(cfg.theme || "dark");
+
+    // Background opacity
+    const opacity = Math.min(100, Math.max(0, parseInt(cfg.bgOpacity ?? "100", 10))) / 100;
+    document.querySelector(".widget").style.backgroundColor =
+      opacity === 0 ? "transparent" : `rgba(${
+        document.documentElement.getAttribute("data-theme") === "light"
+          ? "244,244,244"
+          : "15,15,20"
+      },${opacity})`;
 
     const fs = FS_MAP[cfg.fontSize] || "12px";
     document.getElementById("widget-cols").style.setProperty("font-size", fs);

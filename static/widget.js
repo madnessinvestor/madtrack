@@ -17,6 +17,7 @@ const WT_DEFAULTS = {
   // Android / home-screen widget settings
   size:         "sm",    // sm | md | lg
   theme:        "dark",  // dark | light | auto
+  bgOpacity:    "100",   // 0–100
   refresh:      "15",    // minutes
   showChg:      true,
   showIcon:     true,
@@ -116,6 +117,14 @@ function wtApplyUI() {
       b.classList.toggle("active", b.dataset.v === String(wtCfg[key]))
     );
   });
+
+  // Opacity slider
+  const opSlider = document.getElementById("wt-bgOpacity");
+  if (opSlider) {
+    opSlider.value = wtCfg.bgOpacity ?? "100";
+    const opVal = document.getElementById("wt-opacity-val");
+    if (opVal) opVal.textContent = opSlider.value + "%";
+  }
 
   // Toggle checkboxes
   [

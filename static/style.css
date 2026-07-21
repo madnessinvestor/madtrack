@@ -3089,6 +3089,53 @@ section.hidden { display: none; }
 }
 
 /* Pill group (individual pills with gap, not merged) */
+.wgt-opacity-row {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wgt-opacity-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+}
+.wgt-opacity-label span {
+  color: var(--accent);
+  font-weight: 700;
+}
+.wgt-opacity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+.wgt-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(0,230,118,0.5);
+  cursor: pointer;
+}
+.wgt-opacity-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  box-shadow: 0 0 6px rgba(0,230,118,0.5);
+  cursor: pointer;
+}
+
 .wgt-pills-group {
   display: flex;
   flex-wrap: wrap;

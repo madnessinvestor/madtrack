@@ -228,6 +228,12 @@
           <button class="wgt-pill" data-v="light" onclick="wSet('theme','light')">Light</button>
           <button class="wgt-pill" data-v="auto"  onclick="wSet('theme','auto')">Auto</button>
         </div>
+        <div class="wgt-opacity-row">
+          <div class="wgt-opacity-label">Transparência <span id="wt-opacity-val">100%</span></div>
+          <input type="range" id="wt-bgOpacity" class="wgt-opacity-slider"
+            min="0" max="100" step="5" value="100"
+            oninput="wSet('bgOpacity', this.value); document.getElementById('wt-opacity-val').textContent = this.value + '%'">
+        </div>
       </div>
 
       <!-- Auto Refresh -->
