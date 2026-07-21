@@ -346,11 +346,25 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
+@font-face {
+  font-family: 'EternalLogo';
+  src: url('/static/fonts/EternalLogo.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 h1 {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: var(--accent);
-  letter-spacing: -0.5px;
+  font-family: 'EternalLogo', sans-serif;
+  font-size: 1.45rem;
+  font-weight: normal;
+  color: #fff;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 0 6px  var(--accent),
+    0 0 14px var(--accent),
+    0 0 30px var(--accent),
+    0 0 60px var(--accent);
+  filter: drop-shadow(0 0 4px var(--accent));
 }
 
 .header-actions {
