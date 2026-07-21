@@ -306,8 +306,14 @@
       ? `<span class="w-bell" title="${esc(bellTitle)}">🔔</span>` : "";
     const rawSym  = a.symbol || "";
     const symTrunc = trunc(rawSym, 12);
+    const _FOREX_FLAG = { USD:'us', EUR:'eu', BRL:'br', GBP:'gb', JPY:'jp', CHF:'ch', AUD:'au', CAD:'ca' };
+    const _symUp = rawSym.toUpperCase();
+    const _forexCc = _symUp.length === 6 ? _FOREX_FLAG[_symUp.slice(0,3)] : null;
+    const _iconSrc = _forexCc
+      ? `https://flagcdn.com/48x36/${_forexCc}.png`
+      : `/static/icons/tokens/${esc(_symUp)}.png`;
     const iconHtml = cfg.showIcon
-      ? `<img class="w-icon" src="/static/icons/tokens/${esc(rawSym.toUpperCase())}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`
+      ? `<img class="w-icon" src="${_iconSrc}" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`
       : "";
     return iconHtml +
            `<span class="w-ticker" style="${fss}${fw}">${esc(symTrunc)}${bell}</span>` +
