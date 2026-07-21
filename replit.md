@@ -1,38 +1,36 @@
-# CryptoAIO
+# MadTracker
 
-A privacy-first asset tracker for Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs. Built with Flask (Python) and Vanilla JavaScript as a Progressive Web App (PWA).
+A privacy-first asset tracker PWA for Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs.
 
 ## Stack
-
 - **Backend**: Python 3.12 + Flask
-- **Frontend**: Vanilla JS, PWA (service worker, manifest)
-- **Data**: No database — assets stored in `assets.json` (local file), prices fetched live from public APIs
+- **Frontend**: Vanilla JavaScript, PWA (Service Worker + manifest)
+- **No database**: Data persisted in `assets.json` (local file)
 
-## How to Run
-
-The `Start application` workflow runs:
+## How to run
+The app is configured to start automatically via the **Start application** workflow:
 ```
 python3 app.py
 ```
-This starts a Flask dev server on port 5000.
-
-## Project Structure
-
-- `app.py` — Flask backend; all price-fetching logic (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare, B3, US stocks, Forex)
-- `templates/` — Jinja2 HTML templates (`index.html`, `widget.html`, `widget_settings.html`)
-- `static/` — JS modules (`app.js`, `dashboard.js`, `trade.js`, `madai.js`, `widget.js`, `alerts.js`, `i18n.js`), CSS, PWA manifest & service worker
-- `assets.json` — persisted watchlist (auto-created)
-- `alerts.json` — persisted price alerts (auto-created)
-
-## Deployment
-
-Uses gunicorn:
+Runs on port 5000. For production, gunicorn is used:
 ```
 gunicorn --bind=0.0.0.0:5000 --reuse-port app:app
 ```
 
-## No Secrets Required
+## Project structure
+- `app.py` — Flask backend, all API routes and price-fetching logic
+- `templates/` — Jinja2 HTML templates (`index.html`, `widget.html`, `widget_settings.html`)
+- `static/` — CSS, JS, icons, fonts, PWA manifest and service worker
+- `assets.json` — Persisted watchlist/portfolio data (auto-created)
+- `alerts.json` — Persisted price alerts
 
-All price data comes from public APIs — no API keys needed to run the app.
+## Key features
+- Multi-source crypto price aggregation (Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare)
+- Brazilian stocks (B3) and US stocks
+- Forex pairs with flag icons
+- Multi-currency display (BRL, USD, EUR)
+- Watchlist, portfolio/trade tracking, wallet dashboard
+- Price alerts
+- Offline-capable PWA
 
-## User Preferences
+## User preferences

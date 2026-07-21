@@ -2,3 +2,5 @@ flask>=3.0
 gunicorn
 flask
 gunicorn
+flask
+gunicorn
