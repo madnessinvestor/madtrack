@@ -358,7 +358,9 @@ function wltCellsHtml(a, fs) {
   const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
   const sym   = wltEsc(symTrunc);
   const price = wltEsc(wltFmtPrice(a.price));
-  const iconHtml = `<img class="wlt-icon" src="/static/icons/tokens/${wltEsc(rawSym.toUpperCase())}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`;
+  const iconHtml = wtCfg.showIcon
+    ? `<img class="wlt-icon" src="/static/icons/tokens/${wltEsc(rawSym.toUpperCase())}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`
+    : "";
   return iconHtml +
          `<span class="wlt-ticker" style="${fss}${fw}">${sym}${bell}</span>` +
          `<span class="wlt-price"  style="${fss}${fw}">${price}</span>` +
@@ -386,9 +388,6 @@ function wltApplyLayout() {
     : "1fr max-content max-content";
   document.querySelectorAll(".wgt-live-col").forEach(col => {
     col.style.gridTemplateColumns = gridCols;
-  });
-  document.querySelectorAll(".wlt-icon").forEach(img => {
-    img.style.display = wtCfg.showIcon ? "" : "none";
   });
 
   document.querySelectorAll("#wlt-ccy-group .wgt-live-pill").forEach(b =>
