@@ -367,8 +367,18 @@ function wltCellsHtml(a, fs) {
   const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
   const sym   = wltEsc(symTrunc);
   const price = wltEsc(wltFmtPrice(a.price));
+  const _FOREX_FLAG = { USD:'us', EUR:'eu', BRL:'br', GBP:'gb', JPY:'jp', CHF:'ch', AUD:'au', CAD:'ca' };
+  function _forexIconUrl(s) {
+    if (s.length !== 6) return null;
+    const cc = _FOREX_FLAG[s.slice(0,3).toUpperCase()];
+    return cc ? `https://flagcdn.com/48x36/${cc}.png` : null;
+  }
+  const _symUp = rawSym.toUpperCase();
+  const _forexUrl = _forexIconUrl(_symUp);
   const iconHtml = wtCfg.showIcon
-    ? `<img class="wlt-icon" src="/static/icons/tokens/${wltEsc(rawSym.toUpperCase())}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`
+    ? (_forexUrl
+        ? `<img class="wlt-icon" src="${_forexUrl}" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`
+        : `<img class="wlt-icon" src="/static/icons/tokens/${wltEsc(_symUp)}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`)
     : "";
   return iconHtml +
          `<span class="wlt-ticker" style="${fss}${fw}">${sym}${bell}</span>` +

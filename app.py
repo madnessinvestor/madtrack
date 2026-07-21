@@ -418,12 +418,21 @@ def api_forex(sym):
                 "low24h": safe_float(r.get("regularMarketDayLow")),
                 "volume24h": None, "market_cap": None, "source": "Câmbio"
             }
+    # Frankfurter: fetch today + yesterday to compute daily change
+    import datetime as _dt
     d = http_get(f"https://api.frankfurter.app/latest?from={from_cur}&to={to_cur}")
     if d and d.get("rates", {}).get(to_cur):
         price = safe_float(d["rates"][to_cur])
         if price:
+            change = None
+            prev_date = (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
+            d_prev = http_get(f"https://api.frankfurter.app/{prev_date}?from={from_cur}&to={to_cur}")
+            if d_prev and d_prev.get("rates", {}).get(to_cur):
+                prev_price = safe_float(d_prev["rates"][to_cur])
+                if prev_price:
+                    change = round((price - prev_price) / prev_price * 100, 2)
             return {
-                "price": price, "change24h": None,
+                "price": price, "change24h": change,
                 "high24h": None, "low24h": None,
                 "volume24h": None, "market_cap": None, "source": "Câmbio"
             }
