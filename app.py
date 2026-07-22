@@ -2074,7 +2074,7 @@ def tx_lookup():
 
 def _gw_groq_key():       return os.environ.get("GROQ_API_KEY", "").strip()
 def _gw_gemini_key():     return os.environ.get("GOOGLE_AI_API_KEY", "").strip()
-def _gw_openrouter_key(): return os.environ.get("OPENROUTER_API_KEY", "").strip()
+def _gw_openrouter_key(): return (os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY") or "").strip()
 
 # How long (seconds) to skip a provider after it fails
 _GW_COOLDOWN = 180  # 3 minutes
