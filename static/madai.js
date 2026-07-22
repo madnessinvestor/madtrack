@@ -3,6 +3,41 @@
 let _aiHistory = [];
 let _aiLoading = false;
 
+// ─── Auto-speak toggle ────────────────────────────────────────────────────────
+
+let _aiAutoSpeak = localStorage.getItem("madai_autospeak") === "1";
+
+function _aiUpdateTtsBtn() {
+  const btn = document.getElementById("ai-tts-btn");
+  if (!btn) return;
+  if (_aiAutoSpeak) {
+    btn.classList.add("active");
+    btn.title = "Voz automática: ON — clique para desativar";
+  } else {
+    btn.classList.remove("active");
+    btn.title = "Ativar voz automática";
+  }
+}
+
+function aiToggleAutoSpeak() {
+  _aiAutoSpeak = !_aiAutoSpeak;
+  localStorage.setItem("madai_autospeak", _aiAutoSpeak ? "1" : "0");
+  _aiUpdateTtsBtn();
+  // If turning off while speaking, stop
+  if (!_aiAutoSpeak && _aiSpeaking) {
+    window.speechSynthesis?.cancel();
+    _aiSpeaking = false;
+    document.querySelectorAll(".ai-speak-btn.speaking").forEach(b => {
+      b.classList.remove("speaking");
+      b.title = "Ouvir resposta";
+      b.innerHTML = _aiSpeakerIcon();
+    });
+  }
+}
+
+// Init button state after DOM ready
+document.addEventListener("DOMContentLoaded", _aiUpdateTtsBtn);
+
 // ─── Voice: MediaRecorder + Groq Whisper ─────────────────────────────────────
 
 let _aiMediaRecorder = null;
@@ -229,10 +264,15 @@ async function aiSendMessage(text) {
       }
     } else {
       const reply = data.reply || "";
-      _aiAppendBubble("assistant", reply);
+      const bubble = _aiAppendBubble("assistant", reply);
       _aiHistory.push({ role: "user", content: text });
       _aiHistory.push({ role: "assistant", content: reply });
       if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+      // Auto-speak if toggle is on
+      if (_aiAutoSpeak && reply) {
+        const speakBtn = bubble.querySelector(".ai-speak-btn");
+        aiSpeak(reply, speakBtn);
+      }
     }
   } catch (err) {
     _aiRemoveThinking(thinkingId);
