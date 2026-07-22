@@ -576,147 +576,323 @@ function exportTrades() {
     return;
   }
 
-  const now  = new Date();
-  const pad  = n => String(n).padStart(2, "0");
-  const ts   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-  const tsLabel = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  // ── helpers ────────────────────────────────────────────────────────────────
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const ts  = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
-  const rate = (typeof getRate  === "function") ? getRate()  : 1;
-  const sym  = (typeof currSym  === "function") ? currSym()  : "$";
+  const rate    = (typeof getRate === "function") ? getRate() : 1;
+  const sym     = (typeof currSym === "function") ? currSym() : "$";
+  const cnyName = sym === "R$" ? "BRL" : sym === "€" ? "EUR" : "USD";
 
-  // Format value in user's currency
   function fv(usd) {
-    if (usd == null || usd === "") return "";
+    if (usd == null || isNaN(usd)) return "—";
     const v = Number(usd) * rate;
     const abs = Math.abs(v);
-    if (abs >= 1e6)      return sym + (v / 1e6).toFixed(2) + "M";
-    if (abs >= 1000)     return sym + v.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
-    if (abs >= 1)        return sym + v.toFixed(2);
-    if (abs >= 0.000001) return sym + v.toFixed(6);
-    return sym + Number(v).toPrecision(4);
+    const neg = v < 0;
+    let s;
+    if (abs >= 1e6)      s = sym + (abs/1e6).toFixed(2) + "M";
+    else if (abs >= 1e3) s = sym + abs.toLocaleString("en-US", {minimumFractionDigits:2,maximumFractionDigits:2});
+    else if (abs >= 1)   s = sym + abs.toFixed(2);
+    else if (abs >= 1e-6) s = sym + abs.toFixed(6);
+    else                 s = sym + abs.toPrecision(4);
+    return neg ? "-" + s : s;
   }
   function fq(n) {
     const abs = Math.abs(Number(n));
-    if (abs >= 1000)    return Number(n).toLocaleString("en-US", {maximumFractionDigits:4});
-    if (abs >= 1)       return Number(n).toFixed(6);
-    if (abs >= 0.00001) return Number(n).toFixed(8);
+    if (abs >= 1e3)   return Number(n).toLocaleString("en-US", {maximumFractionDigits:4});
+    if (abs >= 1)     return Number(n).toFixed(6);
+    if (abs >= 1e-5)  return Number(n).toFixed(8);
     return Number(n).toPrecision(4);
   }
-  function fp(v) {
-    if (v == null || v === "") return "";
-    const sign = Number(v) >= 0 ? "+" : "";
+  function fp(v, withSign = true) {
+    if (v == null || isNaN(v)) return "—";
+    const sign = withSign && Number(v) >= 0 ? "+" : "";
     return sign + Number(v).toFixed(2) + "%";
   }
-  function cell(v) {
-    const s = String(v ?? "");
-    return s.includes(",") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"` : s;
+  function pnlCls(v) {
+    if (!v || isNaN(v) || v === 0) return "neu";
+    return Number(v) > 0 ? "pos" : "neg";
   }
-  function row(...cols) { return cols.map(cell).join(","); }
+  function esc(s) {
+    return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
 
-  // ── Calcular totais globais ────────────────────────────────────────────────
-  let grandInvested = 0, grandValue = 0;
-  const tokenCalcs = tokens.map(tok => {
+  // ── totais globais ─────────────────────────────────────────────────────────
+  let grandInv = 0, grandVal = 0;
+  const calcs = tokens.map(tok => {
     const c = calcToken(tok);
-    grandInvested += c.total_invested;
-    grandValue    += c.cur_value;
+    grandInv += c.total_invested;
+    grandVal += c.cur_value;
     return { tok, c };
   });
-  const grandPnl    = grandValue - grandInvested;
-  const grandPnlPct = grandInvested > 0 ? (grandPnl / grandInvested) * 100 : 0;
+  const grandPnl    = grandVal - grandInv;
+  const grandPnlPct = grandInv > 0 ? (grandPnl / grandInv) * 100 : 0;
 
-  const lines = [];
+  // ── HTML ───────────────────────────────────────────────────────────────────
+  let body = "";
 
-  // ── Cabeçalho do arquivo ───────────────────────────────────────────────────
-  lines.push(row("CRYPTOAIO - EXTRATO DE TRADES"));
-  lines.push(row("Gerado em:", tsLabel));
-  lines.push(row("Moeda:", sym === "$" ? "USD" : sym === "R$" ? "BRL" : "EUR"));
-  lines.push(row(""));
+  // Cards de resumo geral
+  body += `<div class="summary-grid">
+    <div class="sum-card">
+      <div class="sum-label">Total Investido</div>
+      <div class="sum-val">${fv(grandInv)}</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-label">Valor Atual</div>
+      <div class="sum-val">${fv(grandVal)}</div>
+    </div>
+    <div class="sum-card ${pnlCls(grandPnl) === "pos" ? "grand-pos" : pnlCls(grandPnl) === "neg" ? "grand-neg" : "grand"}">
+      <div class="sum-label">P&amp;L Total</div>
+      <div class="sum-val ${pnlCls(grandPnl)}">${fv(grandPnl)}</div>
+      <div class="sum-sub ${pnlCls(grandPnlPct)}">${fp(grandPnlPct)}</div>
+    </div>
+  </div>`;
 
-  // ── SEÇÃO 1: RESUMO POR ATIVO ──────────────────────────────────────────────
-  lines.push(row("=== RESUMO POR ATIVO ==="));
-  lines.push(row("Ticker", "Qtd. Total", "Investido", "Valor Atual", "P&L", "P&L (%)"));
+  // ── SEÇÃO 1: Resumo por ativo ──────────────────────────────────────────────
+  body += `<div class="section-title">Resumo por Ativo</div>
+  <table>
+    <thead><tr>
+      <th>Ticker</th>
+      <th class="r">Qtd. Total</th>
+      <th class="r">Preço Médio Pago</th>
+      <th class="r">Preço Atual</th>
+      <th class="r">Investido</th>
+      <th class="r">Valor Atual</th>
+      <th class="r">P&amp;L</th>
+      <th class="r">P&amp;L %</th>
+    </tr></thead>
+    <tbody>`;
 
-  for (const { tok, c } of tokenCalcs) {
+  for (const { tok, c } of calcs) {
     const hasCur = tok.current_price != null;
-    lines.push(row(
-      tok.ticker,
-      fq(c.total_qty),
-      fv(c.total_invested),
-      hasCur ? fv(c.cur_value) : "—",
-      hasCur ? fv(c.pnl)       : "—",
-      hasCur ? fp(c.pnl_pct)   : "—"
-    ));
+    const curP   = hasCur ? tok.current_price : null;
+    body += `<tr>
+      <td><strong>${esc(tok.ticker)}</strong></td>
+      <td class="r mono">${fq(c.total_qty)}</td>
+      <td class="r mono">${fv(c.avg_price)}</td>
+      <td class="r mono">${curP != null ? fv(curP) : "—"}</td>
+      <td class="r mono">${fv(c.total_invested)}</td>
+      <td class="r mono bold">${hasCur ? fv(c.cur_value) : "—"}</td>
+      <td class="r mono bold ${pnlCls(c.pnl)}">${hasCur ? fv(c.pnl) : "—"}</td>
+      <td class="r mono ${pnlCls(c.pnl_pct)}">${hasCur ? fp(c.pnl_pct) : "—"}</td>
+    </tr>`;
   }
 
-  // Linha de total geral
-  lines.push(row(
-    "TOTAL GERAL", "",
-    fv(grandInvested),
-    fv(grandValue),
-    fv(grandPnl),
-    fp(grandPnlPct)
-  ));
-  lines.push(row(""));
+  body += `</tbody>
+    <tfoot><tr>
+      <td><strong>TOTAL</strong></td>
+      <td colspan="3"></td>
+      <td class="r mono bold subtot">${fv(grandInv)}</td>
+      <td class="r mono bold subtot">${fv(grandVal)}</td>
+      <td class="r mono bold subtot ${pnlCls(grandPnl)}">${fv(grandPnl)}</td>
+      <td class="r mono ${pnlCls(grandPnlPct)}">${fp(grandPnlPct)}</td>
+    </tr></tfoot>
+  </table>`;
 
-  // ── SEÇÃO 2: TRADES DETALHADOS ─────────────────────────────────────────────
-  lines.push(row("=== EXTRATO DE TRADES ==="));
-  lines.push(row(
-    "Ticker", "Data", "Tipo", "Quantidade",
-    `Preço Pago (${sym === "$" ? "USD" : sym === "R$" ? "BRL" : "EUR"})`,
-    `Total Pago`,
-    `Valor Atual (trade)`,
-    `P&L (trade)`,
-    `P&L % (trade)`
-  ));
+  // ── SEÇÃO 2: Trades por ativo ──────────────────────────────────────────────
+  body += `<div class="section-title" style="margin-top:28px">Extrato de Trades</div>`;
 
-  for (const { tok } of tokenCalcs) {
+  for (const { tok, c } of calcs) {
     const curPrice = tok.current_price;
-    const trades   = (tok.trades || []).slice().sort((a, b) =>
-      (b.date || "").localeCompare(a.date || ""));
+    const trades   = (tok.trades || []).slice().sort((a,b) =>
+      (b.date||"").localeCompare(a.date||""));
+    if (!trades.length) continue;
+
+    const hasCur = curPrice != null;
+
+    body += `<div class="token-block">
+      <div class="token-header">
+        <div class="token-title-row">
+          <span class="token-ticker">${esc(tok.ticker)}</span>
+          <span class="token-meta">${fq(c.total_qty)} unidades · Preço médio pago: ${fv(c.avg_price)} · Preço atual: ${hasCur ? fv(curPrice) : "—"}</span>
+        </div>
+        <div class="token-totals">
+          <span class="tsum-item"><span class="tsum-label">Investido</span><span class="tsum-val">${fv(c.total_invested)}</span></span>
+          <span class="tsum-sep">·</span>
+          <span class="tsum-item"><span class="tsum-label">Valor atual</span><span class="tsum-val">${hasCur ? fv(c.cur_value) : "—"}</span></span>
+          <span class="tsum-sep">·</span>
+          <span class="tsum-item"><span class="tsum-label">P&amp;L</span><span class="tsum-val ${pnlCls(c.pnl)}">${hasCur ? fv(c.pnl) : "—"}</span><span class="tsum-pct ${pnlCls(c.pnl_pct)}">${hasCur ? fp(c.pnl_pct) : ""}</span></span>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Data</th><th>Tipo</th>
+          <th class="r">Quantidade</th>
+          <th class="r">Preço Pago</th>
+          <th class="r">Total Pago</th>
+          <th class="r">Valor Atual (trade)</th>
+          <th class="r">P&amp;L (trade)</th>
+          <th class="r">P&amp;L %</th>
+        </tr></thead>
+        <tbody>`;
 
     for (const tr of trades) {
-      const isSell   = tr.qty < 0;
-      const absQty   = Math.abs(tr.qty);
-      const pricePaid = tr.price_paid;
-      const totalPaid = absQty * pricePaid;
+      const isSell    = tr.qty < 0;
+      const absQty    = Math.abs(tr.qty);
+      const totalPaid = absQty * tr.price_paid;
 
-      // Valor atual e P&L calculados isoladamente por trade (apenas compras)
-      let tradeVal = "", tradePnl = "", tradePnlPct = "";
-      if (!isSell && curPrice != null) {
+      let tradeVal = "—", tradePnl = "—", tradePct = "—", tradePnlCls = "neu";
+      if (!isSell && hasCur) {
         const cv   = absQty * curPrice;
         const pnl  = cv - totalPaid;
         const pnlp = totalPaid > 0 ? (pnl / totalPaid) * 100 : 0;
         tradeVal    = fv(cv);
         tradePnl    = fv(pnl);
-        tradePnlPct = fp(pnlp);
+        tradePct    = fp(pnlp);
+        tradePnlCls = pnlCls(pnl);
       }
 
-      lines.push(row(
-        tok.ticker,
-        tr.date || "",
-        isSell ? "Venda" : "Compra",
-        fq(absQty),
-        fv(pricePaid),
-        fv(isSell ? -totalPaid : totalPaid),
-        tradeVal,
-        tradePnl,
-        tradePnlPct
-      ));
+      const typeClass = isSell ? "badge-sell" : "badge-buy";
+      const typeLabel = isSell ? "Venda" : "Compra";
+
+      body += `<tr>
+        <td class="mono small">${esc(tr.date || "—")}</td>
+        <td><span class="type-badge ${typeClass}">${typeLabel}</span></td>
+        <td class="r mono">${fq(absQty)}</td>
+        <td class="r mono">${fv(tr.price_paid)}</td>
+        <td class="r mono bold">${fv(isSell ? -totalPaid : totalPaid)}</td>
+        <td class="r mono">${tradeVal}</td>
+        <td class="r mono bold ${tradePnlCls}">${tradePnl}</td>
+        <td class="r mono ${tradePnlCls}">${tradePct}</td>
+      </tr>`;
     }
+
+    body += `</tbody></table></div>`;
   }
 
-  // ── Download ───────────────────────────────────────────────────────────────
-  const csvContent = lines.join("\r\n");
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  a.download = `cryptoaio_trades_${ts}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // ── CSS ────────────────────────────────────────────────────────────────────
+  const css = `
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11px; color: #1a1a2e; background: #fff;
+      padding: 28px 32px;
+    }
+    .report-header {
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 2px solid #00c27c; padding-bottom: 14px; margin-bottom: 20px;
+    }
+    .report-logo { font-size: 20px; font-weight: 900; letter-spacing: 0.04em; color: #00c27c; }
+    .report-meta { text-align: right; color: #666; font-size: 10px; line-height: 1.7; }
+
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px; margin-bottom: 24px;
+    }
+    .sum-card {
+      background: #f5f7fa; border-radius: 8px;
+      padding: 12px 14px; border-left: 3px solid #00c27c;
+    }
+    .sum-card.grand     { background: #e8faf3; border-color: #00a060; }
+    .sum-card.grand-pos { background: #e8faf3; border-color: #059669; }
+    .sum-card.grand-neg { background: #fff0f0; border-color: #dc2626; }
+    .sum-label { font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: #888; margin-bottom: 4px; }
+    .sum-val { font-size: 16px; font-weight: 800; color: #1a1a2e; }
+    .sum-sub { font-size: 11px; font-weight: 600; margin-top: 2px; }
+
+    .section-title {
+      font-size: 12px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #00a060;
+      border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; margin-bottom: 12px;
+    }
+
+    .token-block {
+      border: 1px solid #e8e8e8; border-radius: 8px;
+      margin-bottom: 16px; overflow: hidden; page-break-inside: avoid;
+    }
+    .token-header {
+      background: #f8f9fc; padding: 10px 14px;
+      border-bottom: 1px solid #e8e8e8;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .token-title-row { display: flex; align-items: baseline; gap: 10px; }
+    .token-ticker { font-size: 14px; font-weight: 800; color: #1a1a2e; }
+    .token-meta   { font-size: 9px; color: #888; }
+    .token-totals { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .tsum-item    { display: flex; align-items: baseline; gap: 4px; }
+    .tsum-label   { font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tsum-val     { font-size: 12px; font-weight: 700; color: #1a1a2e; }
+    .tsum-pct     { font-size: 10px; font-weight: 600; }
+    .tsum-sep     { color: #ddd; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: #f5f7fa; font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: #666; padding: 5px 10px; text-align: left;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    td { padding: 5px 10px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tfoot td {
+      background: #f8f9fc; font-size: 10px;
+      border-top: 1px solid #e0e0e0; border-bottom: none; padding: 6px 10px;
+    }
+    .r    { text-align: right; }
+    .mono { font-family: 'Courier New', monospace; }
+    .bold { font-weight: 700; }
+    .dim  { color: #888; }
+    .small { font-size: 9px; }
+    .subtot { color: #1a1a2e; }
+    .subtot-label { color: #666; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .pos { color: #059669; }
+    .neg { color: #dc2626; }
+    .neu { color: #888; }
+
+    .type-badge {
+      display: inline-block; font-size: 8px; font-weight: 700;
+      padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+    }
+    .badge-buy  { background: rgba(5,150,105,0.12); color: #059669; border: 1px solid rgba(5,150,105,0.25); }
+    .badge-sell { background: rgba(220,38,38,0.10); color: #dc2626; border: 1px solid rgba(220,38,38,0.20); }
+
+    .report-footer {
+      margin-top: 28px; padding-top: 10px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 9px; color: #bbb; text-align: center;
+    }
+    @media print {
+      @page { margin: 0; size: A4; }
+      body { padding: 14mm 12mm; font-size: 10px; }
+      .token-block { page-break-inside: avoid; }
+      .no-print { display: none !important; }
+    }
+  `;
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>CryptoAIO – Extrato de Trades</title>
+  <style>${css}</style>
+</head>
+<body>
+  <div class="report-header">
+    <div class="report-logo">CRYPTOAIO</div>
+    <div class="report-meta">
+      <div><strong>Extrato de Trades · ${cnyName}</strong></div>
+      <div>Gerado em ${ts}</div>
+    </div>
+  </div>
+
+  ${body}
+
+  <div class="report-footer">Gerado por CryptoAIO · ${ts} · Valores em ${cnyName}</div>
+
+  <div class="no-print" style="position:fixed;bottom:20px;right:20px;display:flex;gap:8px">
+    <button onclick="window.print()" style="background:#00c27c;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">⬇ Salvar PDF</button>
+    <button onclick="window.close()" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer">✕ Fechar</button>
+  </div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) { alert("Permita pop-ups para gerar o relatório."); return; }
+  win.document.write(html);
+  win.document.close();
 }
 
 // ─── Delete actions ───────────────────────────────────────────────────────────
