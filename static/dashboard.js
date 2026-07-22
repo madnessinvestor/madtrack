@@ -1101,7 +1101,7 @@ async function deleteManualAsset(id) {
   await loadDashboard();
 }
 
-// ── Dashboard CSV export ───────────────────────────────────────────────────────
+// ── Dashboard PDF export ───────────────────────────────────────────────────────
 
 function exportDashboard() {
   if (!dashLoaded || (!dashWallets.length && !dashManual.length)) {
@@ -1110,173 +1110,369 @@ function exportDashboard() {
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────
-  function csvCell(v) {
-    const s = String(v ?? "");
-    return (s.includes(",") || s.includes('"') || s.includes("\n"))
-      ? `"${s.replace(/"/g, '""')}"` : s;
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const ts  = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  function fUsd(v) {
+    if (v == null || isNaN(v)) return "—";
+    const abs = Math.abs(Number(v));
+    const neg = Number(v) < 0;
+    let s;
+    if (abs >= 1e6)      s = "$" + (abs / 1e6).toFixed(2) + "M";
+    else if (abs >= 1e3) s = "$" + abs.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+    else if (abs >= 1)   s = "$" + abs.toFixed(2);
+    else if (abs >= 0.0001) s = "$" + abs.toFixed(6);
+    else                 s = "$" + abs.toPrecision(3);
+    return neg ? "-" + s : s;
   }
-  function row(...cells) { return cells.map(csvCell).join(","); }
-  function usd(v)  { return (v != null && !isNaN(v)) ? Number(v).toFixed(2) : ""; }
-  function qty(v)  { return (v != null && !isNaN(v)) ? Number(v).toFixed(8).replace(/\.?0+$/, "") : ""; }
-  function pct(v)  { return (v != null && !isNaN(v)) ? Number(v).toFixed(2) : ""; }
-  const now   = new Date();
-  const pad   = n => String(n).padStart(2, "0");
-  const ts    = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const tsFile= `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  function fQty(v) {
+    if (v == null || isNaN(v)) return "—";
+    const n = Number(v);
+    if (n >= 1000) return n.toLocaleString("en-US", {maximumFractionDigits:2});
+    if (n >= 1)    return n.toFixed(4);
+    if (n >= 0.0001) return n.toFixed(6);
+    return n.toPrecision(3);
+  }
+  function fPct(v) {
+    if (v == null || isNaN(v)) return "—";
+    const s = Number(v) >= 0 ? "+" : "";
+    return s + Number(v).toFixed(2) + "%";
+  }
+  function pnlClass(v) {
+    if (v == null || isNaN(v) || v === 0) return "neu";
+    return Number(v) > 0 ? "pos" : "neg";
+  }
+  function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
   // ── totals ─────────────────────────────────────────────────────────────────
   const totalWalletUsd = dashWallets.reduce((s, w) => {
-    const tok  = (w.tokens || []).reduce((a, tk) => a + (tk.value_usd || 0), 0);
-    const dfi  = (w.defi   || []).reduce((a, d)  => a + (d.net_usd   || 0), 0);
-    const prp  = (w.perps  || []).reduce((a, p)  => a + (p.net_usd   || 0), 0);
-    return s + tok + dfi + prp;
+    return s
+      + (w.tokens||[]).reduce((a,t) => a + (t.value_usd||0), 0)
+      + (w.defi  ||[]).reduce((a,d) => a + (d.net_usd  ||0), 0)
+      + (w.perps ||[]).reduce((a,p) => a + (p.net_usd  ||0), 0);
   }, 0);
-  const totalManualUsd = dashManual.reduce((s, a) =>
-    s + (a.balance || 0) * (a.price_usd || 0), 0);
+  const totalManualUsd = dashManual.reduce((s,a) => s + (a.balance||0)*(a.price_usd||0), 0);
   const grandTotal = totalWalletUsd + totalManualUsd;
 
-  const lines = [];
+  // ── HTML builder ───────────────────────────────────────────────────────────
+  let body = "";
 
-  // ── CABEÇALHO / RESUMO ────────────────────────────────────────────────────
-  lines.push(row("CRYPTOAIO - RELATÓRIO DE PORTFOLIO"));
-  lines.push(row("Gerado em:", ts));
-  lines.push(row(""));
-  lines.push(row("RESUMO", "Valor (USD)"));
-  lines.push(row("Total On-Chain",  usd(totalWalletUsd)));
-  lines.push(row("Total Manual",    usd(totalManualUsd)));
-  lines.push(row("Total Geral",     usd(grandTotal)));
+  // — Summary cards —
+  body += `<div class="summary-grid">
+    <div class="sum-card">
+      <div class="sum-label">Total On-Chain</div>
+      <div class="sum-val">${fUsd(totalWalletUsd)}</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-label">Total Manual</div>
+      <div class="sum-val">${fUsd(totalManualUsd)}</div>
+    </div>
+    <div class="sum-card grand">
+      <div class="sum-label">Total Geral</div>
+      <div class="sum-val">${fUsd(grandTotal)}</div>
+    </div>
+  </div>`;
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SEÇÃO 1 — ATIVOS ON-CHAIN
-  // ══════════════════════════════════════════════════════════════════════════
-  lines.push(row(""));
-  lines.push(row("══ ATIVOS ON-CHAIN ══"));
+  // ── SEÇÃO 1: ON-CHAIN ────────────────────────────────────────────────────
+  if (dashWallets.length) {
+    body += `<div class="section-title">Ativos On-Chain</div>`;
 
-  for (const w of dashWallets) {
-    const tokens = w.tokens || [];
-    const defi   = w.defi   || [];
-    const perps  = w.perps  || [];
-    const label  = w.label  || shortAddr(w.address);
+    for (const w of dashWallets) {
+      const tokens = (w.tokens||[]).slice().sort((a,b) => (b.value_usd||0) - (a.value_usd||0));
+      const defi   = w.defi  || [];
+      const perps  = w.perps || [];
+      const label  = esc(w.label || shortAddr(w.address));
+      const addr   = esc(w.address || "");
 
-    const tokUsd  = tokens.reduce((s, tk) => s + (tk.value_usd || 0), 0);
-    const defiUsd = defi.reduce((s, d)    => s + (d.net_usd    || 0), 0);
-    const prpUsd  = perps.reduce((s, p)   => s + (p.net_usd    || 0), 0);
-    const walTotal = tokUsd + defiUsd + prpUsd;
+      const tokUsd  = tokens.reduce((s,t) => s + (t.value_usd||0), 0);
+      const defiUsd = defi.reduce((s,d)   => s + (d.net_usd  ||0), 0);
+      const prpUsd  = perps.reduce((s,p)  => s + (p.net_usd  ||0), 0);
+      const walTotal = tokUsd + defiUsd + prpUsd;
 
-    lines.push(row(""));
-    lines.push(row("Carteira:", label, w.address));
-    lines.push(row("Valor total (USD):", usd(walTotal)));
+      body += `<div class="wallet-block">
+        <div class="wallet-header">
+          <div class="wallet-title-row">
+            <span class="wallet-label">${label}</span>
+            <span class="wallet-addr">${addr}</span>
+          </div>
+          <span class="wallet-total">${fUsd(walTotal)}</span>
+        </div>`;
 
-    // — Tokens ——————————————————————————————————————————————————————————————
-    if (tokens.length) {
-      lines.push(row(""));
-      lines.push(row("  Tokens"));
-      lines.push(row("  Símbolo", "Nome", "Rede", "Quantidade", "Preço (USD)", "Valor (USD)"));
-      const sorted = [...tokens].sort((a, b) => (b.value_usd || 0) - (a.value_usd || 0));
-      for (const tk of sorted) {
-        const cm = chainMeta(tk.network);
-        lines.push(row(
-          "  " + (tk.symbol || ""),
-          tk.name    || "",
-          cm.name    || tk.network || "",
-          qty(tk.balance),
-          usd(tk.price_usd),
-          usd(tk.value_usd)
-        ));
+      // Tokens table
+      if (tokens.length) {
+        body += `<div class="sub-label">Tokens</div>
+          <table>
+            <thead><tr>
+              <th>Símbolo</th><th>Nome</th><th>Rede</th>
+              <th class="r">Quantidade</th><th class="r">Preço</th><th class="r">Valor</th>
+            </tr></thead><tbody>`;
+        for (const tk of tokens) {
+          const cm = chainMeta(tk.network);
+          body += `<tr>
+            <td><strong>${esc(tk.symbol||"")}</strong></td>
+            <td class="dim">${esc(tk.name||"")}</td>
+            <td><span class="net-badge" style="--nc:${cm.color}">${esc(cm.name||tk.network||"")}</span></td>
+            <td class="r mono">${fQty(tk.balance)}</td>
+            <td class="r mono">${fUsd(tk.price_usd)}</td>
+            <td class="r mono bold">${fUsd(tk.value_usd)}</td>
+          </tr>`;
+        }
+        body += `</tbody><tfoot><tr>
+          <td colspan="5" class="r subtot-label">Subtotal Tokens</td>
+          <td class="r mono bold subtot">${fUsd(tokUsd)}</td>
+        </tr></tfoot></table>`;
       }
-      lines.push(row("  Subtotal Tokens", "", "", "", "", usd(tokUsd)));
-    }
 
-    // — DeFi ————————————————————————————————————————————————————————————————
-    if (defi.length) {
-      lines.push(row(""));
-      lines.push(row("  DeFi"));
-      lines.push(row("  Protocolo", "Tipo", "Rede", "Tokens/Posição", "Valor Líq. (USD)", "Dívida (USD)"));
-      for (const d of defi) {
-        const cm   = chainMeta(d.network);
-        const allT = [...(d.supply_tokens || []), ...(d.reward_tokens || [])];
-        const toks = allT.map(tk => `${qty(tk.balance)} ${tk.symbol}`).join(" + ") || (d.description || "");
-        lines.push(row(
-          "  " + (d.protocol    || ""),
-          d.type       || "",
-          cm.name      || d.network || "",
-          toks,
-          usd(d.net_usd),
-          d.debt_usd > 0 ? usd(d.debt_usd) : ""
-        ));
+      // DeFi table
+      if (defi.length) {
+        body += `<div class="sub-label">DeFi</div>
+          <table>
+            <thead><tr>
+              <th>Protocolo</th><th>Tipo</th><th>Rede</th>
+              <th>Posição</th><th class="r">Valor Líq.</th><th class="r">Dívida</th>
+            </tr></thead><tbody>`;
+        for (const d of defi) {
+          const cm   = chainMeta(d.network);
+          const allT = [...(d.supply_tokens||[]), ...(d.reward_tokens||[])];
+          const pos  = allT.length
+            ? allT.map(t => `${fQty(t.balance)} ${esc(t.symbol)}`).join(" + ")
+            : esc(d.description || "");
+          body += `<tr>
+            <td><strong>${esc(d.protocol||"")}</strong></td>
+            <td class="dim">${esc(d.type||"")}</td>
+            <td><span class="net-badge" style="--nc:${cm.color}">${esc(cm.name||d.network||"")}</span></td>
+            <td class="mono small">${pos}</td>
+            <td class="r mono bold">${fUsd(d.net_usd)}</td>
+            <td class="r mono ${pnlClass(-(d.debt_usd||0))}">${d.debt_usd > 0 ? fUsd(d.debt_usd) : "—"}</td>
+          </tr>`;
+        }
+        body += `</tbody><tfoot><tr>
+          <td colspan="4" class="r subtot-label">Subtotal DeFi</td>
+          <td class="r mono bold subtot">${fUsd(defiUsd)}</td><td></td>
+        </tr></tfoot></table>`;
       }
-      lines.push(row("  Subtotal DeFi", "", "", "", usd(defiUsd), ""));
-    }
 
-    // — Perps ———————————————————————————————————————————————————————————————
-    if (perps.length) {
-      lines.push(row(""));
-      lines.push(row("  Perps / Futuros"));
-      lines.push(row("  Protocolo", "Tipo", "Rede", "Descrição", "Valor Líq. (USD)", ""));
-      for (const p of perps) {
-        const cm = chainMeta(p.network);
-        lines.push(row(
-          "  " + (p.protocol    || ""),
-          p.type       || "",
-          cm.name      || p.network || "",
-          p.description || "",
-          usd(p.net_usd),
-          ""
-        ));
+      // Perps table
+      if (perps.length) {
+        body += `<div class="sub-label">Perps / Futuros</div>
+          <table>
+            <thead><tr>
+              <th>Protocolo</th><th>Tipo</th><th>Rede</th>
+              <th>Descrição</th><th class="r">Valor Líq.</th>
+            </tr></thead><tbody>`;
+        for (const p of perps) {
+          const cm = chainMeta(p.network);
+          body += `<tr>
+            <td><strong>${esc(p.protocol||"")}</strong></td>
+            <td class="dim">${esc(p.type||"")}</td>
+            <td><span class="net-badge" style="--nc:${cm.color}">${esc(cm.name||p.network||"")}</span></td>
+            <td class="dim">${esc(p.description||"")}</td>
+            <td class="r mono bold">${fUsd(p.net_usd)}</td>
+          </tr>`;
+        }
+        body += `</tbody><tfoot><tr>
+          <td colspan="4" class="r subtot-label">Subtotal Perps</td>
+          <td class="r mono bold subtot">${fUsd(prpUsd)}</td>
+        </tr></tfoot></table>`;
       }
-      lines.push(row("  Subtotal Perps", "", "", "", usd(prpUsd), ""));
+
+      if (!tokens.length && !defi.length && !perps.length) {
+        body += `<p class="empty-note">Nenhum dado carregado para esta carteira.</p>`;
+      }
+
+      body += `</div>`; // wallet-block
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SEÇÃO 2 — ATIVOS MANUAIS
-  // ══════════════════════════════════════════════════════════════════════════
-  lines.push(row(""));
-  lines.push(row("══ ATIVOS MANUAIS ══"));
+  // ── SEÇÃO 2: MANUAIS ─────────────────────────────────────────────────────
+  body += `<div class="section-title" style="margin-top:28px">Ativos Manuais</div>`;
 
   if (dashManual.length) {
-    lines.push(row(""));
-    lines.push(row(
-      "Símbolo", "Fonte", "Quantidade",
-      "Preço Médio Pago (USD)", "Preço Atual (USD)",
-      "Valor Atual (USD)", "Investimento (USD)",
-      "P&L (USD)", "P&L (%)", "Data de Compra"
-    ));
+    body += `<table>
+      <thead><tr>
+        <th>Símbolo</th><th>Fonte</th><th class="r">Quantidade</th>
+        <th class="r">Preço Médio Pago</th><th class="r">Preço Atual</th>
+        <th class="r">Valor Atual</th><th class="r">Investido</th>
+        <th class="r">P&amp;L</th><th class="r">P&amp;L %</th><th>Data</th>
+      </tr></thead><tbody>`;
     for (const a of dashManual) {
       const bal    = a.balance    || 0;
       const price  = a.price_usd  || 0;
       const invest = a.investment || 0;
       const curVal = bal * price;
-      const avgPaid = (bal > 0 && invest > 0) ? invest / bal : 0;
+      const avgPaid = (bal > 0 && invest > 0) ? invest / bal : null;
       const pnl    = invest > 0 ? curVal - invest : null;
       const pnlPct = (pnl !== null && invest > 0) ? (pnl / invest * 100) : null;
-      lines.push(row(
-        a.symbol        || "",
-        a.source        || "",
-        qty(bal),
-        avgPaid > 0     ? usd(avgPaid) : "",
-        price   > 0     ? usd(price)   : "",
-        usd(curVal),
-        invest  > 0     ? usd(invest)  : "",
-        pnl     !== null ? usd(pnl)   : "",
-        pnlPct  !== null ? pct(pnlPct) : "",
-        a.purchase_date ? a.purchase_date.replace("T", " ").slice(0, 16) : ""
-      ));
+      const date   = a.purchase_date ? a.purchase_date.replace("T"," ").slice(0,16) : "—";
+      body += `<tr>
+        <td><strong>${esc(a.symbol||"")}</strong></td>
+        <td class="dim">${esc(a.source||"")}</td>
+        <td class="r mono">${fQty(bal)}</td>
+        <td class="r mono">${avgPaid != null ? fUsd(avgPaid) : "—"}</td>
+        <td class="r mono">${price > 0 ? fUsd(price) : "—"}</td>
+        <td class="r mono bold">${fUsd(curVal)}</td>
+        <td class="r mono">${invest > 0 ? fUsd(invest) : "—"}</td>
+        <td class="r mono ${pnlClass(pnl)}">${pnl !== null ? fUsd(pnl) : "—"}</td>
+        <td class="r mono ${pnlClass(pnlPct)}">${pnlPct !== null ? fPct(pnlPct) : "—"}</td>
+        <td class="dim small">${esc(date)}</td>
+      </tr>`;
     }
-    lines.push(row("Total Manual", "", "", "", "", usd(totalManualUsd), "", "", "", ""));
+    body += `</tbody><tfoot><tr>
+      <td colspan="5" class="r subtot-label">Total Manual</td>
+      <td class="r mono bold subtot">${fUsd(totalManualUsd)}</td>
+      <td colspan="4"></td>
+    </tr></tfoot></table>`;
   } else {
-    lines.push(row("Nenhum ativo manual cadastrado."));
+    body += `<p class="empty-note">Nenhum ativo manual cadastrado.</p>`;
   }
 
-  // ── download ───────────────────────────────────────────────────────────────
-  const csv  = "\uFEFF" + lines.join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  a.download = `cryptoaio_dashboard_${tsFile}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // ── CSS ────────────────────────────────────────────────────────────────────
+  const css = `
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11px; color: #1a1a2e; background: #fff;
+      padding: 28px 32px;
+    }
+    /* ── Header ── */
+    .report-header {
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 2px solid #00c27c; padding-bottom: 14px; margin-bottom: 20px;
+    }
+    .report-logo { font-size: 20px; font-weight: 900; letter-spacing: 0.04em; color: #00c27c; }
+    .report-meta { text-align: right; color: #666; font-size: 10px; line-height: 1.7; }
+    /* ── Summary ── */
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px; margin-bottom: 24px;
+    }
+    .sum-card {
+      background: #f5f7fa; border-radius: 8px;
+      padding: 12px 14px; border-left: 3px solid #00c27c;
+    }
+    .sum-card.grand { background: #e8faf3; border-color: #00a060; }
+    .sum-label { font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: #888; margin-bottom: 4px; }
+    .sum-val { font-size: 16px; font-weight: 800; color: #1a1a2e; font-variant-numeric: tabular-nums; }
+    /* ── Section titles ── */
+    .section-title {
+      font-size: 12px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #00a060;
+      border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; margin-bottom: 12px;
+    }
+    /* ── Wallet block ── */
+    .wallet-block {
+      border: 1px solid #e8e8e8; border-radius: 8px;
+      margin-bottom: 16px; overflow: hidden; page-break-inside: avoid;
+    }
+    .wallet-header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #f8f9fc; padding: 9px 14px; border-bottom: 1px solid #e8e8e8;
+    }
+    .wallet-title-row { display: flex; flex-direction: column; gap: 2px; }
+    .wallet-label { font-weight: 700; font-size: 12px; color: #1a1a2e; }
+    .wallet-addr  { font-family: monospace; font-size: 9px; color: #999; }
+    .wallet-total { font-size: 14px; font-weight: 800; color: #1a1a2e; white-space: nowrap; }
+    /* ── Sub-section labels ── */
+    .sub-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #888;
+      padding: 8px 14px 4px; background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; }
+    table + .sub-label, table + table { border-top: 1px solid #f0f0f0; }
+    th {
+      background: #f5f7fa; font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: #666; padding: 5px 10px; text-align: left;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    td { padding: 5px 10px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tfoot td {
+      background: #f8f9fc; font-size: 10px;
+      border-top: 1px solid #e0e0e0; border-bottom: none;
+      padding: 6px 10px;
+    }
+    .r  { text-align: right; }
+    .mono { font-family: 'Courier New', monospace; }
+    .bold { font-weight: 700; }
+    .dim  { color: #888; }
+    .small { font-size: 9px; }
+    .subtot-label { color: #666; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .subtot { color: #1a1a2e; }
+    /* ── Colors ── */
+    .pos { color: #059669; }
+    .neg { color: #dc2626; }
+    .neu { color: #888; }
+    /* ── Network badge ── */
+    .net-badge {
+      display: inline-block; font-size: 8px; font-weight: 700;
+      padding: 2px 5px; border-radius: 3px;
+      background: color-mix(in srgb, var(--nc) 15%, transparent);
+      color: color-mix(in srgb, var(--nc) 70%, #000);
+      border: 1px solid color-mix(in srgb, var(--nc) 30%, transparent);
+      white-space: nowrap;
+    }
+    .empty-note { color: #aaa; font-size: 10px; padding: 10px 14px; font-style: italic; }
+    /* ── Footer ── */
+    .report-footer {
+      margin-top: 28px; padding-top: 10px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 9px; color: #bbb; text-align: center;
+    }
+    /* ── Print ── */
+    @media print {
+      body { padding: 16px 20px; font-size: 10px; }
+      .wallet-block { page-break-inside: avoid; }
+      .no-print { display: none !important; }
+      @page { margin: 15mm 12mm; size: A4; }
+    }
+  `;
+
+  // ── assemble full document ─────────────────────────────────────────────────
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>CryptoAIO – Relatório de Portfolio</title>
+  <style>${css}</style>
+</head>
+<body>
+  <div class="report-header">
+    <div class="report-logo">CRYPTOAIO</div>
+    <div class="report-meta">
+      <div><strong>Relatório de Portfolio</strong></div>
+      <div>Gerado em ${ts}</div>
+    </div>
+  </div>
+
+  ${body}
+
+  <div class="report-footer">
+    Gerado por CryptoAIO · ${ts} · Valores em USD
+  </div>
+
+  <div class="no-print" style="
+    position:fixed; bottom:20px; right:20px; display:flex; gap:8px;
+  ">
+    <button onclick="window.print()" style="
+      background:#00c27c; color:#fff; border:none; border-radius:8px;
+      padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer;
+    ">⬇ Salvar PDF</button>
+    <button onclick="window.close()" style="
+      background:#eee; color:#555; border:none; border-radius:8px;
+      padding:10px 16px; font-size:13px; cursor:pointer;
+    ">✕ Fechar</button>
+  </div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) { alert("Permita pop-ups para gerar o relatório."); return; }
+  win.document.write(html);
+  win.document.close();
 }
