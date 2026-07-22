@@ -3,56 +3,61 @@
 let _aiHistory = [];
 let _aiLoading = false;
 
-// ─── Voice: Speech Recognition ────────────────────────────────────────────────
+// ─── Voice: MediaRecorder + Groq Whisper ─────────────────────────────────────
 
-let _aiRecognition = null;
-let _aiListening   = false;
+let _aiMediaRecorder = null;
+let _aiListening     = false;
+let _aiAudioChunks   = [];
 
-function aiToggleMic() {
+async function aiToggleMic() {
   if (_aiListening) { _aiStopMic(); return; }
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    alert("Seu navegador não suporta reconhecimento de voz. Use Chrome ou Edge.");
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert("Seu navegador não suporta gravação de áudio.");
     return;
   }
 
-  _aiRecognition = new SpeechRecognition();
-  _aiRecognition.lang = document.documentElement.lang === "en" ? "en-US" : "pt-BR";
-  _aiRecognition.interimResults = true;
-  _aiRecognition.maxAlternatives = 1;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    alert("Permissão de microfone negada. Permita o acesso nas configurações do navegador.");
+    return;
+  }
 
+  _aiAudioChunks = [];
+  const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+    ? "audio/webm;codecs=opus"
+    : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+
+  _aiMediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+  _aiMediaRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) _aiAudioChunks.push(e.data);
+  };
+
+  _aiMediaRecorder.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    const blob = new Blob(_aiAudioChunks, { type: mimeType || "audio/webm" });
+    _aiAudioChunks = [];
+    _aiMicReset();
+    await _aiTranscribeAndSend(blob);
+  };
+
+  _aiListening = true;
+  document.getElementById("ai-mic-btn")?.classList.add("listening");
   const input = document.getElementById("ai-input");
+  if (input) { input.placeholder = "🎙 Gravando... clique para enviar"; input.disabled = true; }
 
-  _aiRecognition.onstart = () => {
-    _aiListening = true;
-    document.getElementById("ai-mic-btn")?.classList.add("listening");
-    if (input) { input.placeholder = "Ouvindo..."; input.disabled = true; }
-  };
-
-  _aiRecognition.onresult = (e) => {
-    const transcript = Array.from(e.results)
-      .map(r => r[0].transcript).join("");
-    if (input) input.value = transcript;
-  };
-
-  _aiRecognition.onerror = (e) => {
-    if (e.error !== "no-speech") console.warn("Mic error:", e.error);
-    _aiMicReset();
-  };
-
-  _aiRecognition.onend = () => {
-    const text = (input?.value || "").trim();
-    _aiMicReset();
-    if (text) { input.value = ""; aiSendMessage(text); }
-  };
-
-  _aiRecognition.start();
+  _aiMediaRecorder.start();
 }
 
 function _aiStopMic() {
-  _aiRecognition?.stop();
-  _aiMicReset();
+  if (_aiMediaRecorder && _aiMediaRecorder.state !== "inactive") {
+    _aiMediaRecorder.stop();
+  } else {
+    _aiMicReset();
+  }
 }
 
 function _aiMicReset() {
@@ -61,8 +66,48 @@ function _aiMicReset() {
   const input = document.getElementById("ai-input");
   btn?.classList.remove("listening");
   if (input) {
-    input.disabled   = _aiLoading;
-    input.placeholder = input.getAttribute("placeholder") || "Pergunte sobre seu portfólio...";
+    input.disabled    = _aiLoading;
+    input.placeholder = "Pergunte sobre seu portfólio...";
+  }
+}
+
+async function _aiTranscribeAndSend(blob) {
+  const btn   = document.getElementById("ai-mic-btn");
+  const input = document.getElementById("ai-input");
+
+  // Show transcribing state on mic button
+  if (btn) { btn.disabled = true; btn.title = "Transcrevendo..."; }
+  if (input) { input.placeholder = "⏳ Transcrevendo..."; input.disabled = true; }
+
+  try {
+    const form = new FormData();
+    form.append("audio", blob, "audio.webm");
+
+    const res  = await fetch("/api/ai/transcribe", { method: "POST", body: form });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      console.warn("Transcrição falhou:", data.error);
+      if (input) input.placeholder = "Erro ao transcrever. Tente digitar.";
+    } else {
+      const transcript = (data.transcript || "").trim();
+      if (transcript) {
+        aiSendMessage(transcript);
+      } else {
+        if (input) input.placeholder = "Não entendi. Tente falar novamente.";
+      }
+    }
+  } catch (e) {
+    console.warn("Erro de rede na transcrição:", e);
+    if (input) input.placeholder = "Erro de conexão. Tente digitar.";
+  } finally {
+    if (btn) { btn.disabled = false; btn.title = "Falar"; }
+    setTimeout(() => {
+      if (input && !_aiListening) {
+        input.placeholder = "Pergunte sobre seu portfólio...";
+        input.disabled    = _aiLoading;
+      }
+    }, 2000);
   }
 }
 

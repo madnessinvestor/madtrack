@@ -2512,6 +2512,60 @@ def ai_chat():
         return jsonify({"error": f"Erro inesperado: {str(ex)}"}), 502
 
 
+@app.route("/api/ai/transcribe", methods=["POST"])
+def ai_transcribe():
+    """Transcribe audio via Groq Whisper."""
+    groq_key = _gw_groq_key()
+    if not groq_key:
+        return jsonify({"error": "GROQ_API_KEY não configurada."}), 503
+
+    audio_file = request.files.get("audio")
+    if not audio_file:
+        return jsonify({"error": "Nenhum áudio enviado."}), 400
+
+    try:
+        import urllib.request as _ur
+        boundary = b"----GWhisperBoundary7x"
+        filename = audio_file.filename or "audio.webm"
+        audio_bytes = audio_file.read()
+
+        body = (
+            b"--" + boundary + b"\r\n"
+            b'Content-Disposition: form-data; name="model"\r\n\r\n'
+            b"whisper-large-v3-turbo\r\n"
+            b"--" + boundary + b"\r\n"
+            b'Content-Disposition: form-data; name="language"\r\n\r\n'
+            b"pt\r\n"
+            b"--" + boundary + b"\r\n"
+            b'Content-Disposition: form-data; name="response_format"\r\n\r\n'
+            b"json\r\n"
+            b"--" + boundary + b"\r\n" +
+            b'Content-Disposition: form-data; name="file"; filename="' + filename.encode() + b'"\r\n'
+            b"Content-Type: audio/webm\r\n\r\n" +
+            audio_bytes + b"\r\n"
+            b"--" + boundary + b"--\r\n"
+        )
+
+        req = _ur.Request(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": f"multipart/form-data; boundary={boundary.decode()}",
+            },
+            method="POST",
+        )
+        with _ur.urlopen(req, timeout=20) as resp:
+            result = json.loads(resp.read().decode())
+        transcript = (result.get("text") or "").strip()
+        return jsonify({"transcript": transcript})
+    except urllib.error.HTTPError as e:
+        body_err = e.read().decode(errors="replace")
+        return jsonify({"error": f"Groq Whisper erro {e.code}: {body_err}"}), 502
+    except Exception as e:
+        return jsonify({"error": f"Erro na transcrição: {str(e)}"}), 502
+
+
 @app.route("/api/ai/status")
 def ai_status():
     """Health state of all configured AI providers."""
