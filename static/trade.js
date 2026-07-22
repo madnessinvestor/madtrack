@@ -445,6 +445,33 @@ function renderPortfolio(tokens) {
   list.innerHTML = tokens.map(tok => portfolioCardHTML(tok)).join("");
   loadPortfolioIcons(tokens);
   if (typeof updateCardAlertBadges === "function") updateCardAlertBadges();
+  initPortfolioSortable();
+}
+
+// ── Drag-and-drop reorder (Trade / Portfolio) ──────────────────────────────────
+let _portfolioSortable = null;
+
+function initPortfolioSortable() {
+  const list = document.getElementById("portfolio-list");
+  if (_portfolioSortable) { _portfolioSortable.destroy(); _portfolioSortable = null; }
+  if (!list || typeof Sortable === "undefined") return;
+  _portfolioSortable = new Sortable(list, {
+    handle: ".drag-handle",
+    animation: 150,
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    onEnd: async () => {
+      const cards   = list.querySelectorAll(".portfolio-card[data-pticker]");
+      const tickers = [...cards].map(c => c.dataset.pticker);
+      const tokMap  = Object.fromEntries(cachedPortfolio.map(t => [t.ticker, t]));
+      cachedPortfolio = tickers.map(s => tokMap[s]).filter(Boolean);
+      await fetch("/api/portfolio/order", {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ tickers }),
+      });
+    },
+  });
 }
 
 function portfolioCardHTML(tok) {
@@ -485,6 +512,7 @@ function portfolioCardHTML(tok) {
 
   return `<div class="asset-card expandable portfolio-card" data-pticker="${sym}" onclick="togglePortfolioCard(this,event)">
     <div class="card-top">
+      <span class="drag-handle" title="Arrastar para reordenar">⠿</span>
       <div class="asset-left">
         <div class="asset-icon portfolio-icon" data-pticker="${sym}">
           <img class="icon-img" alt="" />

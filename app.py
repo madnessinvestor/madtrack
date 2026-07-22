@@ -783,6 +783,20 @@ def delete_portfolio_trade(ticker, idx):
     save_portfolio(tokens)
     return jsonify({"ok": True})
 
+@app.route("/api/portfolio/order", methods=["PUT"])
+def reorder_portfolio():
+    """Persist portfolio token reorder from drag-and-drop UI."""
+    data    = request.get_json(silent=True) or {}
+    tickers = data.get("tickers", [])
+    tokens  = load_portfolio()
+    tok_map = {t.get("ticker", "").upper(): t for t in tokens}
+    reordered = [tok_map[s.upper()] for s in tickers if isinstance(s, str) and s.upper() in tok_map]
+    # Append any tokens not in the drag list (safety)
+    seen = {s.upper() for s in tickers}
+    reordered += [t for t in tokens if t.get("ticker", "").upper() not in seen]
+    save_portfolio(reordered)
+    return jsonify({"ok": True})
+
 @app.route("/api/portfolio/<ticker>", methods=["PUT"])
 def rename_portfolio_token(ticker):
     data = request.get_json(silent=True) or {}
