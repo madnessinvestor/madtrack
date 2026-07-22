@@ -287,7 +287,7 @@ function _buildDivData() {
   const entries = Object.entries(map).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
   const top     = entries.slice(0, 9);
   const rest    = entries.slice(9).reduce((s,[,v]) => s+v, 0);
-  if (rest > 0) top.push(["Outros", rest]);
+  if (rest > 0) top.push([t("rpt_others"), rest]);
   const total   = top.reduce((s,[,v]) => s+v, 0);
   return top.map(([sym, val]) => ({ sym, val, pct: total > 0 ? val/total*100 : 0 }));
 }
@@ -338,8 +338,8 @@ function _diversificationChartHtml(grandTotal) {
             <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
           </svg>
         </span>
-        <span class="dash-div-title">Diversificação</span>
-        <span class="dash-div-count">${items.length} ativos</span>
+        <span class="dash-div-title">${t("rpt_div_title")}</span>
+        <span class="dash-div-count">${items.length} ${t("rpt_div_assets")}</span>
       </div>
       <span class="dash-div-chev${chevClass}" id="dash-div-chev">›</span>
     </div>
@@ -1238,7 +1238,7 @@ async function deleteManualAsset(id) {
 
 function exportDashboard() {
   if (!dashLoaded || (!dashWallets.length && !dashManual.length)) {
-    alert("Nenhum dado para exportar.");
+    alert(t("rpt_dash_no_data"));
     return;
   }
 
@@ -1281,9 +1281,9 @@ function exportDashboard() {
   // ── totals ─────────────────────────────────────────────────────────────────
   const totalWalletUsd = dashWallets.reduce((s, w) => {
     return s
-      + (w.tokens||[]).reduce((a,t) => a + (t.value_usd||0), 0)
-      + (w.defi  ||[]).reduce((a,d) => a + (d.net_usd  ||0), 0)
-      + (w.perps ||[]).reduce((a,p) => a + (p.net_usd  ||0), 0);
+      + (w.tokens||[]).reduce((a,tk) => a + (tk.value_usd||0), 0)
+      + (w.defi  ||[]).reduce((a,d)  => a + (d.net_usd  ||0), 0)
+      + (w.perps ||[]).reduce((a,p)  => a + (p.net_usd  ||0), 0);
   }, 0);
   const totalManualUsd = dashManual.reduce((s,a) => s + (a.balance||0)*(a.price_usd||0), 0);
   const grandTotal = totalWalletUsd + totalManualUsd;
@@ -1294,22 +1294,68 @@ function exportDashboard() {
   // — Summary cards —
   body += `<div class="summary-grid">
     <div class="sum-card">
-      <div class="sum-label">Total On-Chain</div>
+      <div class="sum-label">${t("rpt_total_onchain")}</div>
       <div class="sum-val">${fUsd(totalWalletUsd)}</div>
     </div>
     <div class="sum-card">
-      <div class="sum-label">Total Manual</div>
+      <div class="sum-label">${t("rpt_total_manual")}</div>
       <div class="sum-val">${fUsd(totalManualUsd)}</div>
     </div>
     <div class="sum-card grand">
-      <div class="sum-label">Total Geral</div>
+      <div class="sum-label">${t("rpt_grand_total")}</div>
       <div class="sum-val">${fUsd(grandTotal)}</div>
     </div>
   </div>`;
 
+  // ── SEÇÃO 0: DIVERSIFICAÇÃO ───────────────────────────────────────────────
+  const divItems = _buildDivData();
+  if (divItems.length >= 2) {
+    const PIE_COLORS = ["#00c27c","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316","#84cc16","#6366f1"];
+    const Rpie = 90, rpie = 50, GAP = divItems.length > 1 ? 1.5 : 0;
+    let svgPaths = "", angle = 0;
+    divItems.forEach((item, i) => {
+      const sweep = item.pct / 100 * 360;
+      const start = angle + GAP / 2;
+      const end   = angle + sweep - GAP / 2;
+      angle += sweep;
+      const color = PIE_COLORS[i % PIE_COLORS.length];
+      const path  = _svgDonutArc(Rpie, rpie, start, end);
+      svgPaths += `<path d="${path}" fill="${color}"/>`;
+    });
+
+    let divRows = "";
+    divItems.forEach((item, i) => {
+      const color = PIE_COLORS[i % PIE_COLORS.length];
+      divRows += `<tr>
+        <td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle"></span></td>
+        <td><strong>${esc(item.sym)}</strong></td>
+        <td class="r mono">${fUsd(item.val)}</td>
+        <td class="r mono">${item.pct.toFixed(1)}%</td>
+      </tr>`;
+    });
+
+    body += `<div class="section-title" style="margin-top:0">${t("rpt_div_section")}</div>
+    <div class="div-export-wrap">
+      <svg viewBox="-100 -100 200 200" width="170" height="170" xmlns="http://www.w3.org/2000/svg">
+        ${svgPaths}
+        <text x="0" y="-7" text-anchor="middle" style="font-size:8px;fill:#888;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">TOTAL</text>
+        <text x="0" y="11" text-anchor="middle" style="font-size:13px;fill:#1a1a2e;font-weight:800">${fUsd(grandTotal)}</text>
+      </svg>
+      <table class="div-table">
+        <thead><tr>
+          <th></th>
+          <th>${t("rpt_col_symbol")}</th>
+          <th class="r">${t("rpt_col_value")}</th>
+          <th class="r">${t("rpt_col_allocation")}</th>
+        </tr></thead>
+        <tbody>${divRows}</tbody>
+      </table>
+    </div>`;
+  }
+
   // ── SEÇÃO 1: ON-CHAIN ────────────────────────────────────────────────────
   if (dashWallets.length) {
-    body += `<div class="section-title">Ativos On-Chain</div>`;
+    body += `<div class="section-title" style="margin-top:28px">${t("rpt_onchain_section")}</div>`;
 
     for (const w of dashWallets) {
       const tokens = (w.tokens||[]).slice().sort((a,b) => (b.value_usd||0) - (a.value_usd||0));
@@ -1318,9 +1364,9 @@ function exportDashboard() {
       const label  = esc(w.label || shortAddr(w.address));
       const addr   = esc(w.address || "");
 
-      const tokUsd  = tokens.reduce((s,t) => s + (t.value_usd||0), 0);
-      const defiUsd = defi.reduce((s,d)   => s + (d.net_usd  ||0), 0);
-      const prpUsd  = perps.reduce((s,p)  => s + (p.net_usd  ||0), 0);
+      const tokUsd  = tokens.reduce((s,tk) => s + (tk.value_usd||0), 0);
+      const defiUsd = defi.reduce((s,d)    => s + (d.net_usd  ||0), 0);
+      const prpUsd  = perps.reduce((s,p)   => s + (p.net_usd  ||0), 0);
       const walTotal = tokUsd + defiUsd + prpUsd;
 
       body += `<div class="wallet-block">
@@ -1334,11 +1380,11 @@ function exportDashboard() {
 
       // Tokens table
       if (tokens.length) {
-        body += `<div class="sub-label">Tokens</div>
+        body += `<div class="sub-label">${t("dash_tab_tokens")}</div>
           <table>
             <thead><tr>
-              <th>Símbolo</th><th>Nome</th><th>Rede</th>
-              <th class="r">Quantidade</th><th class="r">Preço</th><th class="r">Valor</th>
+              <th>${t("rpt_col_symbol")}</th><th>${t("rpt_col_name")}</th><th>${t("rpt_col_network")}</th>
+              <th class="r">${t("rpt_col_quantity")}</th><th class="r">${t("rpt_col_price")}</th><th class="r">${t("rpt_col_value")}</th>
             </tr></thead><tbody>`;
         for (const tk of tokens) {
           const cm = chainMeta(tk.network);
@@ -1352,24 +1398,24 @@ function exportDashboard() {
           </tr>`;
         }
         body += `</tbody><tfoot><tr>
-          <td colspan="5" class="r subtot-label">Subtotal Tokens</td>
+          <td colspan="5" class="r subtot-label">${t("rpt_subtotal_tokens")}</td>
           <td class="r mono bold subtot">${fUsd(tokUsd)}</td>
         </tr></tfoot></table>`;
       }
 
       // DeFi table
       if (defi.length) {
-        body += `<div class="sub-label">DeFi</div>
+        body += `<div class="sub-label">${t("dash_tab_defi")}</div>
           <table>
             <thead><tr>
-              <th>Protocolo</th><th>Tipo</th><th>Rede</th>
-              <th>Posição</th><th class="r">Valor Líq.</th><th class="r">Dívida</th>
+              <th>${t("rpt_col_protocol")}</th><th>${t("rpt_col_type")}</th><th>${t("rpt_col_network")}</th>
+              <th>${t("rpt_col_position")}</th><th class="r">${t("rpt_col_net_value")}</th><th class="r">${t("rpt_col_debt")}</th>
             </tr></thead><tbody>`;
         for (const d of defi) {
           const cm   = chainMeta(d.network);
           const allT = [...(d.supply_tokens||[]), ...(d.reward_tokens||[])];
           const pos  = allT.length
-            ? allT.map(t => `${fQty(t.balance)} ${esc(t.symbol)}`).join(" + ")
+            ? allT.map(tk => `${fQty(tk.balance)} ${esc(tk.symbol)}`).join(" + ")
             : esc(d.description || "");
           body += `<tr>
             <td><strong>${esc(d.protocol||"")}</strong></td>
@@ -1381,18 +1427,18 @@ function exportDashboard() {
           </tr>`;
         }
         body += `</tbody><tfoot><tr>
-          <td colspan="4" class="r subtot-label">Subtotal DeFi</td>
+          <td colspan="4" class="r subtot-label">${t("rpt_subtotal_defi")}</td>
           <td class="r mono bold subtot">${fUsd(defiUsd)}</td><td></td>
         </tr></tfoot></table>`;
       }
 
       // Perps table
       if (perps.length) {
-        body += `<div class="sub-label">Perps / Futuros</div>
+        body += `<div class="sub-label">${t("rpt_perps_futures")}</div>
           <table>
             <thead><tr>
-              <th>Protocolo</th><th>Tipo</th><th>Rede</th>
-              <th>Descrição</th><th class="r">Valor Líq.</th>
+              <th>${t("rpt_col_protocol")}</th><th>${t("rpt_col_type")}</th><th>${t("rpt_col_network")}</th>
+              <th>${t("rpt_col_description")}</th><th class="r">${t("rpt_col_net_value")}</th>
             </tr></thead><tbody>`;
         for (const p of perps) {
           const cm = chainMeta(p.network);
@@ -1405,13 +1451,13 @@ function exportDashboard() {
           </tr>`;
         }
         body += `</tbody><tfoot><tr>
-          <td colspan="4" class="r subtot-label">Subtotal Perps</td>
+          <td colspan="4" class="r subtot-label">${t("rpt_subtotal_perps")}</td>
           <td class="r mono bold subtot">${fUsd(prpUsd)}</td>
         </tr></tfoot></table>`;
       }
 
       if (!tokens.length && !defi.length && !perps.length) {
-        body += `<p class="empty-note">Nenhum dado carregado para esta carteira.</p>`;
+        body += `<p class="empty-note">${t("rpt_no_wallet_data")}</p>`;
       }
 
       body += `</div>`; // wallet-block
@@ -1419,15 +1465,15 @@ function exportDashboard() {
   }
 
   // ── SEÇÃO 2: MANUAIS ─────────────────────────────────────────────────────
-  body += `<div class="section-title" style="margin-top:28px">Ativos Manuais</div>`;
+  body += `<div class="section-title" style="margin-top:28px">${t("rpt_manual_section")}</div>`;
 
   if (dashManual.length) {
     body += `<table>
       <thead><tr>
-        <th>Símbolo</th><th>Fonte</th><th class="r">Quantidade</th>
-        <th class="r">Preço Médio Pago</th><th class="r">Preço Atual</th>
-        <th class="r">Valor Atual</th><th class="r">Investido</th>
-        <th class="r">P&amp;L</th><th class="r">P&amp;L %</th><th>Data</th>
+        <th>${t("rpt_col_symbol")}</th><th>${t("rpt_col_source")}</th><th class="r">${t("rpt_col_quantity")}</th>
+        <th class="r">${t("rpt_col_avg_paid")}</th><th class="r">${t("rpt_col_cur_price")}</th>
+        <th class="r">${t("rpt_col_cur_value")}</th><th class="r">${t("rpt_col_invested")}</th>
+        <th class="r">P&amp;L</th><th class="r">${t("rpt_col_pnl_pct")}</th><th>${t("rpt_col_date_purchase")}</th>
       </tr></thead><tbody>`;
     for (const a of dashManual) {
       const bal    = a.balance    || 0;
@@ -1452,12 +1498,12 @@ function exportDashboard() {
       </tr>`;
     }
     body += `</tbody><tfoot><tr>
-      <td colspan="5" class="r subtot-label">Total Manual</td>
+      <td colspan="5" class="r subtot-label">${t("rpt_total_manual_foot")}</td>
       <td class="r mono bold subtot">${fUsd(totalManualUsd)}</td>
       <td colspan="4"></td>
     </tr></tfoot></table>`;
   } else {
-    body += `<p class="empty-note">Nenhum ativo manual cadastrado.</p>`;
+    body += `<p class="empty-note">${t("rpt_no_manual")}</p>`;
   }
 
   // ── CSS ────────────────────────────────────────────────────────────────────
@@ -1494,6 +1540,9 @@ function exportDashboard() {
       letter-spacing: 0.06em; color: #00a060;
       border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; margin-bottom: 12px;
     }
+    /* ── Diversification ── */
+    .div-export-wrap { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 20px; }
+    .div-table { width: auto; min-width: 260px; }
     /* ── Wallet block ── */
     .wallet-block {
       border: 1px solid #e8e8e8; border-radius: 8px;
@@ -1566,27 +1615,29 @@ function exportDashboard() {
     }
   `;
 
+  const lang = typeof currentLang !== "undefined" ? currentLang : "pt";
+
   // ── assemble full document ─────────────────────────────────────────────────
   const html = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8"/>
-  <title>CryptoAIO – Relatório de Portfolio</title>
+  <title>${t("rpt_dash_doc_title")}</title>
   <style>${css}</style>
 </head>
 <body>
   <div class="report-header">
     <div class="report-logo">CRYPTOAIO</div>
     <div class="report-meta">
-      <div><strong>Relatório de Portfolio</strong></div>
-      <div>Gerado em ${ts}</div>
+      <div><strong>${t("rpt_dash_heading")}</strong></div>
+      <div>${t("rpt_generated_on")} ${ts}</div>
     </div>
   </div>
 
   ${body}
 
   <div class="report-footer">
-    Gerado por CryptoAIO · ${ts} · Valores em USD
+    ${t("rpt_generated_by")} · ${ts} · ${t("rpt_values_in")} USD
   </div>
 
   <div class="no-print" style="
@@ -1595,11 +1646,11 @@ function exportDashboard() {
     <button onclick="window.print()" style="
       background:#00c27c; color:#fff; border:none; border-radius:8px;
       padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer;
-    ">⬇ Salvar PDF</button>
+    ">${t("rpt_save_pdf")}</button>
     <button onclick="window.close()" style="
       background:#eee; color:#555; border:none; border-radius:8px;
       padding:10px 16px; font-size:13px; cursor:pointer;
-    ">✕ Fechar</button>
+    ">✕ ${t("close")}</button>
   </div>
 </body>
 </html>`;

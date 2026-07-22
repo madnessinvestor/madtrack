@@ -572,7 +572,7 @@ function loadPortfolioIcons(tokens) {
 function exportTrades() {
   const tokens = cachedPortfolio;
   if (!tokens || !tokens.length) {
-    alert("Nenhum trade para exportar.");
+    alert(t("rpt_trade_no_data"));
     return;
   }
 
@@ -635,32 +635,32 @@ function exportTrades() {
   // Cards de resumo geral
   body += `<div class="summary-grid">
     <div class="sum-card">
-      <div class="sum-label">Total Investido</div>
+      <div class="sum-label">${t("rpt_total_invested")}</div>
       <div class="sum-val">${fv(grandInv)}</div>
     </div>
     <div class="sum-card">
-      <div class="sum-label">Valor Atual</div>
+      <div class="sum-label">${t("rpt_cur_value_card")}</div>
       <div class="sum-val">${fv(grandVal)}</div>
     </div>
     <div class="sum-card ${pnlCls(grandPnl) === "pos" ? "grand-pos" : pnlCls(grandPnl) === "neg" ? "grand-neg" : "grand"}">
-      <div class="sum-label">P&amp;L Total</div>
+      <div class="sum-label">${t("rpt_pnl_total_label")}</div>
       <div class="sum-val ${pnlCls(grandPnl)}">${fv(grandPnl)}</div>
       <div class="sum-sub ${pnlCls(grandPnlPct)}">${fp(grandPnlPct)}</div>
     </div>
   </div>`;
 
   // ── SEÇÃO 1: Resumo por ativo ──────────────────────────────────────────────
-  body += `<div class="section-title">Resumo por Ativo</div>
+  body += `<div class="section-title">${t("rpt_summary_asset")}</div>
   <table>
     <thead><tr>
-      <th>Ticker</th>
-      <th class="r">Qtd. Total</th>
-      <th class="r">Preço Médio Pago</th>
-      <th class="r">Preço Atual</th>
-      <th class="r">Investido</th>
-      <th class="r">Valor Atual</th>
+      <th>${t("rpt_col_ticker")}</th>
+      <th class="r">${t("rpt_col_total_qty")}</th>
+      <th class="r">${t("rpt_col_avg_paid")}</th>
+      <th class="r">${t("rpt_col_cur_price")}</th>
+      <th class="r">${t("rpt_col_invested")}</th>
+      <th class="r">${t("rpt_col_cur_value")}</th>
       <th class="r">P&amp;L</th>
-      <th class="r">P&amp;L %</th>
+      <th class="r">${t("rpt_col_pnl_pct")}</th>
     </tr></thead>
     <tbody>`;
 
@@ -691,7 +691,7 @@ function exportTrades() {
   </table>`;
 
   // ── SEÇÃO 2: Trades por ativo ──────────────────────────────────────────────
-  body += `<div class="section-title" style="margin-top:28px">Extrato de Trades</div>`;
+  body += `<div class="section-title" style="margin-top:28px">${t("rpt_trade_detail")}</div>`;
 
   for (const { tok, c } of calcs) {
     const curPrice = tok.current_price;
@@ -705,25 +705,25 @@ function exportTrades() {
       <div class="token-header">
         <div class="token-title-row">
           <span class="token-ticker">${esc(tok.ticker)}</span>
-          <span class="token-meta">${fq(c.total_qty)} unidades · Preço médio pago: ${fv(c.avg_price)} · Preço atual: ${hasCur ? fv(curPrice) : "—"}</span>
+          <span class="token-meta">${fq(c.total_qty)} ${t("rpt_units")} · ${t("rpt_avg_price_meta")} ${fv(c.avg_price)} · ${t("rpt_cur_price_meta")} ${hasCur ? fv(curPrice) : "—"}</span>
         </div>
         <div class="token-totals">
-          <span class="tsum-item"><span class="tsum-label">Investido</span><span class="tsum-val">${fv(c.total_invested)}</span></span>
+          <span class="tsum-item"><span class="tsum-label">${t("rpt_col_invested")}</span><span class="tsum-val">${fv(c.total_invested)}</span></span>
           <span class="tsum-sep">·</span>
-          <span class="tsum-item"><span class="tsum-label">Valor atual</span><span class="tsum-val">${hasCur ? fv(c.cur_value) : "—"}</span></span>
+          <span class="tsum-item"><span class="tsum-label">${t("rpt_cur_value_card")}</span><span class="tsum-val">${hasCur ? fv(c.cur_value) : "—"}</span></span>
           <span class="tsum-sep">·</span>
           <span class="tsum-item"><span class="tsum-label">P&amp;L</span><span class="tsum-val ${pnlCls(c.pnl)}">${hasCur ? fv(c.pnl) : "—"}</span><span class="tsum-pct ${pnlCls(c.pnl_pct)}">${hasCur ? fp(c.pnl_pct) : ""}</span></span>
         </div>
       </div>
       <table>
         <thead><tr>
-          <th>Data</th><th>Tipo</th>
-          <th class="r">Quantidade</th>
-          <th class="r">Preço Pago</th>
-          <th class="r">Total Pago</th>
-          <th class="r">Valor Atual (trade)</th>
-          <th class="r">P&amp;L (trade)</th>
-          <th class="r">P&amp;L %</th>
+          <th>${t("rpt_col_date")}</th><th>${t("rpt_col_type")}</th>
+          <th class="r">${t("rpt_col_qty")}</th>
+          <th class="r">${t("rpt_col_price_paid")}</th>
+          <th class="r">${t("rpt_col_total_paid")}</th>
+          <th class="r">${t("rpt_col_cur_val_trade")}</th>
+          <th class="r">${t("rpt_col_pnl_trade")}</th>
+          <th class="r">${t("rpt_col_pnl_pct")}</th>
         </tr></thead>
         <tbody>`;
 
@@ -744,7 +744,7 @@ function exportTrades() {
       }
 
       const typeClass = isSell ? "badge-sell" : "badge-buy";
-      const typeLabel = isSell ? "Venda" : "Compra";
+      const typeLabel = isSell ? t("rpt_badge_sell") : t("rpt_badge_buy");
 
       body += `<tr>
         <td class="mono small">${esc(tr.date || "—")}</td>
@@ -862,35 +862,37 @@ function exportTrades() {
     }
   `;
 
+  const lang = typeof currentLang !== "undefined" ? currentLang : "pt";
+
   const html = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8"/>
-  <title>CryptoAIO – Extrato de Trades</title>
+  <title>${t("rpt_trade_doc_title")}</title>
   <style>${css}</style>
 </head>
 <body>
   <div class="report-header">
     <div class="report-logo">CRYPTOAIO</div>
     <div class="report-meta">
-      <div><strong>Extrato de Trades · ${cnyName}</strong></div>
-      <div>Gerado em ${ts}</div>
+      <div><strong>${t("rpt_trade_heading")} · ${cnyName}</strong></div>
+      <div>${t("rpt_generated_on")} ${ts}</div>
     </div>
   </div>
 
   ${body}
 
-  <div class="report-footer">Gerado por CryptoAIO · ${ts} · Valores em ${cnyName}</div>
+  <div class="report-footer">${t("rpt_generated_by")} · ${ts} · ${t("rpt_values_in")} ${cnyName}</div>
 
   <div class="no-print" style="position:fixed;bottom:20px;right:20px;display:flex;gap:8px">
-    <button onclick="window.print()" style="background:#00c27c;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">⬇ Salvar PDF</button>
-    <button onclick="window.close()" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer">✕ Fechar</button>
+    <button onclick="window.print()" style="background:#00c27c;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">${t("rpt_save_pdf")}</button>
+    <button onclick="window.close()" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer">✕ ${t("close")}</button>
   </div>
 </body>
 </html>`;
 
   const win = window.open("", "_blank");
-  if (!win) { alert("Permita pop-ups para gerar o relatório."); return; }
+  if (!win) { alert(t("rpt_allow_popups")); return; }
   win.document.write(html);
   win.document.close();
 }
