@@ -68,14 +68,11 @@
 
 .ai-suggestions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
   padding-bottom: 2px;
-  scrollbar-width: none;
 }
-.ai-suggestions::-webkit-scrollbar { display: none; }
 .ai-chip {
-  flex-shrink: 0;
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--muted2);
