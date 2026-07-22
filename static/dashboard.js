@@ -170,6 +170,7 @@ function renderDashboard() {
       <span class="dash-total-label">${t("dash_total_label")}</span>
       <span class="dash-total-val">${fmtDashUsd(grandTotal)}</span>
     </div>`;
+    html += _diversificationChartHtml(grandTotal);
   }
 
   // ── Wallets section ────────────────────────────────────────────────────────
@@ -221,6 +222,138 @@ function renderDashboard() {
   el.innerHTML = html;
   initDashSortable();
   initManualSortable();
+}
+
+// ── Diversification pie chart ─────────────────────────────────────────────────
+
+const _PIE_COLORS = [
+  "#00e676","#00bcd4","#ff9800","#9c27b0",
+  "#2196f3","#ff5722","#f9c74f","#e91e63",
+  "#4dd0e1","#607d8b"
+];
+
+let _divChartOpen = localStorage.getItem("dashDivOpen") === "true";
+
+function toggleDivChart() {
+  _divChartOpen = !_divChartOpen;
+  localStorage.setItem("dashDivOpen", _divChartOpen);
+  const body = document.getElementById("dash-div-body");
+  const chev = document.getElementById("dash-div-chev");
+  if (body) body.style.display = _divChartOpen ? "" : "none";
+  if (chev) chev.classList.toggle("open", _divChartOpen);
+}
+
+function _pieHover(idx, on) {
+  const slices = document.querySelectorAll(".dash-pie-slice");
+  const items  = document.querySelectorAll(".dash-pie-legend-item");
+  slices.forEach((s, i) => {
+    s.style.transform       = (on && i === idx) ? "scale(1.06)" : "";
+    s.style.transformOrigin = "0 0";
+    s.style.opacity         = on ? (i === idx ? "1" : "0.55") : "1";
+  });
+  items.forEach((el, i) => {
+    el.style.opacity = on ? (i === idx ? "1" : "0.45") : "1";
+  });
+}
+
+function _svgDonutArc(R, r, startDeg, endDeg) {
+  const rad  = d => (d - 90) * Math.PI / 180;
+  const f    = n => n.toFixed(4);
+  const c1   = Math.cos(rad(startDeg)), s1 = Math.sin(rad(startDeg));
+  const c2   = Math.cos(rad(endDeg)),   s2 = Math.sin(rad(endDeg));
+  const large = (endDeg - startDeg) > 180 ? 1 : 0;
+  return [
+    `M ${f(R*c1)} ${f(R*s1)}`,
+    `A ${R} ${R} 0 ${large} 1 ${f(R*c2)} ${f(R*s2)}`,
+    `L ${f(r*c2)} ${f(r*s2)}`,
+    `A ${r} ${r} 0 ${large} 0 ${f(r*c1)} ${f(r*s1)}`,
+    `Z`
+  ].join(" ");
+}
+
+function _buildDivData() {
+  const map = {};
+  const add = (sym, val) => {
+    if (val > 0) map[sym] = (map[sym] || 0) + val;
+  };
+  for (const w of dashWallets) {
+    for (const tk of (w.tokens || [])) add((tk.symbol || "?").toUpperCase(), tk.value_usd || 0);
+    for (const d  of (w.defi   || [])) add("DeFi",  d.net_usd || 0);
+    for (const p  of (w.perps  || [])) add("Perps", p.net_usd || 0);
+  }
+  for (const a of dashManual) {
+    add((a.symbol || "?").toUpperCase(), (a.balance || 0) * (a.price_usd || 0));
+  }
+  const entries = Object.entries(map).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
+  const top     = entries.slice(0, 9);
+  const rest    = entries.slice(9).reduce((s,[,v]) => s+v, 0);
+  if (rest > 0) top.push(["Outros", rest]);
+  const total   = top.reduce((s,[,v]) => s+v, 0);
+  return top.map(([sym, val]) => ({ sym, val, pct: total > 0 ? val/total*100 : 0 }));
+}
+
+function _diversificationChartHtml(grandTotal) {
+  const items = _buildDivData();
+  if (items.length < 2) return "";
+
+  // ── SVG donut ──
+  const R = 95, r = 55, GAP = items.length > 1 ? 1.5 : 0;
+  let svgPaths = "", angle = 0;
+  items.forEach((item, i) => {
+    const sweep = item.pct / 100 * 360;
+    const start = angle + GAP / 2;
+    const end   = angle + sweep - GAP / 2;
+    angle += sweep;
+    const color = _PIE_COLORS[i % _PIE_COLORS.length];
+    const path  = _svgDonutArc(R, r, start, end);
+    svgPaths += `<path class="dash-pie-slice" d="${path}" fill="${color}"
+      onmouseenter="_pieHover(${i},true)" onmouseleave="_pieHover(${i},false)"
+      style="transition:transform 0.15s,opacity 0.15s;cursor:pointer"/>`;
+  });
+
+  // ── Legend ──
+  let legend = "";
+  items.forEach((item, i) => {
+    const color = _PIE_COLORS[i % _PIE_COLORS.length];
+    const bar   = Math.max(2, Math.round(item.pct / 100 * 80));
+    legend += `<div class="dash-pie-legend-item"
+        onmouseenter="_pieHover(${i},true)" onmouseleave="_pieHover(${i},false)"
+        style="transition:opacity 0.15s">
+      <span class="dash-pie-dot" style="background:${color}"></span>
+      <span class="dash-pie-sym">${escHtml(item.sym)}</span>
+      <div class="dash-pie-bar-wrap">
+        <div class="dash-pie-bar-fill" style="width:${bar}px;background:${color}"></div>
+      </div>
+      <span class="dash-pie-pct">${item.pct.toFixed(1)}%</span>
+      <span class="dash-pie-val">${fmtDashUsd(item.val)}</span>
+    </div>`;
+  });
+
+  const chevClass = _divChartOpen ? " open" : "";
+  return `<div class="dash-div-card">
+    <div class="dash-div-header" onclick="toggleDivChart()">
+      <div class="dash-div-header-left">
+        <span class="dash-div-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
+          </svg>
+        </span>
+        <span class="dash-div-title">Diversificação</span>
+        <span class="dash-div-count">${items.length} ativos</span>
+      </div>
+      <span class="dash-div-chev${chevClass}" id="dash-div-chev">›</span>
+    </div>
+    <div class="dash-div-body" id="dash-div-body" style="${_divChartOpen ? "" : "display:none"}">
+      <div class="dash-div-inner">
+        <svg class="dash-pie-svg" viewBox="-110 -110 220 220" xmlns="http://www.w3.org/2000/svg">
+          ${svgPaths}
+          <text x="0" y="-10" text-anchor="middle" style="font-size:9px;fill:var(--muted2);font-weight:700;letter-spacing:0.08em;text-transform:uppercase">TOTAL</text>
+          <text x="0" y="12" text-anchor="middle" style="font-size:15px;fill:var(--text);font-weight:800">${fmtDashUsd(grandTotal)}</text>
+        </svg>
+        <div class="dash-pie-legend">${legend}</div>
+      </div>
+    </div>
+  </div>`;
 }
 
 // ── Drag-and-drop reorder ──────────────────────────────────────────────────────

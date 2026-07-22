@@ -2073,6 +2073,126 @@ section.hidden { display: none; }
   letter-spacing: -0.5px;
 }
 
+/* ─── Diversification chart ──────────────────────────────────────────────────── */
+.dash-div-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.dash-div-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.dash-div-header:hover { background: var(--surface2); }
+.dash-div-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-div-icon {
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+}
+.dash-div-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.dash-div-count {
+  font-size: 0.68rem;
+  color: var(--muted2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1px 8px;
+}
+.dash-div-chev {
+  font-size: 1.1rem;
+  color: var(--muted2);
+  transition: transform 0.22s;
+  line-height: 1;
+  transform: rotate(0deg);
+}
+.dash-div-chev.open { transform: rotate(90deg); }
+
+.dash-div-body {
+  border-top: 1px solid var(--border);
+}
+.dash-div-inner {
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.dash-pie-svg {
+  width: 190px;
+  height: 190px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.35));
+}
+.dash-pie-legend {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dash-pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.77rem;
+  padding: 3px 0;
+  cursor: default;
+}
+.dash-pie-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dash-pie-sym {
+  font-weight: 700;
+  color: var(--text);
+  min-width: 38px;
+}
+.dash-pie-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.dash-pie-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.dash-pie-pct {
+  font-size: 0.72rem;
+  color: var(--muted2);
+  min-width: 36px;
+  text-align: right;
+}
+.dash-pie-val {
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 68px;
+  text-align: right;
+  font-size: 0.76rem;
+}
+
 .dash-section-header {
   display: flex;
   align-items: center;
