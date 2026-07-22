@@ -1100,3 +1100,183 @@ async function deleteManualAsset(id) {
   await fetch(`/api/dashboard/manual/${id}`, { method: "DELETE" });
   await loadDashboard();
 }
+
+// ── Dashboard CSV export ───────────────────────────────────────────────────────
+
+function exportDashboard() {
+  if (!dashLoaded || (!dashWallets.length && !dashManual.length)) {
+    alert("Nenhum dado para exportar.");
+    return;
+  }
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+  function csvCell(v) {
+    const s = String(v ?? "");
+    return (s.includes(",") || s.includes('"') || s.includes("\n"))
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+  function row(...cells) { return cells.map(csvCell).join(","); }
+  function usd(v)  { return (v != null && !isNaN(v)) ? Number(v).toFixed(2) : ""; }
+  function qty(v)  { return (v != null && !isNaN(v)) ? Number(v).toFixed(8).replace(/\.?0+$/, "") : ""; }
+  function pct(v)  { return (v != null && !isNaN(v)) ? Number(v).toFixed(2) : ""; }
+  const now   = new Date();
+  const pad   = n => String(n).padStart(2, "0");
+  const ts    = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const tsFile= `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+
+  // ── totals ─────────────────────────────────────────────────────────────────
+  const totalWalletUsd = dashWallets.reduce((s, w) => {
+    const tok  = (w.tokens || []).reduce((a, tk) => a + (tk.value_usd || 0), 0);
+    const dfi  = (w.defi   || []).reduce((a, d)  => a + (d.net_usd   || 0), 0);
+    const prp  = (w.perps  || []).reduce((a, p)  => a + (p.net_usd   || 0), 0);
+    return s + tok + dfi + prp;
+  }, 0);
+  const totalManualUsd = dashManual.reduce((s, a) =>
+    s + (a.balance || 0) * (a.price_usd || 0), 0);
+  const grandTotal = totalWalletUsd + totalManualUsd;
+
+  const lines = [];
+
+  // ── CABEÇALHO / RESUMO ────────────────────────────────────────────────────
+  lines.push(row("CRYPTOAIO - RELATÓRIO DE PORTFOLIO"));
+  lines.push(row("Gerado em:", ts));
+  lines.push(row(""));
+  lines.push(row("RESUMO", "Valor (USD)"));
+  lines.push(row("Total On-Chain",  usd(totalWalletUsd)));
+  lines.push(row("Total Manual",    usd(totalManualUsd)));
+  lines.push(row("Total Geral",     usd(grandTotal)));
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SEÇÃO 1 — ATIVOS ON-CHAIN
+  // ══════════════════════════════════════════════════════════════════════════
+  lines.push(row(""));
+  lines.push(row("══ ATIVOS ON-CHAIN ══"));
+
+  for (const w of dashWallets) {
+    const tokens = w.tokens || [];
+    const defi   = w.defi   || [];
+    const perps  = w.perps  || [];
+    const label  = w.label  || shortAddr(w.address);
+
+    const tokUsd  = tokens.reduce((s, tk) => s + (tk.value_usd || 0), 0);
+    const defiUsd = defi.reduce((s, d)    => s + (d.net_usd    || 0), 0);
+    const prpUsd  = perps.reduce((s, p)   => s + (p.net_usd    || 0), 0);
+    const walTotal = tokUsd + defiUsd + prpUsd;
+
+    lines.push(row(""));
+    lines.push(row("Carteira:", label, w.address));
+    lines.push(row("Valor total (USD):", usd(walTotal)));
+
+    // — Tokens ——————————————————————————————————————————————————————————————
+    if (tokens.length) {
+      lines.push(row(""));
+      lines.push(row("  Tokens"));
+      lines.push(row("  Símbolo", "Nome", "Rede", "Quantidade", "Preço (USD)", "Valor (USD)"));
+      const sorted = [...tokens].sort((a, b) => (b.value_usd || 0) - (a.value_usd || 0));
+      for (const tk of sorted) {
+        const cm = chainMeta(tk.network);
+        lines.push(row(
+          "  " + (tk.symbol || ""),
+          tk.name    || "",
+          cm.name    || tk.network || "",
+          qty(tk.balance),
+          usd(tk.price_usd),
+          usd(tk.value_usd)
+        ));
+      }
+      lines.push(row("  Subtotal Tokens", "", "", "", "", usd(tokUsd)));
+    }
+
+    // — DeFi ————————————————————————————————————————————————————————————————
+    if (defi.length) {
+      lines.push(row(""));
+      lines.push(row("  DeFi"));
+      lines.push(row("  Protocolo", "Tipo", "Rede", "Tokens/Posição", "Valor Líq. (USD)", "Dívida (USD)"));
+      for (const d of defi) {
+        const cm   = chainMeta(d.network);
+        const allT = [...(d.supply_tokens || []), ...(d.reward_tokens || [])];
+        const toks = allT.map(tk => `${qty(tk.balance)} ${tk.symbol}`).join(" + ") || (d.description || "");
+        lines.push(row(
+          "  " + (d.protocol    || ""),
+          d.type       || "",
+          cm.name      || d.network || "",
+          toks,
+          usd(d.net_usd),
+          d.debt_usd > 0 ? usd(d.debt_usd) : ""
+        ));
+      }
+      lines.push(row("  Subtotal DeFi", "", "", "", usd(defiUsd), ""));
+    }
+
+    // — Perps ———————————————————————————————————————————————————————————————
+    if (perps.length) {
+      lines.push(row(""));
+      lines.push(row("  Perps / Futuros"));
+      lines.push(row("  Protocolo", "Tipo", "Rede", "Descrição", "Valor Líq. (USD)", ""));
+      for (const p of perps) {
+        const cm = chainMeta(p.network);
+        lines.push(row(
+          "  " + (p.protocol    || ""),
+          p.type       || "",
+          cm.name      || p.network || "",
+          p.description || "",
+          usd(p.net_usd),
+          ""
+        ));
+      }
+      lines.push(row("  Subtotal Perps", "", "", "", usd(prpUsd), ""));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SEÇÃO 2 — ATIVOS MANUAIS
+  // ══════════════════════════════════════════════════════════════════════════
+  lines.push(row(""));
+  lines.push(row("══ ATIVOS MANUAIS ══"));
+
+  if (dashManual.length) {
+    lines.push(row(""));
+    lines.push(row(
+      "Símbolo", "Fonte", "Quantidade",
+      "Preço Médio Pago (USD)", "Preço Atual (USD)",
+      "Valor Atual (USD)", "Investimento (USD)",
+      "P&L (USD)", "P&L (%)", "Data de Compra"
+    ));
+    for (const a of dashManual) {
+      const bal    = a.balance    || 0;
+      const price  = a.price_usd  || 0;
+      const invest = a.investment || 0;
+      const curVal = bal * price;
+      const avgPaid = (bal > 0 && invest > 0) ? invest / bal : 0;
+      const pnl    = invest > 0 ? curVal - invest : null;
+      const pnlPct = (pnl !== null && invest > 0) ? (pnl / invest * 100) : null;
+      lines.push(row(
+        a.symbol        || "",
+        a.source        || "",
+        qty(bal),
+        avgPaid > 0     ? usd(avgPaid) : "",
+        price   > 0     ? usd(price)   : "",
+        usd(curVal),
+        invest  > 0     ? usd(invest)  : "",
+        pnl     !== null ? usd(pnl)   : "",
+        pnlPct  !== null ? pct(pnlPct) : "",
+        a.purchase_date ? a.purchase_date.replace("T", " ").slice(0, 16) : ""
+      ));
+    }
+    lines.push(row("Total Manual", "", "", "", "", usd(totalManualUsd), "", "", "", ""));
+  } else {
+    lines.push(row("Nenhum ativo manual cadastrado."));
+  }
+
+  // ── download ───────────────────────────────────────────────────────────────
+  const csv  = "\uFEFF" + lines.join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `cryptoaio_dashboard_${tsFile}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
