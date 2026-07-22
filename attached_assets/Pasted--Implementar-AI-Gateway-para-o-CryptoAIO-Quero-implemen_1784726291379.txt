@@ -1,0 +1,197 @@
+# Implementar AI Gateway para o CryptoAIO
+
+Quero implementar um sistema de IA robusto para o CryptoAIO.
+
+## Objetivo
+
+Criar uma camada única de acesso à IA.
+
+O aplicativo Android nunca deve acessar diretamente Groq, OpenRouter ou Google AI Studio.
+
+Toda comunicação deve passar pelo backend.
+
+---
+
+## Arquitetura
+
+CryptoAIO (Android)
+
+↓
+
+Backend
+
+↓
+
+AI Gateway
+
+↓
+
+Groq | Google AI Studio | OpenRouter
+
+---
+
+## Estrutura
+
+Criar um módulo chamado:
+
+```
+/services/ai/
+```
+
+com os arquivos:
+
+```
+groq.ts
+gemini.ts
+openrouter.ts
+gateway.ts
+```
+
+---
+
+## Variáveis de ambiente
+
+```
+GROQ_API_KEY=
+GOOGLE_AI_API_KEY=
+OPENROUTER_API_KEY=
+```
+
+Nunca deixar nenhuma chave exposta para o frontend.
+
+---
+
+## Gateway
+
+Criar uma função única:
+
+```
+askAI(prompt, options)
+```
+
+Ela deverá receber:
+
+* prompt
+* systemPrompt (opcional)
+* temperatura
+* modelo (opcional)
+
+O restante da aplicação nunca deverá chamar Groq, Gemini ou OpenRouter diretamente.
+
+Sempre utilizar somente:
+
+```
+askAI()
+```
+
+---
+
+## Ordem de prioridade
+
+Utilizar os provedores nesta ordem:
+
+1. Groq
+2. Google AI Studio
+3. OpenRouter
+
+---
+
+## Failover automático
+
+Se ocorrer:
+
+* limite excedido
+* timeout
+* erro 429
+* erro 500
+* indisponibilidade
+
+o gateway deverá automaticamente utilizar o próximo provedor.
+
+O usuário nunca deve perceber essa troca.
+
+---
+
+## Health Check
+
+Manter em memória o estado dos provedores.
+
+Exemplo:
+
+```
+Groq
+✓ online
+
+Gemini
+✓ online
+
+OpenRouter
+✗ temporariamente indisponível
+```
+
+Se um provedor falhar, não tentar utilizá-lo novamente durante alguns minutos.
+
+---
+
+## Logs
+
+Registrar:
+
+* provedor utilizado
+* tempo de resposta
+* quantidade de tokens
+* custo estimado
+* erros
+
+Esses logs devem ficar disponíveis para futuras estatísticas.
+
+---
+
+## Compatibilidade
+
+Todas as respostas devem ser normalizadas para o mesmo formato.
+
+Exemplo:
+
+```
+{
+  provider,
+  model,
+  text,
+  finishReason,
+  usage
+}
+```
+
+Assim o restante do sistema não precisa saber qual IA respondeu.
+
+---
+
+## Facilidade de expansão
+
+O código deve permitir adicionar novos provedores futuramente, como:
+
+* Anthropic
+* Mistral
+* Cloudflare Workers AI
+* Cerebras
+* Together AI
+
+sem alterar o restante do projeto.
+
+Cada novo provedor deve implementar a mesma interface.
+
+---
+
+## Boas práticas
+
+* Código limpo.
+* TypeScript.
+* Async/Await.
+* Tratamento de erros.
+* Timeout configurável.
+* Rate Limiting.
+* Retry com backoff exponencial.
+* Arquitetura modular.
+
+O objetivo é que o AI Gateway seja reutilizável em qualquer parte do CryptoAIO e que a troca entre provedores seja totalmente transparente para o aplicativo.

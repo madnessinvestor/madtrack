@@ -2052,20 +2052,192 @@ def tx_lookup():
         return jsonify({"error": "hash_format"}), 400
 
 
-# ─── Mad AI ───────────────────────────────────────────────────────────────────
+# ─── Mad AI Gateway ───────────────────────────────────────────────────────────
+#
+# Priority order: Groq → Gemini → OpenRouter
+# Failover is automatic — caller never knows which provider responded.
+# Each provider must set its key in Replit Secrets; providers with no key are skipped.
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+_GW_GROQ_KEY       = os.environ.get("GROQ_API_KEY", "")
+_GW_GEMINI_KEY     = os.environ.get("GOOGLE_AI_API_KEY", "")
+_GW_OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
-# Provider map — swap model/url here to change provider
-AI_PROVIDERS = {
-    "openrouter": {
-        "url": "https://openrouter.ai/api/v1/chat/completions",
-        "model": "openrouter/auto",
-        "auth_header": lambda key: f"Bearer {key}",
-        "key": lambda: OPENROUTER_API_KEY,
-    }
-}
-ACTIVE_AI_PROVIDER = "openrouter"
+# How long (seconds) to skip a provider after it fails
+_GW_COOLDOWN = 180  # 3 minutes
+
+# In-memory health state: name → {ok, until, last_error}
+_gw_health      = {}
+_gw_health_lock = threading.Lock()
+
+# Circular usage log (last N calls)
+_gw_logs      = []
+_gw_logs_lock = threading.Lock()
+_GW_LOG_MAX   = 500
+
+# Rough cost per 1 K tokens (USD) — free tiers = 0
+_GW_COST_PER_1K = {"groq": 0.0, "gemini": 0.0, "openrouter": 0.001}
+
+# ── Per-provider build / parse helpers ───────────────────────────────────────
+
+def _gw_build_groq(messages, model, temperature, max_tokens):
+    m = model or "llama-3.3-70b-versatile"
+    payload = json.dumps({"model": m, "messages": messages,
+                          "max_tokens": max_tokens, "temperature": temperature}).encode()
+    headers = {"Authorization": f"Bearer {_GW_GROQ_KEY}",
+                "Content-Type": "application/json"}
+    return "https://api.groq.com/openai/v1/chat/completions", headers, payload, m
+
+def _gw_build_gemini(messages, model, temperature, max_tokens):
+    m = model or "gemini-2.0-flash"
+    system_parts, contents = [], []
+    for msg in messages:
+        role, text = msg["role"], msg["content"]
+        if role == "system":
+            system_parts.append({"text": text})
+        elif role == "user":
+            contents.append({"role": "user",  "parts": [{"text": text}]})
+        elif role == "assistant":
+            contents.append({"role": "model", "parts": [{"text": text}]})
+    body = {"contents": contents,
+            "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens}}
+    if system_parts:
+        body["systemInstruction"] = {"parts": system_parts}
+    payload = json.dumps(body).encode()
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{m}:generateContent?key={_GW_GEMINI_KEY}")
+    return url, {"Content-Type": "application/json"}, payload, m
+
+def _gw_build_openrouter(messages, model, temperature, max_tokens):
+    m = model or "openrouter/auto"
+    payload = json.dumps({"model": m, "messages": messages,
+                          "max_tokens": max_tokens, "temperature": temperature}).encode()
+    headers = {"Authorization": f"Bearer {_GW_OPENROUTER_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://cryptoaio.replit.app",
+                "X-Title": "CryptoAIO"}
+    return "https://openrouter.ai/api/v1/chat/completions", headers, payload, m
+
+def _gw_parse_openai(result, provider):
+    ch  = result["choices"][0]
+    use = result.get("usage", {})
+    return {"provider": provider, "model": result.get("model", ""),
+            "text": ch["message"]["content"],
+            "finish_reason": ch.get("finish_reason", "stop"),
+            "usage": {"prompt_tokens":     use.get("prompt_tokens", 0),
+                      "completion_tokens": use.get("completion_tokens", 0),
+                      "total_tokens":      use.get("total_tokens", 0)}}
+
+def _gw_parse_gemini(result, model):
+    cand = result["candidates"][0]
+    use  = result.get("usageMetadata", {})
+    return {"provider": "gemini", "model": model,
+            "text": cand["content"]["parts"][0]["text"],
+            "finish_reason": cand.get("finishReason", "STOP"),
+            "usage": {"prompt_tokens":     use.get("promptTokenCount", 0),
+                      "completion_tokens": use.get("candidatesTokenCount", 0),
+                      "total_tokens":      use.get("totalTokenCount", 0)}}
+
+# ── Provider registry (add new providers here only) ──────────────────────────
+
+AI_GATEWAY_PROVIDERS = [
+    {"name": "groq",       "key_fn": lambda: _GW_GROQ_KEY,
+     "build_fn": _gw_build_groq,
+     "parse_fn": lambda r, m: _gw_parse_openai(r, "groq")},
+    {"name": "gemini",     "key_fn": lambda: _GW_GEMINI_KEY,
+     "build_fn": _gw_build_gemini,
+     "parse_fn": lambda r, m: _gw_parse_gemini(r, m)},
+    {"name": "openrouter", "key_fn": lambda: _GW_OPENROUTER_KEY,
+     "build_fn": _gw_build_openrouter,
+     "parse_fn": lambda r, m: _gw_parse_openai(r, "openrouter")},
+]
+
+# ── Health helpers ────────────────────────────────────────────────────────────
+
+def _gw_is_healthy(name):
+    with _gw_health_lock:
+        h = _gw_health.get(name)
+        if not h or h["ok"]:
+            return True
+        return time.time() >= h["until"]   # cooldown expired → allow retry
+
+def _gw_mark_ok(name):
+    with _gw_health_lock:
+        _gw_health[name] = {"ok": True, "until": 0, "last_error": ""}
+
+def _gw_mark_fail(name, error):
+    with _gw_health_lock:
+        _gw_health[name] = {"ok": False,
+                             "until": time.time() + _GW_COOLDOWN,
+                             "last_error": str(error)[:300]}
+
+# ── Log helper ────────────────────────────────────────────────────────────────
+
+def _gw_log(provider, model, prompt_tok, compl_tok, elapsed_ms, error=None):
+    entry = {"ts": time.time(), "provider": provider, "model": model,
+             "prompt_tokens": prompt_tok, "completion_tokens": compl_tok,
+             "total_tokens": prompt_tok + compl_tok,
+             "elapsed_ms": round(elapsed_ms),
+             "cost_usd": round(((prompt_tok + compl_tok) / 1000)
+                               * _GW_COST_PER_1K.get(provider, 0), 6),
+             "error": error}
+    with _gw_logs_lock:
+        _gw_logs.append(entry)
+        if len(_gw_logs) > _GW_LOG_MAX:
+            del _gw_logs[:-_GW_LOG_MAX]
+
+# ── Core gateway function ─────────────────────────────────────────────────────
+
+def ask_ai(messages, model=None, temperature=0.3, max_tokens=1024, timeout=30):
+    """
+    Single entry point for all AI calls.
+    Tries providers in priority order with automatic failover.
+    Returns normalized dict: {provider, model, text, finish_reason, usage}
+    Raises RuntimeError if all configured providers fail.
+    """
+    errors = []
+    for p in AI_GATEWAY_PROVIDERS:
+        name    = p["name"]
+        api_key = p["key_fn"]()
+        if not api_key:
+            continue                    # key not configured — skip silently
+        if not _gw_is_healthy(name):
+            continue                    # in cooldown — skip
+
+        try:
+            url, headers, payload, resolved_model = p["build_fn"](
+                messages, model, temperature, max_tokens)
+            t0  = time.time()
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                result = json.loads(r.read().decode())
+            elapsed    = (time.time() - t0) * 1000
+            normalized = p["parse_fn"](result, resolved_model)
+            _gw_mark_ok(name)
+            _gw_log(name, normalized["model"],
+                    normalized["usage"]["prompt_tokens"],
+                    normalized["usage"]["completion_tokens"],
+                    elapsed)
+            return normalized
+
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()[:300]
+            err  = f"HTTP {e.code}: {body}"
+            _gw_log(name, model or "", 0, 0, 0, error=err)
+            if e.code in (429, 500, 502, 503, 504):
+                _gw_mark_fail(name, err)
+            errors.append(f"{name}: {err}")
+
+        except Exception as ex:
+            err = str(ex)
+            _gw_log(name, model or "", 0, 0, 0, error=err)
+            _gw_mark_fail(name, err)
+            errors.append(f"{name}: {err}")
+
+    raise RuntimeError("Todos os provedores de IA falharam: " + " | ".join(errors) if errors
+                       else "Nenhum provedor de IA configurado. Adicione GROQ_API_KEY, "
+                            "GOOGLE_AI_API_KEY ou OPENROUTER_API_KEY nos Secrets.")
+
+# ─── Portfolio context builder (unchanged) ────────────────────────────────────
 
 def _build_portfolio_context():
     """Build a rich text summary of the user's portfolio including current prices and full P&L."""
@@ -2189,12 +2361,14 @@ REGRAS ABSOLUTAS:
 
 @app.route("/api/ai/chat", methods=["POST"])
 def ai_chat():
-    if not OPENROUTER_API_KEY:
-        return jsonify({"error": "AI não configurada. Adicione OPENROUTER_API_KEY nos Secrets do Replit."}), 503
+    # Check that at least one provider is configured
+    if not any([_GW_GROQ_KEY, _GW_GEMINI_KEY, _GW_OPENROUTER_KEY]):
+        return jsonify({"error": "Mad AI não configurado. Adicione GROQ_API_KEY, "
+                                 "GOOGLE_AI_API_KEY ou OPENROUTER_API_KEY nos Secrets."}), 503
 
-    data = request.json or {}
+    data         = request.json or {}
     user_message = (data.get("message") or "").strip()
-    history = data.get("history") or []
+    history      = data.get("history") or []
 
     if not user_message:
         return jsonify({"error": "Mensagem vazia."}), 400
@@ -2205,46 +2379,50 @@ def ai_chat():
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": f"DADOS DO PORTFÓLIO ATUAL:\n{portfolio_context}"},
     ]
-
     for h in history[-10:]:
-        role = h.get("role")
+        role    = h.get("role")
         content = h.get("content", "")
         if role in ("user", "assistant") and content:
             messages.append({"role": role, "content": content})
-
     messages.append({"role": "user", "content": user_message})
 
-    provider = AI_PROVIDERS[ACTIVE_AI_PROVIDER]
-    api_key = provider["key"]()
-    payload = json.dumps({
-        "model": provider["model"],
-        "messages": messages,
-        "max_tokens": 1024,
-        "temperature": 0.3,
-    }).encode()
-
-    req = urllib.request.Request(
-        provider["url"],
-        data=payload,
-        headers={
-            "Authorization": provider["auth_header"](api_key),
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://cryptoaio.replit.app",
-            "X-Title": "CryptoAIO",
-        },
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            result = json.loads(r.read().decode())
-        reply = result["choices"][0]["message"]["content"]
-        return jsonify({"reply": reply})
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        return jsonify({"error": f"Erro da API de IA: {e.code} — {body[:200]}"}), 502
+        result = ask_ai(messages, temperature=0.3, max_tokens=1024)
+        return jsonify({"reply": result["text"], "provider": result["provider"]})
+    except RuntimeError as ex:
+        return jsonify({"error": str(ex)}), 502
     except Exception as ex:
-        return jsonify({"error": f"Erro ao chamar IA: {str(ex)}"}), 502
+        return jsonify({"error": f"Erro inesperado: {str(ex)}"}), 502
+
+
+@app.route("/api/ai/status")
+def ai_status():
+    """Health state of all configured AI providers."""
+    now    = time.time()
+    status = []
+    for p in AI_GATEWAY_PROVIDERS:
+        name    = p["name"]
+        has_key = bool(p["key_fn"]())
+        with _gw_health_lock:
+            h = _gw_health.get(name, {})
+        ok         = h.get("ok", True)
+        until      = h.get("until", 0)
+        last_error = h.get("last_error", "")
+        cooldown_s = max(0, round(until - now)) if not ok else 0
+        status.append({"provider": name, "configured": has_key,
+                       "healthy": ok or now >= until,
+                       "cooldown_remaining_s": cooldown_s,
+                       "last_error": last_error})
+    return jsonify(status)
+
+
+@app.route("/api/ai/logs")
+def ai_logs():
+    """Recent AI gateway usage logs (last 100 entries)."""
+    with _gw_logs_lock:
+        recent = list(_gw_logs[-100:])
+    recent.reverse()   # newest first
+    return jsonify(recent)
 
 
 # ─── Dashboard (on-chain wallets) ─────────────────────────────────────────────
