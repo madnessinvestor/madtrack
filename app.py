@@ -3668,6 +3668,44 @@ def _refresh_other(wallet, wallets, address):
             except Exception as ex:
                 errors.append(f"SEI nativo: {ex}")
 
+            # ── 1b. SEI staked (cosmos delegations) ──────────────────────────
+            try:
+                _SEI_REST = "https://rest.sei-apis.com"
+                # Convert EVM address → bech32 sei address
+                conv_url = f"{_SEI_REST}/sei-protocol/seichain/evm/sei_address?evm_address={address}"
+                conv_req = urllib.request.Request(conv_url, headers={"Accept": "application/json"})
+                with urllib.request.urlopen(conv_req, timeout=10) as _r:
+                    conv_data = json.loads(_r.read().decode())
+                sei_bech32 = conv_data.get("sei_address", "")
+                if sei_bech32:
+                    # Fetch all delegations
+                    del_url = f"{_SEI_REST}/cosmos/staking/v1beta1/delegations/{sei_bech32}"
+                    del_req = urllib.request.Request(del_url, headers={"Accept": "application/json"})
+                    with urllib.request.urlopen(del_req, timeout=10) as _r:
+                        del_data = json.loads(_r.read().decode())
+                    total_staked_usei = sum(
+                        int(d.get("balance", {}).get("amount", 0) or 0)
+                        for d in del_data.get("delegation_responses", [])
+                        if d.get("balance", {}).get("denom") == "usei"
+                    )
+                    staked_sei = total_staked_usei / 1e6
+                    if staked_sei >= 0.0001:
+                        _pr2 = fetch_price("SEI")
+                        sei_usd2 = float((_pr2 or {}).get("price", 0) or 0)
+                        tokens.append({
+                            "symbol":     "SEI",
+                            "name":       "SEI (Staked)",
+                            "network":    "sei",
+                            "chain_type": "OTHER",
+                            "balance":    staked_sei,
+                            "price_usd":  sei_usd2,
+                            "value_usd":  staked_sei * sei_usd2,
+                            "thumbnail":  "https://assets.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png",
+                            "contract":   "",
+                        })
+            except Exception:
+                pass   # staking API indisponível — falha silenciosa
+
             # ── 2. ERC-20 tokens — try seitrace.com scanner first ────────────
             scanner_ok   = False
             scan_tokens  = []
