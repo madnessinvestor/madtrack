@@ -576,61 +576,141 @@ function exportTrades() {
     return;
   }
 
-  const rows = [];
-  // Header
-  rows.push([
-    "Ticker",
-    "Data",
-    "Tipo",
-    "Quantidade",
-    "Preço Pago (USD)",
-    "Total (USD)",
-    "Preço Médio (USD)",
-    "Preço Atual (USD)",
-    "Valor Atual (USD)",
-    "P&L (USD)",
-    "P&L (%)"
-  ]);
-
-  for (const tok of tokens) {
-    const { total_qty, total_invested, avg_price, cur_value, pnl, pnl_pct } = calcToken(tok);
-    const curPrice = tok.current_price != null ? tok.current_price : "";
-    const trades   = tok.trades || [];
-
-    for (const tr of trades) {
-      const isSell  = tr.qty < 0;
-      const absQty  = Math.abs(tr.qty);
-      const total   = absQty * tr.price_paid;
-      rows.push([
-        tok.ticker,
-        tr.date || "",
-        isSell ? "Venda" : "Compra",
-        absQty,
-        tr.price_paid,
-        isSell ? -total : total,
-        avg_price.toFixed(8),
-        curPrice !== "" ? curPrice.toFixed(8) : "",
-        curPrice !== "" ? cur_value.toFixed(2) : "",
-        curPrice !== "" ? pnl.toFixed(2) : "",
-        curPrice !== "" ? pnl_pct.toFixed(2) : ""
-      ]);
-    }
-  }
-
-  const csvContent = rows.map(r =>
-    r.map(v => {
-      const s = String(v ?? "");
-      return s.includes(",") || s.includes('"') || s.includes("\n")
-        ? `"${s.replace(/"/g, '""')}"` : s;
-    }).join(",")
-  ).join("\r\n");
-
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
   const now  = new Date();
   const pad  = n => String(n).padStart(2, "0");
   const ts   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const tsLabel = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const rate = (typeof getRate  === "function") ? getRate()  : 1;
+  const sym  = (typeof currSym  === "function") ? currSym()  : "$";
+
+  // Format value in user's currency
+  function fv(usd) {
+    if (usd == null || usd === "") return "";
+    const v = Number(usd) * rate;
+    const abs = Math.abs(v);
+    if (abs >= 1e6)      return sym + (v / 1e6).toFixed(2) + "M";
+    if (abs >= 1000)     return sym + v.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+    if (abs >= 1)        return sym + v.toFixed(2);
+    if (abs >= 0.000001) return sym + v.toFixed(6);
+    return sym + Number(v).toPrecision(4);
+  }
+  function fq(n) {
+    const abs = Math.abs(Number(n));
+    if (abs >= 1000)    return Number(n).toLocaleString("en-US", {maximumFractionDigits:4});
+    if (abs >= 1)       return Number(n).toFixed(6);
+    if (abs >= 0.00001) return Number(n).toFixed(8);
+    return Number(n).toPrecision(4);
+  }
+  function fp(v) {
+    if (v == null || v === "") return "";
+    const sign = Number(v) >= 0 ? "+" : "";
+    return sign + Number(v).toFixed(2) + "%";
+  }
+  function cell(v) {
+    const s = String(v ?? "");
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+  function row(...cols) { return cols.map(cell).join(","); }
+
+  // ── Calcular totais globais ────────────────────────────────────────────────
+  let grandInvested = 0, grandValue = 0;
+  const tokenCalcs = tokens.map(tok => {
+    const c = calcToken(tok);
+    grandInvested += c.total_invested;
+    grandValue    += c.cur_value;
+    return { tok, c };
+  });
+  const grandPnl    = grandValue - grandInvested;
+  const grandPnlPct = grandInvested > 0 ? (grandPnl / grandInvested) * 100 : 0;
+
+  const lines = [];
+
+  // ── Cabeçalho do arquivo ───────────────────────────────────────────────────
+  lines.push(row("CRYPTOAIO - EXTRATO DE TRADES"));
+  lines.push(row("Gerado em:", tsLabel));
+  lines.push(row("Moeda:", sym === "$" ? "USD" : sym === "R$" ? "BRL" : "EUR"));
+  lines.push(row(""));
+
+  // ── SEÇÃO 1: RESUMO POR ATIVO ──────────────────────────────────────────────
+  lines.push(row("=== RESUMO POR ATIVO ==="));
+  lines.push(row("Ticker", "Qtd. Total", "Investido", "Valor Atual", "P&L", "P&L (%)"));
+
+  for (const { tok, c } of tokenCalcs) {
+    const hasCur = tok.current_price != null;
+    lines.push(row(
+      tok.ticker,
+      fq(c.total_qty),
+      fv(c.total_invested),
+      hasCur ? fv(c.cur_value) : "—",
+      hasCur ? fv(c.pnl)       : "—",
+      hasCur ? fp(c.pnl_pct)   : "—"
+    ));
+  }
+
+  // Linha de total geral
+  lines.push(row(
+    "TOTAL GERAL", "",
+    fv(grandInvested),
+    fv(grandValue),
+    fv(grandPnl),
+    fp(grandPnlPct)
+  ));
+  lines.push(row(""));
+
+  // ── SEÇÃO 2: TRADES DETALHADOS ─────────────────────────────────────────────
+  lines.push(row("=== EXTRATO DE TRADES ==="));
+  lines.push(row(
+    "Ticker", "Data", "Tipo", "Quantidade",
+    `Preço Pago (${sym === "$" ? "USD" : sym === "R$" ? "BRL" : "EUR"})`,
+    `Total Pago`,
+    `Valor Atual (trade)`,
+    `P&L (trade)`,
+    `P&L % (trade)`
+  ));
+
+  for (const { tok } of tokenCalcs) {
+    const curPrice = tok.current_price;
+    const trades   = (tok.trades || []).slice().sort((a, b) =>
+      (b.date || "").localeCompare(a.date || ""));
+
+    for (const tr of trades) {
+      const isSell   = tr.qty < 0;
+      const absQty   = Math.abs(tr.qty);
+      const pricePaid = tr.price_paid;
+      const totalPaid = absQty * pricePaid;
+
+      // Valor atual e P&L calculados isoladamente por trade (apenas compras)
+      let tradeVal = "", tradePnl = "", tradePnlPct = "";
+      if (!isSell && curPrice != null) {
+        const cv   = absQty * curPrice;
+        const pnl  = cv - totalPaid;
+        const pnlp = totalPaid > 0 ? (pnl / totalPaid) * 100 : 0;
+        tradeVal    = fv(cv);
+        tradePnl    = fv(pnl);
+        tradePnlPct = fp(pnlp);
+      }
+
+      lines.push(row(
+        tok.ticker,
+        tr.date || "",
+        isSell ? "Venda" : "Compra",
+        fq(absQty),
+        fv(pricePaid),
+        fv(isSell ? -totalPaid : totalPaid),
+        tradeVal,
+        tradePnl,
+        tradePnlPct
+      ));
+    }
+  }
+
+  // ── Download ───────────────────────────────────────────────────────────────
+  const csvContent = lines.join("\r\n");
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
   a.href     = url;
   a.download = `cryptoaio_trades_${ts}.csv`;
   document.body.appendChild(a);
