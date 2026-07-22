@@ -2058,9 +2058,9 @@ def tx_lookup():
 # Failover is automatic — caller never knows which provider responded.
 # Each provider must set its key in Replit Secrets; providers with no key are skipped.
 
-_GW_GROQ_KEY       = os.environ.get("GROQ_API_KEY", "")
-_GW_GEMINI_KEY     = os.environ.get("GOOGLE_AI_API_KEY", "")
-_GW_OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+def _gw_groq_key():       return os.environ.get("GROQ_API_KEY", "").strip()
+def _gw_gemini_key():     return os.environ.get("GOOGLE_AI_API_KEY", "").strip()
+def _gw_openrouter_key(): return os.environ.get("OPENROUTER_API_KEY", "").strip()
 
 # How long (seconds) to skip a provider after it fails
 _GW_COOLDOWN = 180  # 3 minutes
@@ -2083,7 +2083,7 @@ def _gw_build_groq(messages, model, temperature, max_tokens):
     m = model or "llama-3.3-70b-versatile"
     payload = json.dumps({"model": m, "messages": messages,
                           "max_tokens": max_tokens, "temperature": temperature}).encode()
-    headers = {"Authorization": f"Bearer {_GW_GROQ_KEY}",
+    headers = {"Authorization": f"Bearer {_gw_groq_key()}",
                 "Content-Type": "application/json"}
     return "https://api.groq.com/openai/v1/chat/completions", headers, payload, m
 
@@ -2104,14 +2104,14 @@ def _gw_build_gemini(messages, model, temperature, max_tokens):
         body["systemInstruction"] = {"parts": system_parts}
     payload = json.dumps(body).encode()
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{m}:generateContent?key={_GW_GEMINI_KEY}")
+           f"{m}:generateContent?key={_gw_gemini_key()}")
     return url, {"Content-Type": "application/json"}, payload, m
 
 def _gw_build_openrouter(messages, model, temperature, max_tokens):
     m = model or "openrouter/auto"
     payload = json.dumps({"model": m, "messages": messages,
                           "max_tokens": max_tokens, "temperature": temperature}).encode()
-    headers = {"Authorization": f"Bearer {_GW_OPENROUTER_KEY}",
+    headers = {"Authorization": f"Bearer {_gw_openrouter_key()}",
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://cryptoaio.replit.app",
                 "X-Title": "CryptoAIO"}
@@ -2140,13 +2140,13 @@ def _gw_parse_gemini(result, model):
 # ── Provider registry (add new providers here only) ──────────────────────────
 
 AI_GATEWAY_PROVIDERS = [
-    {"name": "groq",       "key_fn": lambda: _GW_GROQ_KEY,
+    {"name": "groq",       "key_fn": _gw_groq_key,
      "build_fn": _gw_build_groq,
      "parse_fn": lambda r, m: _gw_parse_openai(r, "groq")},
-    {"name": "gemini",     "key_fn": lambda: _GW_GEMINI_KEY,
+    {"name": "gemini",     "key_fn": _gw_gemini_key,
      "build_fn": _gw_build_gemini,
      "parse_fn": lambda r, m: _gw_parse_gemini(r, m)},
-    {"name": "openrouter", "key_fn": lambda: _GW_OPENROUTER_KEY,
+    {"name": "openrouter", "key_fn": _gw_openrouter_key,
      "build_fn": _gw_build_openrouter,
      "parse_fn": lambda r, m: _gw_parse_openai(r, "openrouter")},
 ]
@@ -2362,7 +2362,7 @@ REGRAS ABSOLUTAS:
 @app.route("/api/ai/chat", methods=["POST"])
 def ai_chat():
     # Check that at least one provider is configured
-    if not any([_GW_GROQ_KEY, _GW_GEMINI_KEY, _GW_OPENROUTER_KEY]):
+    if not any([_gw_groq_key(), _gw_gemini_key(), _gw_openrouter_key()]):
         return jsonify({"error": "Mad AI não configurado. Adicione GROQ_API_KEY, "
                                  "GOOGLE_AI_API_KEY ou OPENROUTER_API_KEY nos Secrets."}), 503
 
