@@ -419,21 +419,28 @@ function wltApplyLayout() {
   if (header)     header.style.display     = wtCfg.showHeader   ? "" : "none";
   if (refreshBtn) refreshBtn.style.display = wtCfg.showRefresh  ? "" : "none";
   if (controls)   controls.style.display   = wtCfg.showControls ? "" : "none";
-  if (c2)         c2.style.display         = wtCfg.cols === "1" ? "none" : "";
 
   // 2-row mode: columns switch to flex so each asset block occupies 2 lines.
   // 1-row mode: restore CSS grid (icon | ticker | price | chg).
+  // Use inline styles explicitly so the layout always applies regardless of CSS specificity.
+  const gridCols = wtCfg.showIcon
+    ? "max-content 1fr max-content max-content"
+    : "1fr max-content max-content";
   document.querySelectorAll(".wgt-live-col").forEach(col => {
     col.classList.toggle("wlt-2row-mode", is2Row);
     if (!is2Row) {
-      const gridCols = wtCfg.showIcon
-        ? "max-content 1fr max-content max-content"
-        : "1fr max-content max-content";
-      col.style.gridTemplateColumns = gridCols;
+      col.style.display              = "grid";
+      col.style.flexDirection        = "";
+      col.style.gridTemplateColumns  = gridCols;
     } else {
-      col.style.gridTemplateColumns = "";
+      col.style.display              = "flex";
+      col.style.flexDirection        = "column";
+      col.style.gridTemplateColumns  = "";
     }
   });
+
+  // c2 visibility — must be applied AFTER the loop so it overrides the display set above
+  if (c2) c2.style.display = wtCfg.cols === "1" ? "none" : (is2Row ? "flex" : "grid");
 
   document.querySelectorAll("#wlt-ccy-group .wgt-live-pill").forEach(b =>
     b.classList.toggle("active", b.dataset.ccy === wtCfg.ccy));
