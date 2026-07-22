@@ -169,18 +169,17 @@
     gap: 1px;
     padding-top: 2px;
   }
-  .wt-trade-row {
-    display: grid;
-    grid-template-columns: max-content 1fr max-content max-content;
-    column-gap: 5px;
-    align-items: center;
-    padding: 2px 0;
-  }
-  .wt-trade-ticker { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-  .wt-trade-qty    { font-size: 0.88em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .wt-trade-val    { text-align: right; white-space: nowrap; color: var(--text); }
-  .wt-trade-pnl    { text-align: right; white-space: nowrap; min-width: 46px; }
-  .wt-trade-empty  { font-size: 0.9em; color: var(--muted); text-align: center; padding: 4px 0; }
+  .wt-trade-item { width: 100%; padding: 1px 0; }
+  .wt-trade-top  { display: flex; align-items: center; gap: 4px; width: 100%; }
+  .wt-trade-bot  { display: flex; justify-content: space-between; min-height: 1em; }
+  .wt-trade-ticker  { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .wt-trade-qty     { font-size: 0.88em; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .wt-trade-val     { text-align: right; white-space: nowrap; color: var(--text); flex-shrink: 0; }
+  .wt-trade-pnl-val { text-align: right; white-space: nowrap; flex-shrink: 0; }
+  .wt-trade-pnl-pct { text-align: right; white-space: nowrap; flex-shrink: 0; }
+  .pos { color: var(--accent); }
+  .neg { color: #ff4d4d; }
+  .wt-trade-empty { font-size: 0.9em; color: var(--muted); text-align: center; padding: 4px 0; }
 
   /* ── 2-row-per-asset layout ──────────────────────────────── */
   .widget-col.w-2row-mode {
@@ -571,27 +570,37 @@
       const avgPrice  = totalQty ? totalCost / totalQty : 0;
       const curVal    = curP != null ? totalQty * curP : null;
       const pnlUsd    = curP != null ? (curP - avgPrice) * totalQty : null;
+      const pnlPct    = avgPrice > 0 && curP != null ? (curP - avgPrice) / avgPrice * 100 : null;
       const curValStr = curVal != null ? fmtV(curVal) : "—";
 
-      let pnlStr = "—", pnlCls = "neu";
+      let pnlValStr = "—", pnlPctStr = "", pnlCls = "neu";
       if (pnlUsd != null) {
         const pnlC = pnlUsd * rate;
         const s    = pnlC >= 0 ? "+" : "-";
         const a    = Math.abs(pnlC);
         const num  = a >= 100 ? a.toFixed(2) : a >= 1 ? a.toFixed(2) : a.toFixed(4);
-        pnlStr = s + sym + num;
-        pnlCls = pnlC > 0.00001 ? "pos" : pnlC < -0.00001 ? "neg" : "neu";
+        pnlValStr = s + sym + num;
+        pnlCls    = pnlC > 0.00001 ? "pos" : pnlC < -0.00001 ? "neg" : "neu";
+      }
+      if (pnlPct != null) {
+        const sp  = pnlPct >= 0 ? "+" : "";
+        pnlPctStr = sp + pnlPct.toFixed(2) + "%";
       }
 
       const qtyStr = totalQty !== 0
         ? (Math.abs(totalQty) >= 1 ? totalQty.toFixed(4).replace(/\.?0+$/, "") : totalQty.toPrecision(4)) + " un"
         : "0";
 
-      return `<div class="wt-trade-row" style="font-size:${fs}">
-        <span class="wt-trade-ticker" style="${fw}">${ticker}</span>
-        <span class="wt-trade-qty">${esc(qtyStr)}</span>
-        <span class="wt-trade-val"   style="${fw}">${esc(curValStr)}</span>
-        <span class="wt-trade-pnl ${pnlCls}">${esc(pnlStr)}</span>
+      return `<div class="wt-trade-item" style="font-size:${fs}">
+        <div class="wt-trade-top">
+          <span class="wt-trade-ticker" style="${fw}">${ticker}</span>
+          <span class="wt-trade-val"    style="${fw}">${esc(curValStr)}</span>
+          <span class="wt-trade-pnl-val ${pnlCls}">${esc(pnlValStr)}</span>
+        </div>
+        <div class="wt-trade-bot">
+          <span class="wt-trade-qty">${esc(qtyStr)}</span>
+          <span class="wt-trade-pnl-pct ${pnlCls}">${esc(pnlPctStr)}</span>
+        </div>
       </div>`;
     });
     section.innerHTML = rows.join("");

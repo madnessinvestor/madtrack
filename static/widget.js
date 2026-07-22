@@ -590,30 +590,40 @@ function wltRenderTrades() {
       totalQty  += q;
       totalCost += q * p;
     }
-    const avgPrice   = totalQty ? totalCost / totalQty : 0;
-    const curVal     = curP != null ? totalQty * curP : null;
-    const pnlUsd     = curP != null ? (curP - avgPrice) * totalQty : null;
-    const curValStr  = curVal != null ? fmtV(curVal) : "—";
+    const avgPrice  = totalQty ? totalCost / totalQty : 0;
+    const curVal    = curP != null ? totalQty * curP : null;
+    const pnlUsd    = curP != null ? (curP - avgPrice) * totalQty : null;
+    const pnlPct    = avgPrice > 0 && curP != null ? (curP - avgPrice) / avgPrice * 100 : null;
+    const curValStr = curVal != null ? fmtV(curVal) : "—";
 
-    let pnlStr = "—", pnlCls = "wlt-neu";
+    let pnlValStr = "—", pnlPctStr = "", pnlCls = "wlt-neu";
     if (pnlUsd != null) {
       const pnlC = pnlUsd * ccyRate;
       const s    = pnlC >= 0 ? "+" : "-";
       const a    = Math.abs(pnlC);
       const num  = a >= 100 ? a.toFixed(2) : a >= 1 ? a.toFixed(2) : a.toFixed(4);
-      pnlStr = s + ccySym + num;
-      pnlCls = pnlC > 0.00001 ? "wlt-pos" : pnlC < -0.00001 ? "wlt-neg" : "wlt-neu";
+      pnlValStr = s + ccySym + num;
+      pnlCls    = pnlC > 0.00001 ? "wlt-pos" : pnlC < -0.00001 ? "wlt-neg" : "wlt-neu";
+    }
+    if (pnlPct != null) {
+      const sp = pnlPct >= 0 ? "+" : "";
+      pnlPctStr = sp + pnlPct.toFixed(2) + "%";
     }
 
     const qtyStr = totalQty !== 0
       ? (Math.abs(totalQty) >= 1 ? totalQty.toFixed(4).replace(/\.?0+$/, "") : totalQty.toPrecision(4)) + " un"
       : "0";
 
-    return `<div class="wlt-trade-row" style="font-size:${fs}">
-      <span class="wlt-trade-ticker" style="${fw}">${sym}</span>
-      <span class="wlt-trade-qty">${wltEsc(qtyStr)}</span>
-      <span class="wlt-trade-val"  style="${fw}">${wltEsc(curValStr)}</span>
-      <span class="wlt-trade-pnl ${pnlCls}">${wltEsc(pnlStr)}</span>
+    return `<div class="wlt-trade-item" style="font-size:${fs}">
+      <div class="wlt-trade-top">
+        <span class="wlt-trade-ticker" style="${fw}">${sym}</span>
+        <span class="wlt-trade-val"    style="${fw}">${wltEsc(curValStr)}</span>
+        <span class="wlt-trade-pnl-val ${pnlCls}">${wltEsc(pnlValStr)}</span>
+      </div>
+      <div class="wlt-trade-bot">
+        <span class="wlt-trade-qty">${wltEsc(qtyStr)}</span>
+        <span class="wlt-trade-pnl-pct ${pnlCls}">${wltEsc(pnlPctStr)}</span>
+      </div>
     </div>`;
   });
 

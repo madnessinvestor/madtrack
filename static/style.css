@@ -3791,14 +3791,23 @@ section.hidden { display: none; }
   gap: 1px;
   padding-top: 2px;
 }
-.wlt-trade-row {
-  display: grid;
-  grid-template-columns: max-content 1fr max-content max-content;
-  column-gap: 5px;
+.wlt-trade-item {
+  width: 100%;
+  padding: 1px 0;
+}
+.wlt-trade-top {
+  display: flex;
   align-items: center;
-  padding: 2px 0;
+  gap: 4px;
+  width: 100%;
+}
+.wlt-trade-bot {
+  display: flex;
+  justify-content: space-between;
+  min-height: 1em;
 }
 .wlt-trade-ticker {
+  flex: 1;
   font-size: 10.5px;
   color: #e8e8e8;
   white-space: nowrap;
@@ -3809,24 +3818,30 @@ section.hidden { display: none; }
   font-size: 10px;
   color: #888;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 .wlt-trade-val {
   font-size: 10.5px;
   color: #e8e8e8;
   text-align: right;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-.wlt-trade-pnl {
+.wlt-trade-pnl-val {
   font-size: 10px;
   text-align: right;
   white-space: nowrap;
-  min-width: 46px;
+  flex-shrink: 0;
 }
-.wlt-trade-pnl.wlt-pos { color: #00e676; }
-.wlt-trade-pnl.wlt-neg { color: #ff4d4d; }
-.wlt-trade-pnl.wlt-neu { color: #888; }
+.wlt-trade-pnl-pct {
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.wlt-trade-pnl-val.wlt-pos, .wlt-trade-pnl-pct.wlt-pos { color: #00e676; }
+.wlt-trade-pnl-val.wlt-neg, .wlt-trade-pnl-pct.wlt-neg { color: #ff4d4d; }
+.wlt-trade-pnl-val.wlt-neu, .wlt-trade-pnl-pct.wlt-neu { color: #888; }
 .wlt-trade-empty {
   font-size: 10.5px;
   color: #888;
@@ -3836,5 +3851,6 @@ section.hidden { display: none; }
 .wgt-live-box.wgt-live-light .wlt-trade-ticker,
 .wgt-live-box.wgt-live-light .wlt-trade-val { color: rgba(0,0,0,0.85); }
 .wgt-live-box.wgt-live-light .wlt-trade-qty { color: rgba(0,0,0,0.45); }
-.wgt-live-box.wgt-live-light .wlt-trade-pnl.wlt-pos { color: #00a854; }
+.wgt-live-box.wgt-live-light .wlt-trade-pnl-val.wlt-pos,
+.wgt-live-box.wgt-live-light .wlt-trade-pnl-pct.wlt-pos { color: #00a854; }
 .wgt-live-box.wgt-live-light .wlt-trade-empty { color: rgba(0,0,0,0.4); }
