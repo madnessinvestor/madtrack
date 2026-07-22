@@ -3253,8 +3253,8 @@ def _refresh_other(wallet, wallets, address):
             nanoton = int(d.get("result", 0) or 0)
             ton_bal = nanoton / 1e9
             if ton_bal > 0:
-                price_d = http_get("https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd", timeout=8)
-                ton_usd = float((price_d or {}).get("the-open-network", {}).get("usd", 0) or 0)
+                _pr = fetch_price("TON")
+                ton_usd = float((_pr or {}).get("price", 0) or 0)
                 tokens.append({
                     "symbol": "TON", "name": "TON", "network": "ton",
                     "chain_type": "OTHER", "balance": ton_bal,
@@ -3275,8 +3275,8 @@ def _refresh_other(wallet, wallets, address):
             yocto    = int((d.get("result", {}).get("amount", 0) or 0))
             near_bal = yocto / 1e24
             if near_bal > 0:
-                price_d  = http_get("https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd", timeout=8)
-                near_usd = float((price_d or {}).get("near", {}).get("usd", 0) or 0)
+                _pr = fetch_price("NEAR")
+                near_usd = float((_pr or {}).get("price", 0) or 0)
                 tokens.append({
                     "symbol": "NEAR", "name": "NEAR Protocol", "network": "near",
                     "chain_type": "OTHER", "balance": near_bal,
@@ -3289,8 +3289,8 @@ def _refresh_other(wallet, wallets, address):
             nano_erg = int((d or {}).get("nanoErgs", 0) or 0)
             erg_bal  = nano_erg / 1e9
             if erg_bal > 0:
-                price_d  = http_get("https://api.coingecko.com/api/v3/simple/price?ids=ergo&vs_currencies=usd", timeout=8)
-                erg_usd  = float((price_d or {}).get("ergo", {}).get("usd", 0) or 0)
+                _pr = fetch_price("ERG")
+                erg_usd = float((_pr or {}).get("price", 0) or 0)
                 tokens.append({
                     "symbol": "ERG", "name": "Ergo", "network": "ergo",
                     "chain_type": "OTHER", "balance": erg_bal,
@@ -3345,20 +3345,16 @@ def _refresh_other(wallet, wallets, address):
                     return 0
                 return int(parts[1], 16) * (2 ** 128) + int(parts[0], 16)
 
-            cg_ids  = ",".join(t["cg_id"] for t in _SN_TOKENS)
-            price_d = http_get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_ids}&vs_currencies=usd", timeout=8) or {}
-
             def _sn_fetch_token(tok):
                 try:
                     raw = _sn_call(tok["contract"])
                     bal = raw / (10 ** tok["decimals"])
                     if bal > 0:
-                        usd = float((price_d.get(tok["cg_id"]) or {}).get("usd", 0) or 0)
                         return {
                             "symbol": tok["symbol"], "name": tok["name"],
                             "network": "starknet", "chain_type": "OTHER",
-                            "balance": bal, "price_usd": usd,
-                            "value_usd": bal * usd,
+                            "balance": bal, "price_usd": 0,
+                            "value_usd": 0,
                             "thumbnail": tok["logo"], "contract": tok["contract"],
                         }
                 except Exception as ex:
@@ -3367,7 +3363,18 @@ def _refresh_other(wallet, wallets, address):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
                 results = pool.map(_sn_fetch_token, _SN_TOKENS)
-            tokens.extend(t for t in results if t)
+            raw_tokens = [t for t in results if t]
+
+            # Price via app's multi-exchange system (Hyperliquid, MEXC, KuCoin…)
+            # avoids CoinGecko rate-limits that affect all direct API calls.
+            if raw_tokens:
+                syms = {t["symbol"] for t in raw_tokens}
+                price_map = _collect_live_prices(syms)
+                for t in raw_tokens:
+                    p = price_map.get(t["symbol"].upper(), 0) or 0
+                    t["price_usd"]  = p
+                    t["value_usd"]  = t["balance"] * p
+            tokens.extend(raw_tokens)
     except Exception as ex:
         errors.append(f"{sub_net}: {ex}")
 
