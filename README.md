@@ -1,329 +1,204 @@
-# 📈 MadTracker
+# 🟢 CryptoAIO
 
-**MadTracker** is a privacy-first asset tracker for **Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs**, built with **Flask** and **Vanilla JavaScript** as a **Progressive Web App (PWA)**.
-Track your favorite assets in a lightweight, fast, and privacy-focused application — without accounts, subscriptions, or invasive tracking.
+**CryptoAIO** é um tracker de ativos *privacy-first* para **Criptomoedas, Ações Brasileiras (B3), Ações Americanas e Pares de Câmbio**, construído com **Flask + Vanilla JavaScript** como **Progressive Web App (PWA)**.
 
----
-
-## ✨ Features
-
-### 🚀 Multi-Source Crypto Price Aggregation
-MadTracker fetches prices from multiple exchanges simultaneously and automatically selects the best available market data.
-
-Supported sources:
-
-* Hyperliquid
-* MEXC
-* KuCoin
-* Gate.io
-* OKX
-* Kraken
-* Bitfinex
-* CoinGecko
-* CoinCap
-* CryptoCompare
-
-This approach improves reliability and reduces dependency on a single provider.
+Monitore seus ativos favoritos de forma rápida, leve e sem abrir mão da privacidade — sem conta, sem assinatura, sem rastreamento.
 
 ---
 
-### 📊 Stocks Support
+## ✨ Funcionalidades
 
-#### 🇧🇷 Brazilian Stocks (B3)
+### 🤖 Mad AI — Assistente Financeiro com IA
+Converse com uma IA especializada no seu portfólio, com suporte a **voz**.
 
-Track popular B3 tickers such as:
-
-* PETR4
-* VALE3
-* ITUB4
-* BBAS3
-* WEGE3
-* BBDC4
-
-#### 🇺🇸 US Stocks
-
-Support for US equities through market data providers.
-
-Examples:
-
-* AAPL
-* MSFT
-* NVDA
-* TSLA
-* GOOGL
+- Análise completa de trades (P&L, win rate, melhor/pior ativo)
+- Perguntas livres sobre o portfólio em linguagem natural
+- **Entrada por voz**: grave sua pergunta com o microfone; o áudio é transcrito via **Groq Whisper**
+- **Leitura em voz alta**: ouça as respostas da IA com síntese de fala nativa
+- Gateway com fallback automático entre provedores: **Groq → Gemini → OpenRouter**
 
 ---
 
-### 💱 Forex Tracking
+### 🚀 Agregação de Preços Multi-Exchange
+Preços buscados em múltiplas exchanges simultaneamente com seleção automática da melhor fonte disponível.
 
-Monitor currency pairs in real time:
-
-* USDBRL
-* EURBRL
-* GBPBRL
-* USDEUR
-* USDJPY
-
-Includes automatic country flag icons for improved visualization.
+| Exchange | Exchange | Exchange |
+|----------|----------|----------|
+| Hyperliquid | MEXC | KuCoin |
+| Gate.io | OKX | Kraken |
+| Bitfinex | CoinGecko | CoinCap |
+| CryptoCompare | — | — |
 
 ---
 
-### 🌎 Multi-Currency Display
+### 📊 Ações
 
-View all assets in:
+#### 🇧🇷 Bolsa Brasileira (B3)
+PETR4, VALE3, ITUB4, BBAS3, WEGE3, BBDC4 e muito mais — via **brapi.dev**.
 
-* 🇧🇷 BRL (R$)
-* 🇺🇸 USD ($)
-* 🇪🇺 EUR (€)
+#### 🇺🇸 Bolsa Americana
+AAPL, MSFT, NVDA, TSLA, GOOGL e qualquer ticker americano suportado.
 
-Features:
+---
 
-* Real-time exchange conversion
-* Persistent preference storage
-* Instant switching without page reload
+### 💱 Câmbio (Forex)
+Pares em tempo real com ícones de bandeira automáticos:
+`USDBRL` · `EURBRL` · `GBPBRL` · `USDEUR` · `USDJPY`
+
+---
+
+### 🌎 Multi-Moeda
+Visualize todos os ativos em **BRL (R$)**, **USD ($)** ou **EUR (€)** com conversão em tempo real e troca instantânea sem recarregar a página.
 
 ---
 
 ### ⭐ Watchlist
-
-Create a personalized portfolio watchlist.
-
-Features:
-
-* Add assets instantly
-* Remove assets anytime
-* Automatic persistence
-* No login required
+Adicione e remova ativos com persistência automática — sem login.
 
 ---
 
-### 📈 Market Statistics
+### 💼 Aba Trade (Portfólio)
+- Registro de entradas e saídas por ativo
+- Cálculo de P&L realizado e não realizado
+- Win rate e estatísticas agregadas
+- Suporte a múltiplos trades por ativo
 
-For supported assets:
+---
 
-* Current Price
-* 24h Change (%)
-* 24h High
-* 24h Low
-* Trading Volume
-* Market Capitalization
+### 🏦 Dashboard de Wallets
+- Acompanhe saldos de carteiras on-chain
+- Agrupamento por rede e tipo de ativo
+- Ativos manuais para posições off-chain
+
+---
+
+### 🔔 Alertas de Preço
+Configure alertas de alta/baixa para qualquer ativo da watchlist. Notificação imediata no navegador.
 
 ---
 
 ### 📱 Progressive Web App (PWA)
-
-Install MadTracker directly on:
-
-* Android
-* iPhone
-* Windows
-* macOS
-* Linux
-
-Benefits:
-
-* Home screen installation
-* Offline UI shell
-* Fast loading
-* Native-app-like experience
+Instale o CryptoAIO direto na tela inicial em Android, iPhone, Windows, macOS ou Linux.
+- Shell offline
+- Carregamento rápido
+- Experiência nativa
 
 ---
 
 ### 🔒 Privacy First
 
-MadTracker is designed with privacy as a core principle.
-
-The application:
-
-✅ Does not require an account
-
-✅ Does not collect personal data
-
-✅ Does not use analytics or tracking scripts
-
-✅ Does not store private keys
-
-✅ Does not require exchange connections
-
-✅ Does not sell or share user information
+| ✅ Não exige conta | ✅ Não coleta dados pessoais |
+|---|---|
+| ✅ Sem analytics ou rastreamento | ✅ Sem chaves privadas |
+| ✅ Sem integração com corretoras | ✅ Sem venda de informações |
 
 ---
 
-## 🪙 Supported Asset Types
+## 🪙 Tipos de Ativo Suportados
 
-| Type                  | Examples                 |
-| --------------------- | ------------------------ |
-| Cryptocurrencies      | BTC, ETH, SOL, XRP, DOGE |
-| Brazilian Stocks (B3) | PETR4, VALE3, ITUB4      |
-| US Stocks             | AAPL, NVDA, TSLA         |
-| Forex                 | USDBRL, EURBRL, GBPBRL   |
-
----
-
-## 🛠 Tech Stack
-
-### Backend
-
-* Python 3.12
-* Flask 3
-
-### Frontend
-
-* HTML5
-* CSS3
-* Vanilla JavaScript (ES6+)
-
-### Market Data Providers
-
-* Hyperliquid
-* MEXC
-* KuCoin
-* Gate.io
-* OKX
-* Kraken
-* Bitfinex
-* CoinGecko
-* CoinCap
-* CryptoCompare
-* brapi.dev
-* Frankfurter
-
-### Storage
-
-* assets.json
-* Browser localStorage
-
-### Assets & Icons
-
-* cryptocurrency-icons
-* flagcdn
+| Tipo | Exemplos |
+|------|----------|
+| Criptomoedas | BTC, ETH, SOL, HYPE, XRP, DOGE |
+| Ações BR (B3) | PETR4, VALE3, ITUB4, WEGE3 |
+| Ações EUA | AAPL, NVDA, TSLA, GOOGL |
+| Câmbio | USDBRL, EURBRL, GBPBRL |
 
 ---
 
-## 📂 Project Structure
+## 🛠 Stack
 
-```text
-MadTracker/
-│
-├── app.py
-├── assets.json
+| Camada | Tecnologia |
+|--------|-----------|
+| Backend | Python 3.12 + Flask 3 |
+| Frontend | HTML5 · CSS3 · Vanilla JS (ES6+) |
+| IA | Groq (Whisper + LLaMA) · Gemini · OpenRouter |
+| Dados de Mercado | Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare, brapi.dev, Frankfurter |
+| Armazenamento | JSON local + localStorage |
+
+---
+
+## 📂 Estrutura do Projeto
+
+```
+cryptoaio/
+├── app.py                  # Backend Flask — rotas, agregação de preços, Mad AI gateway
+├── assets.json             # Watchlist e portfólio persistidos
+├── alerts.json             # Alertas de preço
+├── dashboard_wallets.json  # Wallets on-chain
 ├── requirements.txt
 │
 ├── static/
-│   ├── app.js
-│   ├── style.css
-│   ├── sw.js
-│   └── manifest.json
+│   ├── style.css           # Estilos globais
+│   ├── app.js              # Lógica principal (watchlist, preços, câmbio)
+│   ├── madai.js            # Mad AI — chat, voz, TTS
+│   ├── trade.js            # Aba Trade / portfólio
+│   ├── dashboard.js        # Dashboard de wallets
+│   ├── alerts.js           # Alertas de preço
+│   ├── widget.js           # Widget configurável
+│   ├── i18n.js             # Internacionalização (pt/en)
+│   ├── manifest.json       # PWA manifest
+│   ├── sw.js               # Service Worker
+│   └── icons/              # Ícones de tokens (cache local)
 │
 └── templates/
-    └── index.html
+    ├── index.html          # App principal
+    ├── widget.html         # Widget standalone
+    └── widget_settings.html
 ```
 
 ---
 
-## 🚀 Installation
+## 🚀 Como Rodar
 
-### Clone Repository
+### Pré-requisitos
+- Python 3.10+
 
-```bash
-git clone https://github.com/yourusername/madtracker.git
-
-cd madtracker
-```
-
-### Create Virtual Environment
+### Instalação
 
 ```bash
-python -m venv venv
-```
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-source venv/bin/activate
-```
-
-### Install Dependencies
-
-```bash
+git clone https://github.com/madnessinvestor/madtrack.git
+cd madtrack
 pip install -r requirements.txt
-```
-
-### Run Application
-
-```bash
 python app.py
 ```
 
-Open:
+Acesse em: `http://localhost:5000`
 
-```text
-http://localhost:5000
-```
+### Variáveis de Ambiente (opcionais — para o Mad AI)
 
----
+| Variável | Descrição |
+|----------|-----------|
+| `GROQ_API_KEY` | Groq (transcrição Whisper + LLaMA) |
+| `GOOGLE_AI_API_KEY` | Google Gemini (fallback) |
+| `OPENROUTER_API_KEY` | OpenRouter (fallback) |
 
-## 📸 Screenshots
-
-Add screenshots here:
-
-```markdown
-![Dashboard](screenshots/dashboard.png)
-
-![Watchlist](screenshots/watchlist.png)
-
-![Mobile](screenshots/mobile.png)
-```
+> Sem essas chaves, o Mad AI fica indisponível. Os demais módulos funcionam normalmente.
 
 ---
 
 ## 🎯 Roadmap
 
-* [ ] Portfolio tracking
-* [ ] Profit/Loss calculations
-* [ ] Asset allocation charts
-* [ ] Historical price charts
-* [ ] Multiple watchlists
-* [ ] Dark/Light themes
-* [ ] Export & Import settings
-* [ ] Price alerts
-* [ ] Offline asset cache
+- [x] Watchlist multi-ativo
+- [x] Portfólio com P&L
+- [x] Dashboard de wallets on-chain
+- [x] Alertas de preço
+- [x] Multi-moeda (BRL / USD / EUR)
+- [x] Mad AI — assistente com análise de portfólio
+- [x] Entrada por voz (Groq Whisper)
+- [x] Leitura em voz alta (TTS nativo)
+- [x] PWA instalável
+- [ ] Gráficos históricos de preço
+- [ ] Múltiplas watchlists
+- [ ] Export/Import de dados
 
 ---
 
-## 🤝 Contributing
+## 📄 Licença
 
-Contributions, bug reports, and feature requests are welcome.
-
-Feel free to open an issue or submit a pull request.
+Distribuído sob a licença **MIT**.
 
 ---
 
-## 📄 License
-
-This project is released under the MIT License.
-
----
-
-## ⭐ Why MadTracker?
-
-Unlike traditional portfolio trackers, MadTracker focuses on:
-
-* Privacy
-* Simplicity
-* Speed
-* No accounts
-* No subscriptions
-* No tracking
-
-A lightweight asset tracker built for users who want complete control over their financial data.
-
-- Não envia informações pessoais para nenhum servidor
-- Não armazena chaves privadas
-- Não requer integração com conta em corretora
+<div align="center">
+  <strong>CryptoAIO</strong> — Simples. Rápido. Privado.
+</div>
