@@ -15,6 +15,7 @@ const WT_DEFAULTS = {
   autoSort:     false,
   showRefresh:  false,
   showControls: true,
+  showTrades:   false,   // show trade positions below watchlist
   // Android / home-screen widget settings
   size:         "sm",    // sm | md | lg
   theme:        "dark",  // dark | light | auto
@@ -153,6 +154,7 @@ function wtApplyUI() {
     ["wt-autoSort",     "autoSort"],
     ["wt-showRefresh",  "showRefresh"],
     ["wt-showControls", "showControls"],
+    ["wt-showTrades",   "showTrades"],
   ].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el) el.checked = !!wtCfg[key];
@@ -475,6 +477,8 @@ function wltRender() {
   const col2 = wtCfg.cols === "1" ? [] : data.slice(half);
   if (c1) c1.innerHTML = col1.map(a => cellFn(a, fs)).join("");
   if (c2) c2.innerHTML = col2.map(a => cellFn(a, fs)).join("");
+
+  wltRenderTrades();
 }
 
 // ── 2-row-per-asset renderer ──────────────────────────────────────────────────
@@ -536,16 +540,95 @@ function wltAsset2RowHtml(a, fs) {
   </div>`;
 }
 
+// ── Trades section renderer ───────────────────────────────────────────────────
+let wltPortfolioData = [];
+
+function wltRenderTrades() {
+  const divider = document.getElementById("wlt-trades-divider");
+  const section = document.getElementById("wlt-trades");
+  if (!divider || !section) return;
+
+  if (!wtCfg.showTrades) {
+    divider.style.display = "none";
+    section.style.display = "none";
+    return;
+  }
+
+  divider.style.display = "";
+  section.style.display = "";
+
+  const tokens = wltPortfolioData;
+  if (!tokens.length) {
+    section.innerHTML = `<div class="wlt-trade-empty">Sem posições registradas</div>`;
+    return;
+  }
+
+  const ccyRate = wltCcyRate();
+  const ccySym  = wtCfg.showCcy ? WLT_CCY_SYM[wtCfg.ccy] : "";
+  const fs      = WLT_FS_MAP[wtCfg.fontSize] || "12px";
+  const fw      = wtCfg.bold ? "font-weight:700;" : "";
+
+  function fmtV(usd) {
+    const v = usd * ccyRate;
+    const a = Math.abs(v);
+    if (a >= 10000) return ccySym + v.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+    if (a >= 1)     return ccySym + v.toFixed(2);
+    if (a >= 0.01)  return ccySym + v.toFixed(4);
+    return ccySym + v.toPrecision(3);
+  }
+
+  const rows = tokens.map(tok => {
+    const sym    = wltEsc((tok.ticker || "").toUpperCase());
+    const trades = tok.trades || [];
+    const curP   = tok.current_price;
+
+    // Compute position
+    let totalQty = 0, totalCost = 0;
+    for (const tr of trades) {
+      const q = parseFloat(tr.qty) || 0;
+      const p = parseFloat(tr.price_paid) || 0;
+      totalQty  += q;
+      totalCost += q * p;
+    }
+    const avgPrice   = totalQty ? totalCost / totalQty : 0;
+    const curVal     = curP != null ? totalQty * curP : null;
+    const pnlUsd     = curP != null ? (curP - avgPrice) * totalQty : null;
+    const curValStr  = curVal != null ? fmtV(curVal) : "—";
+
+    let pnlStr = "—", pnlCls = "wlt-neu";
+    if (pnlUsd != null) {
+      const pnlC = pnlUsd * ccyRate;
+      const s    = pnlC >= 0 ? "+" : "-";
+      const a    = Math.abs(pnlC);
+      const num  = a >= 100 ? a.toFixed(2) : a >= 1 ? a.toFixed(2) : a.toFixed(4);
+      pnlStr = s + ccySym + num;
+      pnlCls = pnlC > 0.00001 ? "wlt-pos" : pnlC < -0.00001 ? "wlt-neg" : "wlt-neu";
+    }
+
+    const qtyStr = totalQty !== 0
+      ? (Math.abs(totalQty) >= 1 ? totalQty.toFixed(4).replace(/\.?0+$/, "") : totalQty.toPrecision(4)) + " un"
+      : "0";
+
+    return `<div class="wlt-trade-row" style="font-size:${fs}">
+      <span class="wlt-trade-ticker" style="${fw}">${sym}</span>
+      <span class="wlt-trade-qty">${wltEsc(qtyStr)}</span>
+      <span class="wlt-trade-val"  style="${fw}">${wltEsc(curValStr)}</span>
+      <span class="wlt-trade-pnl ${pnlCls}">${wltEsc(pnlStr)}</span>
+    </div>`;
+  });
+
+  section.innerHTML = rows.join("");
+}
+
 async function wltLoad() {
   try {
-    const [ra, rr, ral] = await Promise.all([
-      fetch("/api/assets"),
-      fetch("/api/rates"),
-      fetch("/api/alerts")
-    ]);
+    const fetches = [fetch("/api/assets"), fetch("/api/rates"), fetch("/api/alerts")];
+    if (wtCfg.showTrades) fetches.push(fetch("/api/portfolio"));
+    const [ra, rr, ral, rp] = await Promise.all(fetches);
     const data   = await ra.json();
     const rdata  = await rr.json();
     const alData = await ral.json().catch(() => []);
+    if (rp) wltPortfolioData = await rp.json().catch(() => []);
 
     if (rdata.BRL) wltRates.BRL = rdata.BRL;
     if (rdata.EUR) wltRates.EUR = rdata.EUR;
