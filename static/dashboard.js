@@ -1426,10 +1426,10 @@ function exportDashboard() {
     }
     /* ── Print ── */
     @media print {
-      body { padding: 16px 20px; font-size: 10px; }
+      @page { margin: 0; size: A4; }
+      body { padding: 14mm 12mm; font-size: 10px; }
       .wallet-block { page-break-inside: avoid; }
       .no-print { display: none !important; }
-      @page { margin: 15mm 12mm; size: A4; }
     }
   `;
 
