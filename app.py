@@ -2711,7 +2711,7 @@ def get_dash_wallets():
 
 
 _VALID_NETWORK_TYPES = {"evm", "solana", "bitcoin", "other"}
-_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos"}
+_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos", "ergo"}
 
 def _validate_wallet_address(network_type, address, sub_network=""):
     """Return an error string or None if valid."""
@@ -3234,7 +3234,7 @@ def _refresh_bitcoin(wallet, wallets, address):
     return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
                     "perps": 0, "errors": errors})
 
-_OTHER_FETCH_SUPPORTED = {"ton", "near"}
+_OTHER_FETCH_SUPPORTED = {"ton", "near", "ergo"}
 
 def _refresh_other(wallet, wallets, address):
     """Fetch balance for other L1 networks. TON and NEAR have auto-fetch; others store address only."""
@@ -3282,6 +3282,20 @@ def _refresh_other(wallet, wallets, address):
                     "chain_type": "OTHER", "balance": near_bal,
                     "price_usd": near_usd, "value_usd": near_bal * near_usd,
                     "thumbnail": "https://assets.coingecko.com/coins/images/10365/large/near.jpg",
+                    "contract": "",
+                })
+        elif sub_net == "ergo":
+            d = http_get(f"https://api.ergoplatform.com/api/v1/addresses/{address}/balance/confirmed", timeout=10)
+            nano_erg = int((d or {}).get("nanoErgs", 0) or 0)
+            erg_bal  = nano_erg / 1e9
+            if erg_bal > 0:
+                price_d  = http_get("https://api.coingecko.com/api/v3/simple/price?ids=ergo&vs_currencies=usd", timeout=8)
+                erg_usd  = float((price_d or {}).get("ergo", {}).get("usd", 0) or 0)
+                tokens.append({
+                    "symbol": "ERG", "name": "Ergo", "network": "ergo",
+                    "chain_type": "OTHER", "balance": erg_bal,
+                    "price_usd": erg_usd, "value_usd": erg_bal * erg_usd,
+                    "thumbnail": "https://assets.coingecko.com/coins/images/2484/large/Ergo.png",
                     "contract": "",
                 })
     except Exception as ex:
