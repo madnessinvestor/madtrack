@@ -156,6 +156,28 @@
   .neg { color: #ff4d4d; }
   .neu { color: #888888; }
 
+  /* ── 2-row-per-asset layout ──────────────────────────────── */
+  .widget-col.w-2row-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .w-asset-2r { width: 100%; padding: 1px 0; }
+  .w-2r-top {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+  }
+  .w-2r-top .w-ticker { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .w-2r-top .w-price,
+  .w-2r-top .w-chg    { flex-shrink: 0; }
+  .w-2r-bot {
+    display: flex;
+    justify-content: flex-end;
+    min-height: 1em;
+  }
+
 </style>
 </head>
 <body>
@@ -192,6 +214,7 @@
     ccy:          "USD",
     chg:          "pct",
     cols:         "2",
+    rows:         "1",
     fontSize:     "md",
     bold:         false,
     showCcy:      true,
@@ -321,6 +344,52 @@
            `<span class="w-chg ${cls}" style="${fss}${fw}">${esc(chg)}</span>`;
   }
 
+  // ── 2-row renderer ──────────────────────────────────────────
+  function asset2RowHtml(a, fs) {
+    if (!a) return "";
+    const fw     = cfg.bold ? "font-weight:700;" : "";
+    const fss    = `font-size:${fs};`;
+    const rawSym = a.symbol || "";
+    const symTrunc = trunc(rawSym, 12);
+    const _FOREX_FLAG = { USD:'us', EUR:'eu', BRL:'br', GBP:'gb', JPY:'jp', CHF:'ch', AUD:'au', CAD:'ca' };
+    const _symUp = rawSym.toUpperCase();
+    const _forexCc = _symUp.length === 6 ? _FOREX_FLAG[_symUp.slice(0,3)] : null;
+    const _iconSrc = _forexCc
+      ? `https://flagcdn.com/48x36/${_forexCc}.png`
+      : `/static/icons/tokens/${esc(_symUp)}.png`;
+    const iconHtml = cfg.showIcon
+      ? `<img class="w-icon" src="${_iconSrc}" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`
+      : "";
+    const tickerAlerts = alertsByTicker[_symUp] || [];
+    const activeAlerts = tickerAlerts.filter(al => !al.triggered);
+    const bellTitle = activeAlerts.map(al =>
+      (al.direction === "above" ? "↑" : "↓") + " $" + Number(al.target).toLocaleString("en-US")
+    ).join(" • ");
+    const bell = activeAlerts.length
+      ? `<span class="w-bell" title="${esc(bellTitle)}">🔔</span>` : "";
+    let topChg = "", botChg = "";
+    if (cfg.showChg) {
+      if (cfg.chg === "both") {
+        const v = _fmtVal(a.price, a.change24h);
+        const p = _fmtPct(a.change24h);
+        topChg = `<span class="w-chg ${v.cls}" style="${fss}${fw}">${esc(v.text)}</span>`;
+        botChg = `<span class="w-chg ${p.cls}" style="${fss}${fw}">${esc(p.text)}</span>`;
+      } else {
+        const { text, cls } = fmtChg(a.price, a.change24h);
+        botChg = `<span class="w-chg ${cls}" style="${fss}${fw}">${esc(text)}</span>`;
+      }
+    }
+    return `<div class="w-asset-2r">
+      <div class="w-2r-top" style="${fss}">
+        ${iconHtml}
+        <span class="w-ticker" style="${fss}${fw}">${esc(symTrunc)}${bell}</span>
+        <span class="w-price"  style="${fss}${fw}">${esc(fmtPrice(a.price))}</span>
+        ${topChg}
+      </div>
+      <div class="w-2r-bot">${botChg}</div>
+    </div>`;
+  }
+
   // ── Theme ───────────────────────────────────────────────────
   function applyTheme(theme) {
     let resolved = theme;
@@ -358,13 +427,25 @@
     document.getElementById("refresh-btn").style.display = cfg.showRefresh  ? "" : "none";
     document.getElementById("controls").style.display    = cfg.showControls ? "" : "none";
 
-    // Icon column: adjust grid and visibility
+    // Icon column: adjust grid and visibility; handle 2-row mode
+    const is2Row   = cfg.rows === "2";
     const gridCols = cfg.showIcon
       ? "max-content 1fr max-content max-content"
       : "1fr max-content max-content";
     document.querySelectorAll(".widget-col").forEach(col => {
-      col.style.gridTemplateColumns = gridCols;
+      col.classList.toggle("w-2row-mode", is2Row);
+      if (!is2Row) {
+        col.style.display             = "grid";
+        col.style.flexDirection       = "";
+        col.style.gridTemplateColumns = gridCols;
+      } else {
+        col.style.display             = "flex";
+        col.style.flexDirection       = "column";
+        col.style.gridTemplateColumns = "";
+      }
     });
+    // Re-apply wc2 visibility after the loop (overrides display set above)
+    wc2.style.display = cfg.cols === "1" ? "none" : (is2Row ? "flex" : "grid");
 
     document.querySelectorAll("#ccy-group .pill").forEach(b =>
       b.classList.toggle("active", b.dataset.ccy === cfg.ccy));
@@ -393,13 +474,14 @@
       data.sort((a, b) => (b.change24h || 0) - (a.change24h || 0));
     }
 
-    const fs   = FS_MAP[cfg.fontSize] || "12px";
-    const half = cfg.cols === "1" ? data.length : Math.ceil(data.length / 2);
-    const col1 = data.slice(0, half);
-    const col2 = cfg.cols === "1" ? [] : data.slice(half);
+    const fs     = FS_MAP[cfg.fontSize] || "12px";
+    const cellFn = cfg.rows === "2" ? asset2RowHtml : cellsHtml;
+    const half   = cfg.cols === "1" ? data.length : Math.ceil(data.length / 2);
+    const col1   = data.slice(0, half);
+    const col2   = cfg.cols === "1" ? [] : data.slice(half);
 
-    document.getElementById("wc1").innerHTML = col1.map(a => cellsHtml(a, fs)).join("");
-    document.getElementById("wc2").innerHTML = col2.map(a => cellsHtml(a, fs)).join("");
+    document.getElementById("wc1").innerHTML = col1.map(a => cellFn(a, fs)).join("");
+    document.getElementById("wc2").innerHTML = col2.map(a => cellFn(a, fs)).join("");
   }
 
   // ── Quick-control handlers ──────────────────────────────────
