@@ -440,7 +440,8 @@ function walletCardHtml(w) {
   const testnetTokens    = showTestnets ? allTestnetTokens : [];
 
   const netType    = w.network_type || "evm";
-  const hasDeFiTabs = (netType === "evm" || netType === "solana");
+  const hasDeFiTabs = (netType === "evm" || netType === "solana" ||
+                       (netType === "other" && (w.sub_network || "") === "starknet"));
 
   const tokUsd   = tokens.reduce((s, tk) => s + (tk.value_usd || 0), 0);
   const defiUsd  = defi.reduce((s, d)    => s + (d.net_usd    || 0), 0);

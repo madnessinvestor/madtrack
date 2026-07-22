@@ -3236,6 +3236,85 @@ def _refresh_bitcoin(wallet, wallets, address):
 
 _OTHER_FETCH_SUPPORTED = {"ton", "near", "ergo", "starknet"}
 
+def _sn_fetch_zklend(address):
+    """Fetch zkLend lending/borrowing positions for a StarkNet address.
+    Returns a list of DeFi position rows compatible with _jumper_parse_positions output."""
+    _ZK_DECIMALS = {"ETH": 18, "WBTC": 8, "USDC": 6, "USDT": 6,
+                    "STRK": 18, "DAI": 18, "ZEND": 18}
+    _ZK_LOGOS = {
+        "ETH":  "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+        "WBTC": "https://assets.coingecko.com/coins/images/7598/large/wrapped_bitcoin_wbtc.png",
+        "USDC": "https://assets.coingecko.com/coins/images/6319/large/usdc.png",
+        "USDT": "https://assets.coingecko.com/coins/images/325/large/Tether.png",
+        "STRK": "https://assets.coingecko.com/coins/images/26433/large/starknet.png",
+        "DAI":  "https://assets.coingecko.com/coins/images/9956/large/4943.png",
+        "ZEND": "https://assets.coingecko.com/coins/images/32347/large/zend.png",
+    }
+    _ZK_STABLES = {"USDC", "USDT", "DAI"}
+
+    url = f"https://app.zklend.com/api/users/{address}/all"
+    req = urllib.request.Request(
+        url, headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        body = json.loads(r.read().decode())
+
+    # API returns either a list or {"pools": [...]}
+    pools = body if isinstance(body, list) else body.get("pools", [])
+
+    positions = []
+    for pool in pools:
+        sym      = pool.get("token_symbol", "").upper()
+        data     = pool.get("data", {})
+        sup_hex  = data.get("supply_amount", "0x0") or "0x0"
+        dbt_hex  = data.get("debt_amount",   "0x0") or "0x0"
+        sup_raw  = int(sup_hex, 16)
+        dbt_raw  = int(dbt_hex, 16)
+        if sup_raw == 0 and dbt_raw == 0:
+            continue
+
+        decimals  = _ZK_DECIMALS.get(sym, 18)
+        sup_bal   = sup_raw / (10 ** decimals)
+        dbt_bal   = dbt_raw / (10 ** decimals)
+
+        if sym in _ZK_STABLES:
+            price = 1.0
+        else:
+            pr    = fetch_price(sym)
+            price = float(pr["price"]) if pr and pr.get("price") else 0.0
+
+        sup_usd = sup_bal * price
+        dbt_usd = dbt_bal * price
+        net_usd = sup_usd - dbt_usd
+        if abs(net_usd) < 0.01:
+            continue
+
+        logo = _ZK_LOGOS.get(sym, "")
+        supply_tokens = ([{"symbol": sym, "balance": sup_bal, "price_usd": price,
+                           "value_usd": sup_usd, "logo": logo}]
+                         if sup_bal > 0 else [])
+        borrow_tokens = ([{"symbol": sym, "balance": dbt_bal, "price_usd": price,
+                           "value_usd": dbt_usd, "logo": logo}]
+                         if dbt_bal > 0 else [])
+
+        positions.append({
+            "protocol":      "zkLend",
+            "protocol_logo": "https://app.zklend.com/favicon.ico",
+            "protocol_url":  "https://app.zklend.com",
+            "type":          "Lending",
+            "description":   "",
+            "network":       "starknet",
+            "asset_usd":     sup_usd,
+            "debt_usd":      dbt_usd,
+            "net_usd":       net_usd,
+            "jumper_net_usd": net_usd,
+            "supply_tokens": supply_tokens,
+            "reward_tokens": [],
+            "borrow_tokens": borrow_tokens,
+        })
+
+    positions.sort(key=lambda x: x["net_usd"], reverse=True)
+    return positions
+
 def _refresh_other(wallet, wallets, address):
     """Fetch balance for other L1 networks. TON and NEAR have auto-fetch; others store address only."""
     errors  = []
@@ -3365,21 +3444,33 @@ def _refresh_other(wallet, wallets, address):
                 results = pool.map(_sn_fetch_token, _SN_TOKENS)
             raw_tokens = [t for t in results if t]
 
-            # Price via app's multi-exchange system (Hyperliquid, MEXC, KuCoin…)
-            # avoids CoinGecko rate-limits that affect all direct API calls.
-            if raw_tokens:
-                syms = {t["symbol"] for t in raw_tokens}
-                price_map = _collect_live_prices(syms)
-                for t in raw_tokens:
-                    p = price_map.get(t["symbol"].upper(), 0) or 0
-                    t["price_usd"]  = p
-                    t["value_usd"]  = t["balance"] * p
+            # Apply live prices directly — avoids the daemon-thread stagger in
+            # _collect_live_prices which can silently return 0 for symbols that
+            # haven't been cached yet when the wallet is refreshed.
+            _SN_STABLES = {"USDC", "USDT", "DAI"}
+            for t in raw_tokens:
+                sym = t["symbol"].upper()
+                if sym in _SN_STABLES:
+                    p = 1.0
+                else:
+                    pr = fetch_price(sym)
+                    p  = float(pr["price"]) if pr and pr.get("price") else 0.0
+                t["price_usd"] = p
+                t["value_usd"] = t["balance"] * p
             tokens.extend(raw_tokens)
     except Exception as ex:
         errors.append(f"{sub_net}: {ex}")
 
-    _save_wallet_result(wallets, address, tokens, [], [])
-    return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
+    # ── StarkNet DeFi positions (zkLend) ─────────────────────────────────────
+    defi = []
+    if sub_net == "starknet":
+        try:
+            defi = _sn_fetch_zklend(address)
+        except Exception as ex:
+            errors.append(f"zkLend: {ex}")
+
+    _save_wallet_result(wallets, address, tokens, defi, [])
+    return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
                     "perps": 0, "errors": errors})
 
 @app.route("/api/dashboard/wallets/order", methods=["PUT"])
