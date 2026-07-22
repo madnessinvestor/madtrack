@@ -1,26 +1,26 @@
 # 🟢 CryptoAIO
 
-**CryptoAIO** é um tracker de ativos *privacy-first* para **Criptomoedas, Ações Brasileiras (B3), Ações Americanas e Pares de Câmbio**, construído com **Flask + Vanilla JavaScript** como **Progressive Web App (PWA)**.
+**CryptoAIO** is a *privacy-first* asset tracker for **Cryptocurrencies, Brazilian Stocks (B3), US Stocks, and Forex Pairs**, built with **Flask + Vanilla JavaScript** as a **Progressive Web App (PWA)**.
 
-Monitore seus ativos favoritos de forma rápida, leve e sem abrir mão da privacidade — sem conta, sem assinatura, sem rastreamento.
-
----
-
-## ✨ Funcionalidades
-
-### 🤖 Mad AI — Assistente Financeiro com IA
-Converse com uma IA especializada no seu portfólio, com suporte a **voz**.
-
-- Análise completa de trades (P&L, win rate, melhor/pior ativo)
-- Perguntas livres sobre o portfólio em linguagem natural
-- **Entrada por voz**: grave sua pergunta com o microfone; o áudio é transcrito via **Groq Whisper**
-- **Leitura em voz alta**: ouça as respostas da IA com síntese de fala nativa
-- Gateway com fallback automático entre provedores: **Groq → Gemini → OpenRouter**
+Monitor your favourite assets quickly and lightly — no account, no subscription, no tracking.
 
 ---
 
-### 🚀 Agregação de Preços Multi-Exchange
-Preços buscados em múltiplas exchanges simultaneamente com seleção automática da melhor fonte disponível.
+## ✨ Features
+
+### 🤖 Mad AI — AI-Powered Financial Assistant
+Chat with an AI specialized in your portfolio, with **voice** support.
+
+- Full trade analysis (P&L, win rate, best/worst asset)
+- Natural-language questions about your portfolio
+- **Voice input**: record your question with the microphone; audio is transcribed via **Groq Whisper**
+- **Text-to-speech**: listen to AI responses with native speech synthesis
+- Gateway with automatic fallback across providers: **Groq → Gemini → OpenRouter**
+
+---
+
+### 🚀 Multi-Exchange Price Aggregation
+Prices fetched from multiple exchanges simultaneously with automatic best-source selection.
 
 | Exchange | Exchange | Exchange |
 |----------|----------|----------|
@@ -31,129 +31,137 @@ Preços buscados em múltiplas exchanges simultaneamente com seleção automáti
 
 ---
 
-### 📊 Ações
+### 📊 Stocks
 
-#### 🇧🇷 Bolsa Brasileira (B3)
-PETR4, VALE3, ITUB4, BBAS3, WEGE3, BBDC4 e muito mais — via **brapi.dev**.
+#### 🇧🇷 Brazilian Stock Exchange (B3)
+PETR4, VALE3, ITUB4, BBAS3, WEGE3, BBDC4 and many more — via **brapi.dev**.
 
-#### 🇺🇸 Bolsa Americana
-AAPL, MSFT, NVDA, TSLA, GOOGL e qualquer ticker americano suportado.
+#### 🇺🇸 US Stock Market
+AAPL, MSFT, NVDA, TSLA, GOOGL and any supported American ticker.
 
 ---
 
-### 💱 Câmbio (Forex)
-Pares em tempo real com ícones de bandeira automáticos:
+### 💱 Forex
+Real-time pairs with automatic flag icons:
 `USDBRL` · `EURBRL` · `GBPBRL` · `USDEUR` · `USDJPY`
 
 ---
 
-### 🌎 Multi-Moeda
-Visualize todos os ativos em **BRL (R$)**, **USD ($)** ou **EUR (€)** com conversão em tempo real e troca instantânea sem recarregar a página.
+### 🌎 Multi-Currency
+View all assets in **BRL (R$)**, **USD ($)** or **EUR (€)** with real-time conversion and instant switching without reloading the page.
 
 ---
 
 ### ⭐ Watchlist
-Adicione e remova ativos com persistência automática — sem login.
+Add and remove assets with automatic persistence — no login required.
 
 ---
 
-### 💼 Aba Trade (Portfólio)
-- Registro de entradas e saídas por ativo
-- Cálculo de P&L realizado e não realizado
-- Win rate e estatísticas agregadas
-- Suporte a múltiplos trades por ativo
+### 💼 Trade Tab (Portfolio)
+- Record entries and exits per asset
+- Realised and unrealised P&L calculation
+- Win rate and aggregated statistics
+- Multiple trades per asset supported
 
 ---
 
-### 🏦 Dashboard de Wallets
-- Acompanhe saldos de carteiras on-chain
-- Agrupamento por rede e tipo de ativo
-- Ativos manuais para posições off-chain
+### 🏦 Wallet Dashboard
+- Track on-chain wallet balances
+- Group by network and asset type
+- Manual assets for off-chain positions
 
 ---
 
-### 🔔 Alertas de Preço
-Configure alertas de alta/baixa para qualquer ativo da watchlist. Notificação imediata no navegador.
+### 🔔 Price Alerts
+Set high/low alerts for any watchlist asset. Instant browser notification.
+
+---
+
+### 📱 Embeddable Widget
+A standalone ticker widget (`/widget`) that can be embedded in any page.
+- Configurable columns (1 or 2) and rows (1 or 2 per asset)
+- Adjustable font size, theme, currency, and refresh rate
+- Separate settings page at `/widget/settings`
 
 ---
 
 ### 📱 Progressive Web App (PWA)
-Instale o CryptoAIO direto na tela inicial em Android, iPhone, Windows, macOS ou Linux.
-- Shell offline
-- Carregamento rápido
-- Experiência nativa
+Install CryptoAIO directly on your home screen on Android, iPhone, Windows, macOS or Linux.
+- Offline shell
+- Fast loading
+- Native-like experience
 
 ---
 
 ### 🔒 Privacy First
 
-| ✅ Não exige conta | ✅ Não coleta dados pessoais |
+| ✅ No account required | ✅ No personal data collected |
 |---|---|
-| ✅ Sem analytics ou rastreamento | ✅ Sem chaves privadas |
-| ✅ Sem integração com corretoras | ✅ Sem venda de informações |
+| ✅ No analytics or tracking | ✅ No private keys |
+| ✅ No broker integration | ✅ No data selling |
 
 ---
 
-## 🪙 Tipos de Ativo Suportados
+## 🪙 Supported Asset Types
 
-| Tipo | Exemplos |
+| Type | Examples |
 |------|----------|
-| Criptomoedas | BTC, ETH, SOL, HYPE, XRP, DOGE |
-| Ações BR (B3) | PETR4, VALE3, ITUB4, WEGE3 |
-| Ações EUA | AAPL, NVDA, TSLA, GOOGL |
-| Câmbio | USDBRL, EURBRL, GBPBRL |
+| Cryptocurrencies | BTC, ETH, SOL, HYPE, XRP, DOGE |
+| Brazilian Stocks (B3) | PETR4, VALE3, ITUB4, WEGE3 |
+| US Stocks | AAPL, NVDA, TSLA, GOOGL |
+| Forex | USDBRL, EURBRL, GBPBRL |
 
 ---
 
-## 🛠 Stack
+## 🛠 Tech Stack
 
-| Camada | Tecnologia |
-|--------|-----------|
+| Layer | Technology |
+|-------|-----------|
 | Backend | Python 3.12 + Flask 3 |
 | Frontend | HTML5 · CSS3 · Vanilla JS (ES6+) |
-| IA | Groq (Whisper + LLaMA) · Gemini · OpenRouter |
-| Dados de Mercado | Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare, brapi.dev, Frankfurter |
-| Armazenamento | JSON local + localStorage |
+| AI | Groq (Whisper + LLaMA) · Gemini · OpenRouter |
+| Market Data | Hyperliquid, MEXC, KuCoin, Gate.io, OKX, Kraken, Bitfinex, CoinGecko, CoinCap, CryptoCompare, brapi.dev, Frankfurter |
+| Storage | Local JSON + localStorage |
 
 ---
 
-## 📂 Estrutura do Projeto
+## 📂 Project Structure
 
 ```
 cryptoaio/
-├── app.py                  # Backend Flask — rotas, agregação de preços, Mad AI gateway
-├── assets.json             # Watchlist e portfólio persistidos
-├── alerts.json             # Alertas de preço
-├── dashboard_wallets.json  # Wallets on-chain
+├── app.py                  # Flask backend — routes, price aggregation, Mad AI gateway
+├── assets.json             # Persisted watchlist and portfolio
+├── alerts.json             # Price alerts
+├── dashboard_wallets.json  # On-chain wallets
 ├── requirements.txt
 │
 ├── static/
-│   ├── style.css           # Estilos globais
-│   ├── app.js              # Lógica principal (watchlist, preços, câmbio)
-│   ├── madai.js            # Mad AI — chat, voz, TTS
-│   ├── trade.js            # Aba Trade / portfólio
-│   ├── dashboard.js        # Dashboard de wallets
-│   ├── alerts.js           # Alertas de preço
-│   ├── widget.js           # Widget configurável
-│   ├── i18n.js             # Internacionalização (pt/en)
+│   ├── style.css           # Global styles (dark/light themes)
+│   ├── app.js              # Core logic (watchlist, prices, currency)
+│   ├── madai.js            # Mad AI — chat, voice input, TTS
+│   ├── trade.js            # Trade tab / portfolio
+│   ├── dashboard.js        # Wallet dashboard
+│   ├── alerts.js           # Price alerts
+│   ├── widget.js           # Configurable SPA widget
+│   ├── i18n.js             # Internationalisation (pt / en)
 │   ├── manifest.json       # PWA manifest
 │   ├── sw.js               # Service Worker
-│   └── icons/              # Ícones de tokens (cache local)
+│   └── icons/              # Local token icon cache
 │
 └── templates/
-    ├── index.html          # App principal
-    ├── widget.html         # Widget standalone
+    ├── index.html          # Main SPA
+    ├── widget.html         # Standalone widget page
     └── widget_settings.html
 ```
 
 ---
 
-## 🚀 Como Rodar
+## 🚀 Getting Started
 
-### Pré-requisitos
+### Prerequisites
 - Python 3.10+
 
-### Instalação
+### Installation
 
 ```bash
 git clone https://github.com/madnessinvestor/madtrack.git
@@ -162,43 +170,44 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Acesse em: `http://localhost:5000`
+Open in your browser: `http://localhost:5000`
 
-### Variáveis de Ambiente (opcionais — para o Mad AI)
+### Environment Variables (optional — required for Mad AI)
 
-| Variável | Descrição |
-|----------|-----------|
-| `GROQ_API_KEY` | Groq (transcrição Whisper + LLaMA) |
+| Variable | Description |
+|----------|-------------|
+| `GROQ_API_KEY` | Groq (Whisper transcription + LLaMA chat) |
 | `GOOGLE_AI_API_KEY` | Google Gemini (fallback) |
 | `OPENROUTER_API_KEY` | OpenRouter (fallback) |
 
-> Sem essas chaves, o Mad AI fica indisponível. Os demais módulos funcionam normalmente.
+> Without these keys Mad AI is unavailable. All other modules work normally.
 
 ---
 
 ## 🎯 Roadmap
 
-- [x] Watchlist multi-ativo
-- [x] Portfólio com P&L
-- [x] Dashboard de wallets on-chain
-- [x] Alertas de preço
-- [x] Multi-moeda (BRL / USD / EUR)
-- [x] Mad AI — assistente com análise de portfólio
-- [x] Entrada por voz (Groq Whisper)
-- [x] Leitura em voz alta (TTS nativo)
-- [x] PWA instalável
-- [ ] Gráficos históricos de preço
-- [ ] Múltiplas watchlists
-- [ ] Export/Import de dados
+- [x] Multi-asset watchlist
+- [x] Portfolio with P&L
+- [x] On-chain wallet dashboard
+- [x] Price alerts
+- [x] Multi-currency (BRL / USD / EUR)
+- [x] Mad AI — AI assistant with portfolio analysis
+- [x] Voice input (Groq Whisper)
+- [x] Text-to-speech (native TTS)
+- [x] Installable PWA
+- [x] Embeddable widget with 2-column / 2-row layouts
+- [ ] Historical price charts
+- [ ] Multiple watchlists
+- [ ] Data export / import
 
 ---
 
-## 📄 Licença
+## 📄 License
 
-Distribuído sob a licença **MIT**.
+Distributed under the **MIT** license.
 
 ---
 
 <div align="center">
-  <strong>CryptoAIO</strong> — Simples. Rápido. Privado.
+  <strong>CryptoAIO</strong> — Simple. Fast. Private.
 </div>
