@@ -2711,7 +2711,7 @@ def get_dash_wallets():
 
 
 _VALID_NETWORK_TYPES = {"evm", "solana", "bitcoin", "other"}
-_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos", "ergo"}
+_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos", "ergo", "starknet"}
 
 def _validate_wallet_address(network_type, address, sub_network=""):
     """Return an error string or None if valid."""
@@ -3234,7 +3234,7 @@ def _refresh_bitcoin(wallet, wallets, address):
     return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
                     "perps": 0, "errors": errors})
 
-_OTHER_FETCH_SUPPORTED = {"ton", "near", "ergo"}
+_OTHER_FETCH_SUPPORTED = {"ton", "near", "ergo", "starknet"}
 
 def _refresh_other(wallet, wallets, address):
     """Fetch balance for other L1 networks. TON and NEAR have auto-fetch; others store address only."""
@@ -3298,6 +3298,76 @@ def _refresh_other(wallet, wallets, address):
                     "thumbnail": "https://assets.coingecko.com/coins/images/2484/large/Ergo.png",
                     "contract": "",
                 })
+        elif sub_net == "starknet":
+            _SN_RPC   = "https://api.cartridge.gg/x/starknet/mainnet"
+            _SN_BAL   = "0x2e4263afad30923c891518314c3c95dbe830a16874e8abc5777a9a20b54c76e"
+            _SN_TOKENS = [
+                {"symbol": "ETH",  "name": "Ethereum",      "decimals": 18, "cg_id": "ethereum",
+                 "contract": "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
+                 "logo": "https://assets.coingecko.com/coins/images/279/large/ethereum.png"},
+                {"symbol": "STRK", "name": "Starknet",      "decimals": 18, "cg_id": "starknet",
+                 "contract": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+                 "logo": "https://assets.coingecko.com/coins/images/26433/large/starknet.png"},
+                {"symbol": "USDC", "name": "USD Coin",      "decimals": 6,  "cg_id": "usd-coin",
+                 "contract": "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+                 "logo": "https://assets.coingecko.com/coins/images/6319/large/usdc.png"},
+                {"symbol": "USDT", "name": "Tether USD",    "decimals": 6,  "cg_id": "tether",
+                 "contract": "0x068f5c6a61780768455de69077e07e89787839bf8166decfbf92b645209c0fb8",
+                 "logo": "https://assets.coingecko.com/coins/images/325/large/Tether.png"},
+                {"symbol": "WBTC", "name": "Wrapped Bitcoin","decimals": 8, "cg_id": "wrapped-bitcoin",
+                 "contract": "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac",
+                 "logo": "https://assets.coingecko.com/coins/images/7598/large/wrapped_bitcoin_wbtc.png"},
+                {"symbol": "DAI",  "name": "Dai Stablecoin","decimals": 18, "cg_id": "dai",
+                 "contract": "0x00da114221cb83fa859dbdb4c44beeaa0bb37c7537ad5ae66fe5e0efd20e6eb3",
+                 "logo": "https://assets.coingecko.com/coins/images/9956/large/4943.png"},
+            ]
+
+            def _sn_call(contract):
+                payload = json.dumps({
+                    "jsonrpc": "2.0", "id": 1, "method": "starknet_call",
+                    "params": {
+                        "request": {
+                            "contract_address": contract,
+                            "entry_point_selector": _SN_BAL,
+                            "calldata": [address],
+                        },
+                        "block_id": "latest",
+                    },
+                }).encode()
+                req = urllib.request.Request(
+                    _SN_RPC, data=payload,
+                    headers={"Content-Type": "application/json"}, method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    res = json.loads(r.read().decode())
+                parts = res.get("result", [])
+                if len(parts) < 2:
+                    return 0
+                return int(parts[1], 16) * (2 ** 128) + int(parts[0], 16)
+
+            cg_ids  = ",".join(t["cg_id"] for t in _SN_TOKENS)
+            price_d = http_get(f"https://api.coingecko.com/api/v3/simple/price?ids={cg_ids}&vs_currencies=usd", timeout=8) or {}
+
+            def _sn_fetch_token(tok):
+                try:
+                    raw = _sn_call(tok["contract"])
+                    bal = raw / (10 ** tok["decimals"])
+                    if bal > 0:
+                        usd = float((price_d.get(tok["cg_id"]) or {}).get("usd", 0) or 0)
+                        return {
+                            "symbol": tok["symbol"], "name": tok["name"],
+                            "network": "starknet", "chain_type": "OTHER",
+                            "balance": bal, "price_usd": usd,
+                            "value_usd": bal * usd,
+                            "thumbnail": tok["logo"], "contract": tok["contract"],
+                        }
+                except Exception as ex:
+                    errors.append(f"StarkNet {tok['symbol']}: {ex}")
+                return None
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+                results = pool.map(_sn_fetch_token, _SN_TOKENS)
+            tokens.extend(t for t in results if t)
     except Exception as ex:
         errors.append(f"{sub_net}: {ex}")
 
