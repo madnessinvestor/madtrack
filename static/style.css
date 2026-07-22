@@ -745,14 +745,14 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 0.6rem;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 6px 1px;
+  padding: 8px 2px;
   border-radius: 14px;
   transition: color 0.15s;
   letter-spacing: 0.02em;
@@ -764,12 +764,12 @@ main {
 .nav-item:active { opacity: 0.7; }
 
 .nav-icon-wrap {
-  width: 40px;
-  height: 30px;
+  width: 48px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 12px;
   transition: background 0.15s;
 }
 [data-theme="light"] .nav-item.active .nav-icon-wrap { background: rgba(0,168,84,0.12); }
