@@ -3678,16 +3678,25 @@ def _refresh_other(wallet, wallets, address):
                     conv_data = json.loads(_r.read().decode())
                 sei_bech32 = conv_data.get("sei_address", "")
                 if sei_bech32:
-                    # Fetch all delegations
-                    del_url = f"{_SEI_REST}/cosmos/staking/v1beta1/delegations/{sei_bech32}"
-                    del_req = urllib.request.Request(del_url, headers={"Accept": "application/json"})
-                    with urllib.request.urlopen(del_req, timeout=10) as _r:
-                        del_data = json.loads(_r.read().decode())
-                    total_staked_usei = sum(
-                        int(d.get("balance", {}).get("amount", 0) or 0)
-                        for d in del_data.get("delegation_responses", [])
-                        if d.get("balance", {}).get("denom") == "usei"
-                    )
+                    # Fetch ALL delegations (paginated — cosmos default is 100/page)
+                    total_staked_usei = 0
+                    next_key = None
+                    for _ in range(20):   # max 20 pages = 2000 validators
+                        pg = f"&pagination.limit=100"
+                        if next_key:
+                            pg += f"&pagination.key={urllib.parse.quote(next_key)}"
+                        del_url = (f"{_SEI_REST}/cosmos/staking/v1beta1/delegations"
+                                   f"/{sei_bech32}?pagination.limit=100"
+                                   + (f"&pagination.key={urllib.parse.quote(next_key)}" if next_key else ""))
+                        del_req = urllib.request.Request(del_url, headers={"Accept": "application/json"})
+                        with urllib.request.urlopen(del_req, timeout=10) as _r:
+                            del_data = json.loads(_r.read().decode())
+                        for d in del_data.get("delegation_responses", []):
+                            if d.get("balance", {}).get("denom") == "usei":
+                                total_staked_usei += int(d["balance"].get("amount", 0) or 0)
+                        next_key = del_data.get("pagination", {}).get("next_key")
+                        if not next_key:
+                            break
                     staked_sei = total_staked_usei / 1e6
                     if staked_sei >= 0.0001:
                         _pr2 = fetch_price("SEI")
