@@ -57,6 +57,7 @@ const CHAIN_META = {
   mode:       { name: "Mode",       color: "#dffe00", id: 34443 },
   sol:        { name: "Solana",     color: "#9945ff", id: null },
   hyp:        { name: "HyperEVM",   color: "#00c27c", id: 999 },
+  sei:        { name: "SEI",        color: "#9d1fff", id: 1329 },
   // legacy / alternate aliases
   polygon:    { name: "Polygon",    color: "#8247e5", id: 137 },
   arbitrum:   { name: "Arbitrum",   color: "#28a0f0", id: 42161 },

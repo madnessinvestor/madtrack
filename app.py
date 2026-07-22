@@ -1,5 +1,5 @@
 from flask import Flask, render_template, jsonify, request, send_file
-import json, os, uuid, urllib.request, urllib.error, concurrent.futures, time, threading, time as _time
+import json, os, uuid, urllib.request, urllib.error, urllib.parse, concurrent.futures, time, threading, time as _time
 
 app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -1351,6 +1351,7 @@ NETWORK_MAP = {
     "bsc":       ("BSC",          "https://bsc.blockscout.com",               "BNB"),
     "polygon":   ("Polygon",      "https://polygon.blockscout.com",           "MATIC"),
     "hyperevm":  ("HyperEVM",     "https://hyperevmscan.io",                  "HYPE"),
+    "sei":       ("SEI",          "https://seitrace.com",                     "SEI"),
     "avalanche": ("Avalanche",    "https://avalanche.blockscout.com",         "AVAX"),
     "zksync":    ("zkSync Era",   "https://zksync.blockscout.com",            "ETH"),
     "linea":     ("Linea",        "https://explorer.linea.build",             "ETH"),
@@ -2711,7 +2712,7 @@ def get_dash_wallets():
 
 
 _VALID_NETWORK_TYPES = {"evm", "solana", "bitcoin", "other"}
-_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos", "ergo", "starknet"}
+_VALID_SUB_NETWORKS  = {"ton", "near", "cosmos", "sui", "aptos", "ergo", "starknet", "sei"}
 
 def _validate_wallet_address(network_type, address, sub_network=""):
     """Return an error string or None if valid."""
@@ -2731,7 +2732,10 @@ def _validate_wallet_address(network_type, address, sub_network=""):
     elif network_type == "other":
         if sub_network not in _VALID_SUB_NETWORKS:
             return f"Rede não suportada: {sub_network}. Use: {', '.join(sorted(_VALID_SUB_NETWORKS))}"
-        if len(address) < 3 or len(address) > 128:
+        if sub_network == "sei":
+            if not _re.match(r"^0x[0-9a-fA-F]{40}$", address):
+                return "Endereço SEI inválido (formato 0x + 40 hex)"
+        elif len(address) < 3 or len(address) > 128:
             return "Endereço inválido"
     return None
 
@@ -2743,7 +2747,7 @@ def add_dash_wallet():
     label        = body.get("label",   "").strip()
     sub_network  = body.get("sub_network", "").strip().lower()
 
-    if network_type == "evm":
+    if network_type == "evm" or (network_type == "other" and sub_network == "sei"):
         address = address.lower()
 
     err = _validate_wallet_address(network_type, address, sub_network)
@@ -3234,7 +3238,105 @@ def _refresh_bitcoin(wallet, wallets, address):
     return jsonify({"ok": True, "tokens": len(tokens), "defi": 0,
                     "perps": 0, "errors": errors})
 
-_OTHER_FETCH_SUPPORTED = {"ton", "near", "ergo", "starknet"}
+_OTHER_FETCH_SUPPORTED = {"ton", "near", "ergo", "starknet", "sei"}
+
+# ── SEI EVM: Yei Finance (Aave v3) DeFi positions ─────────────────────────────
+def _sei_fetch_yei(address):
+    """Fetch Yei Finance (Aave v3 fork) lending/borrowing positions on SEI EVM.
+    Uses the Goldsky subgraph. Returns list of DeFi position rows."""
+    _QUERY = """
+    query($user: String!) {
+      userReserves(where: { user: $user, or: [
+        { currentATokenBalance_gt: "0" },
+        { currentVariableDebt_gt: "0" },
+        { currentStableDebt_gt: "0" }
+      ]}) {
+        reserve {
+          symbol
+          name
+          decimals
+          underlyingAsset
+        }
+        currentATokenBalance
+        currentVariableDebt
+        currentStableDebt
+      }
+    }
+    """
+    _SUBGRAPH = (
+        "https://api.goldsky.com/api/public/project_clzb3gqvdufqb01xt72rxb8iy"
+        "/subgraphs/yei-finance/sei-mainnet/gn"
+    )
+    payload = json.dumps({"query": _QUERY, "variables": {"user": address.lower()}}).encode()
+    req = urllib.request.Request(
+        _SUBGRAPH, data=payload,
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=12) as r:
+        data = json.loads(r.read().decode())
+
+    reserves = (data.get("data") or {}).get("userReserves") or []
+    positions = []
+    _SEI_STABLES = {"USDC", "USDT", "DAI", "USDTE", "FUSD", "fastUSD"}
+
+    for rv in reserves:
+        res  = rv.get("reserve", {})
+        sym  = (res.get("symbol") or "").upper()
+        name = res.get("name") or sym
+        try:
+            dec       = int(res.get("decimals") or 18)
+            sup_raw   = int(rv.get("currentATokenBalance") or 0)
+            vdebt_raw = int(rv.get("currentVariableDebt")  or 0)
+            sdebt_raw = int(rv.get("currentStableDebt")    or 0)
+        except (ValueError, TypeError):
+            continue
+
+        factor   = 10 ** dec
+        sup_bal  = sup_raw  / factor
+        debt_bal = (vdebt_raw + sdebt_raw) / factor
+        if sup_bal <= 0 and debt_bal <= 0:
+            continue
+
+        if sym in _SEI_STABLES:
+            price = 1.0
+        else:
+            pr    = fetch_price(sym)
+            price = float(pr["price"]) if pr and pr.get("price") else 0.0
+
+        sup_usd  = sup_bal  * price
+        debt_usd = debt_bal * price
+        net_usd  = sup_usd  - debt_usd
+        if abs(net_usd) < 0.01:
+            continue
+
+        contract = (res.get("underlyingAsset") or "").lower()
+        logo     = f"https://token-icons.llamao.fi/icons/tokens/1329/{contract}?h=64&w=64" if contract else ""
+
+        supply_tokens = ([{"symbol": sym, "balance": sup_bal,  "price_usd": price,
+                           "value_usd": sup_usd,  "logo": logo}] if sup_bal  > 0 else [])
+        borrow_tokens = ([{"symbol": sym, "balance": debt_bal, "price_usd": price,
+                           "value_usd": debt_usd, "logo": logo}] if debt_bal > 0 else [])
+
+        positions.append({
+            "protocol":       "Yei Finance",
+            "protocol_logo":  "https://app.yei.finance/favicon.ico",
+            "protocol_url":   "https://app.yei.finance",
+            "type":           "Lending",
+            "description":    "",
+            "network":        "sei",
+            "asset_usd":      sup_usd,
+            "debt_usd":       debt_usd,
+            "net_usd":        net_usd,
+            "jumper_net_usd": net_usd,
+            "supply_tokens":  supply_tokens,
+            "reward_tokens":  [],
+            "borrow_tokens":  borrow_tokens,
+        })
+
+    positions.sort(key=lambda x: x["net_usd"], reverse=True)
+    return positions
+
 
 def _sn_fetch_zklend(address):
     """Fetch zkLend lending/borrowing positions for a StarkNet address.
@@ -3458,6 +3560,220 @@ def _refresh_other(wallet, wallets, address):
                 t["price_usd"] = p
                 t["value_usd"] = t["balance"] * p
             tokens.extend(raw_tokens)
+
+        elif sub_net == "sei":
+            # ── SEI EVM — multi-strategy: RPC primary, seitrace.com scanner ──
+            _SEI_RPC    = "https://evm-rpc.sei-apis.com"
+            _SEI_SCAN   = "https://seitrace.com"
+            _SEI_HDR    = {
+                "Accept":     "application/json",
+                "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                               "AppleWebKit/537.36 (KHTML, like Gecko) "
+                               "Chrome/124.0.0.0 Safari/537.36"),
+                "Referer":    "https://seitrace.com/",
+            }
+            _SEI_STABLES   = {"USDC", "USDT", "USDTE", "DAI", "FUSD", "SILK",
+                              "FRAX", "ISEI", "FASTUSDC", "FASTUSDT"}
+            _TRANSFER_SIG  = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            _SYM_SEL       = "0x95d89b41"   # symbol()
+            _DEC_SEL       = "0x313ce567"   # decimals()
+            _BAL_SEL       = "0x70a08231"   # balanceOf(address)
+
+            def _sei_rpc(method, params, timeout=10):
+                pl = json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
+                r2 = urllib.request.Request(
+                    _SEI_RPC, pl,
+                    {"Content-Type":"application/json","Accept":"application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(r2, timeout=timeout) as rr:
+                    return json.loads(rr.read().decode()).get("result")
+
+            def _abi_decode_string(hex_data):
+                """Decode ABI-encoded dynamic string from eth_call result."""
+                try:
+                    b = bytes.fromhex(hex_data.lstrip("0x"))
+                    if len(b) >= 64:
+                        str_len = int.from_bytes(b[32:64], "big")
+                        return b[64:64 + str_len].decode("utf-8", errors="ignore").strip("\x00").strip()
+                    return b.rstrip(b"\x00").decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    return ""
+
+            def _sei_erc20_meta(contract):
+                """Return (symbol, name, decimals) for an ERC-20 contract via RPC."""
+                try:
+                    sym_hex = _sei_rpc("eth_call", [{"to": contract, "data": _SYM_SEL}, "latest"], 8)
+                    dec_hex = _sei_rpc("eth_call", [{"to": contract, "data": _DEC_SEL}, "latest"], 8)
+                    sym = _abi_decode_string(sym_hex or "")
+                    dec = int(dec_hex, 16) if dec_hex and dec_hex not in ("0x", "") else 18
+                    return sym, dec
+                except Exception:
+                    return None, 18
+
+            def _sei_balance_of(contract, addr):
+                """Return raw integer balance for addr in ERC-20 contract."""
+                padded = addr[2:].lower().zfill(64)
+                data   = _BAL_SEL + padded
+                try:
+                    res = _sei_rpc("eth_call", [{"to": contract, "data": data}, "latest"], 8)
+                    return int(res, 16) if res and res not in ("0x", "") else 0
+                except Exception:
+                    return 0
+
+            _sei_price_cache = {}
+
+            def _sei_make_token(sym, name, contract, bal, dec):
+                sym_up = sym.upper()
+                if sym_up in _SEI_STABLES:
+                    price = 1.0
+                elif sym_up in _sei_price_cache:
+                    price = _sei_price_cache[sym_up]
+                else:
+                    pr    = fetch_price(sym_up)
+                    price = float(pr["price"]) if pr and pr.get("price") else 0.0
+                    _sei_price_cache[sym_up] = price
+                logo = (f"https://token-icons.llamao.fi/icons/tokens/1329/{contract}?h=64&w=64"
+                        if contract else "")
+                return {
+                    "symbol":     sym,
+                    "name":       name or sym,
+                    "network":    "sei",
+                    "chain_type": "OTHER",
+                    "balance":    bal,
+                    "price_usd":  price,
+                    "value_usd":  bal * price,
+                    "thumbnail":  logo,
+                    "contract":   contract,
+                }
+
+            # ── 1. Native SEI balance via EVM RPC ────────────────────────────
+            try:
+                hex_bal = _sei_rpc("eth_getBalance", [address, "latest"])
+                sei_bal = int(hex_bal, 16) / 1e18 if hex_bal else 0.0
+                if sei_bal >= 0.0001:
+                    _pr = fetch_price("SEI")
+                    sei_usd = float((_pr or {}).get("price", 0) or 0)
+                    tokens.append({
+                        "symbol":     "SEI",
+                        "name":       "SEI",
+                        "network":    "sei",
+                        "chain_type": "OTHER",
+                        "balance":    sei_bal,
+                        "price_usd":  sei_usd,
+                        "value_usd":  sei_bal * sei_usd,
+                        "thumbnail":  "https://assets.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png",
+                        "contract":   "",
+                    })
+            except Exception as ex:
+                errors.append(f"SEI nativo: {ex}")
+
+            # ── 2. ERC-20 tokens — try seitrace.com scanner first ────────────
+            scanner_ok   = False
+            scan_tokens  = []
+            try:
+                page_cursor  = ""
+                all_balances = []
+                for _ in range(10):   # max 10 pages (~1000 tokens)
+                    purl = f"{_SEI_SCAN}/api/v2/addresses/{address}/token-balances"
+                    if page_cursor:
+                        purl += f"?page_cursor={urllib.parse.quote(page_cursor)}"
+                    req_tok = urllib.request.Request(purl, headers=_SEI_HDR, method="GET")
+                    with urllib.request.urlopen(req_tok, timeout=12) as r:
+                        body = json.loads(r.read().decode())
+                    if isinstance(body, list):
+                        all_balances.extend(body)
+                        break
+                    items = body.get("items", [])
+                    all_balances.extend(items)
+                    np = body.get("next_page_params") or {}
+                    page_cursor = np.get("page_cursor", "")
+                    if not page_cursor:
+                        break
+
+                for item in all_balances:
+                    tok  = item.get("token", {})
+                    if tok.get("type") not in ("ERC-20", None):
+                        continue
+                    sym  = (tok.get("symbol") or "").strip()
+                    name = (tok.get("name")   or sym).strip()
+                    if not sym:
+                        continue
+                    try:
+                        dec  = int(tok.get("decimals") or 18)
+                        raw  = int(item.get("value")   or 0)
+                        bal  = raw / (10 ** dec)
+                    except (ValueError, TypeError):
+                        continue
+                    if bal <= 0:
+                        continue
+                    contract = (tok.get("address") or "").lower()
+                    logo     = tok.get("icon_url") or ""
+                    t = _sei_make_token(sym, name, contract, bal, dec)
+                    if logo:
+                        t["thumbnail"] = logo
+                    scan_tokens.append(t)
+                scanner_ok = True
+            except Exception:
+                pass   # fall through to RPC scan
+
+            if scanner_ok:
+                tokens.extend(scan_tokens)
+            else:
+                # ── 3. Fallback: discover tokens via eth_getLogs ──────────────
+                # Scan last 2 000 000 blocks in 2000-block chunks (≈ ~11 days of
+                # activity; SEI produces ~2.3 blocks/s so 2M blocks ≈ 10 days).
+                try:
+                    latest_hex = _sei_rpc("eth_blockNumber", [])
+                    latest_blk = int(latest_hex, 16)
+                    # Scan last 100 000 blocks (~12 h) in parallel chunks of 2 000
+                    scan_from  = max(0, latest_blk - 100_000)
+                    addr_topic = "0x" + address[2:].lower().zfill(64)
+                    chunks     = [(s, min(s + 1999, latest_blk))
+                                  for s in range(scan_from, latest_blk, 2000)]
+
+                    def _fetch_chunk(span):
+                        start, end = span
+                        try:
+                            return _sei_rpc("eth_getLogs", [{
+                                "fromBlock": hex(start),
+                                "toBlock":   hex(end),
+                                "topics":    [_TRANSFER_SIG, None, addr_topic],
+                            }], 12) or []
+                        except Exception:
+                            return []
+
+                    contracts_found: set = set()
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+                        for chunk_logs in pool.map(_fetch_chunk, chunks):
+                            for lg in chunk_logs:
+                                c = (lg.get("address") or "").lower()
+                                if c:
+                                    contracts_found.add(c)
+
+                    # Parallel balanceOf + metadata for each contract found
+                    def _probe_contract(contract):
+                        try:
+                            raw = _sei_balance_of(contract, address)
+                            if raw <= 0:
+                                return None
+                            sym, dec = _sei_erc20_meta(contract)
+                            if not sym:
+                                return None
+                            bal = raw / (10 ** dec)
+                            if bal <= 0:
+                                return None
+                            return _sei_make_token(sym, sym, contract, bal, dec)
+                        except Exception:
+                            return None
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                        rpc_results = pool.map(_probe_contract, contracts_found)
+                    tokens.extend(t for t in rpc_results if t)
+
+                except Exception as ex:
+                    errors.append(f"SEI scan RPC: {ex}")
+
     except Exception as ex:
         errors.append(f"{sub_net}: {ex}")
 
@@ -3468,6 +3784,13 @@ def _refresh_other(wallet, wallets, address):
             defi = _sn_fetch_zklend(address)
         except Exception as ex:
             errors.append(f"zkLend: {ex}")
+
+    # ── SEI DeFi positions (Yei Finance lending) ──────────────────────────────
+    if sub_net == "sei":
+        try:
+            defi += _sei_fetch_yei(address)
+        except Exception:
+            pass   # Subgraph may not be available; fail silently
 
     _save_wallet_result(wallets, address, tokens, defi, [])
     return jsonify({"ok": True, "tokens": len(tokens), "defi": len(defi),
