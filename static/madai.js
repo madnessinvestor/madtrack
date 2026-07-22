@@ -8,14 +8,17 @@ let _aiLoading = false;
 let _aiAutoSpeak = localStorage.getItem("madai_autospeak") === "1";
 
 function _aiUpdateTtsBtn() {
-  const btn = document.getElementById("ai-tts-btn");
+  const btn    = document.getElementById("ai-tts-btn");
+  const banner = document.getElementById("ai-voice-banner");
   if (!btn) return;
   if (_aiAutoSpeak) {
     btn.classList.add("active");
-    btn.title = "Voz automática: ON — clique para desativar";
+    btn.title = "Voz automática ativa — clique para desativar";
+    banner?.classList.remove("hidden");
   } else {
     btn.classList.remove("active");
-    btn.title = "Ativar voz automática";
+    btn.title = "Ativar voz automática nas respostas";
+    banner?.classList.add("hidden");
   }
 }
 
@@ -179,11 +182,11 @@ function aiSpeak(text, btn) {
 
   utter.onstart = () => {
     _aiSpeaking = true;
-    if (btn) { btn.classList.add("speaking"); btn.title = "Parar"; btn.innerHTML = _aiStopIcon(); }
+    if (btn) { btn.classList.add("speaking"); btn.title = "Parar"; btn.innerHTML = _aiStopIcon() + `<span class="ai-speak-label">Parar</span>`; }
   };
   utter.onend = utter.onerror = () => {
     _aiSpeaking = false;
-    if (btn) { btn.classList.remove("speaking"); btn.title = "Ouvir resposta"; btn.innerHTML = _aiSpeakerIcon(); }
+    if (btn) { btn.classList.remove("speaking"); btn.title = "Ouvir esta resposta"; btn.innerHTML = _aiSpeakerIcon() + `<span class="ai-speak-label">Ouvir</span>`; }
   };
 
   window.speechSynthesis.speak(utter);
@@ -334,13 +337,16 @@ function _aiAppendBubble(role, text) {
     div.textContent = text;
   } else if (role === "assistant") {
     div.className = "ai-bubble ai-bubble-assistant";
+    div.innerHTML = _aiMarkdownToHtml(text);
+    const footer = document.createElement("div");
+    footer.className = "ai-bubble-footer";
     const speakBtn = document.createElement("button");
     speakBtn.className = "ai-speak-btn";
-    speakBtn.title = "Ouvir resposta";
-    speakBtn.innerHTML = _aiSpeakerIcon();
+    speakBtn.title = "Ouvir esta resposta";
+    speakBtn.innerHTML = _aiSpeakerIcon() + `<span class="ai-speak-label">Ouvir</span>`;
     speakBtn.onclick = () => aiSpeak(text, speakBtn);
-    div.innerHTML = _aiMarkdownToHtml(text);
-    div.appendChild(speakBtn);
+    footer.appendChild(speakBtn);
+    div.appendChild(footer);
   } else {
     div.className = "ai-bubble ai-bubble-error";
     div.textContent = text;
