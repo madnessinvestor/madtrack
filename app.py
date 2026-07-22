@@ -2345,19 +2345,98 @@ def _build_portfolio_context():
 
     return "\n".join(lines)
 
-SYSTEM_PROMPT = """Você é o Mad AI, assistente financeiro integrado ao CryptoAIO.
-Seu papel é EXCLUSIVAMENTE analisar os dados de trades e portfólio fornecidos pelo usuário.
+SYSTEM_PROMPT = """Você é o Mad AI — assistente financeiro integrado ao CryptoAIO.
 
-REGRAS ABSOLUTAS:
-- Analise apenas os dados fornecidos no contexto do portfólio do usuário.
-- NUNCA faça recomendações de compra ou venda de ativos.
-- NUNCA sugira estratégias de investimento ou alocação.
-- Responda APENAS com análises factuais: estatísticas, padrões, insights sobre o histórico.
-- Se não houver trades, informe educadamente.
-- Responda no mesmo idioma da pergunta do usuário (PT ou EN).
-- Seja conciso e direto. Use formatação simples com listas quando útil.
-- Nunca invente dados — use apenas o que está no contexto fornecido.
+PERSONALIDADE:
+- Informal, descontraído, direto ao ponto. Sem enrolação.
+- Fala como alguém que entende muito de cripto e não tem medo de ser honesto.
+- Usa um tom leve, às vezes bem-humorado, mas sem perder a objetividade.
+- Responde qualquer pergunta — não se esquiva de nada.
+- Sempre que fizer sentido, puxa o assunto pro mercado cripto: menciona oportunidades, tendências, comparações com ativos digitais. Sem forçar, mas está sempre lá.
+
+O QUE VOCÊ PODE FAZER:
+- Analisar trades e portfólio da aba Trade (P&L, ativos, médias, padrões).
+- Analisar wallets e posições da aba Dashboard (saldo, tokens, DeFi, perps).
+- Responder perguntas gerais sobre finanças, cripto, mercado, tecnologia — o que vier.
+- Dar insights, identificar padrões, calcular métricas com os dados disponíveis.
+
+REGRAS:
+- Use os dados do contexto quando disponíveis. Nunca invente números.
+- Não recomende compra ou venda de ativos específicos como conselho financeiro formal. Mas pode opinar com contexto de mercado.
+- Se não houver dados, seja honesto e diga — mas continue sendo útil na conversa.
+- Responda no idioma da pergunta (PT ou EN).
+- Seja conciso. Use listas e formatação simples quando ajudar na leitura.
 """
+
+def _build_dashboard_context():
+    """Build a text summary of the user's dashboard wallets (tokens, DeFi, perps)."""
+    wallets = load_dash_wallets() if os.path.exists(DASH_WALLETS_FILE) else []
+    manual  = _load_json_file(DASH_MANUAL_FILE) if os.path.exists(DASH_MANUAL_FILE) else []
+
+    if not wallets and not manual:
+        return "O usuário não possui wallets configuradas no Dashboard."
+
+    lines = ["=== DASHBOARD — WALLETS ON-CHAIN ===\n"]
+    grand_total = 0.0
+
+    for w in wallets:
+        label   = w.get("label") or w.get("address", "")[:10] + "..."
+        network = w.get("network_type", "")
+        tokens  = w.get("tokens", [])
+        defi    = w.get("defi", [])
+        perps   = w.get("perps", [])
+        updated = w.get("last_updated", "")
+
+        wallet_total = sum(t.get("value_usd", 0) for t in tokens)
+        defi_total   = sum(p.get("value_usd", 0) for p in defi)
+        perp_total   = sum(p.get("value_usd", 0) for p in perps)
+        wallet_total += defi_total + perp_total
+        grand_total  += wallet_total
+
+        lines.append(f"Wallet: {label} ({network})" + (f" — atualizado: {updated}" if updated else ""))
+        lines.append(f"  Valor total: ${wallet_total:,.2f}")
+
+        if tokens:
+            lines.append("  Tokens:")
+            for t in sorted(tokens, key=lambda x: x.get("value_usd", 0), reverse=True):
+                sym  = t.get("symbol", "?")
+                bal  = t.get("balance", 0)
+                px   = t.get("price_usd", 0)
+                val  = t.get("value_usd", 0)
+                net  = t.get("network", "")
+                lines.append(f"    {sym} ({net}): {bal:.4g} × ${px:,.4g} = ${val:,.2f}")
+
+        if defi:
+            lines.append("  Posições DeFi:")
+            for p in defi:
+                lines.append(f"    {p.get('protocol','?')} — {p.get('type','?')}: ${p.get('value_usd',0):,.2f}")
+
+        if perps:
+            lines.append("  Posições Perp:")
+            for p in perps:
+                sym  = p.get("symbol", "?")
+                side = p.get("side", "?")
+                pnl  = p.get("unrealized_pnl", None)
+                val  = p.get("value_usd", 0)
+                pnl_str = f" | PnL não-real.: ${pnl:+,.2f}" if pnl is not None else ""
+                lines.append(f"    {sym} {side}: ${val:,.2f}{pnl_str}")
+
+        lines.append("")
+
+    if manual:
+        lines.append("=== ATIVOS MANUAIS ===")
+        for m in manual:
+            sym = m.get("symbol", "?")
+            qty = m.get("qty", 0)
+            px  = m.get("price_usd", 0)
+            val = qty * px
+            grand_total += val
+            lines.append(f"  {sym}: {qty} × ${px:,.4g} = ${val:,.2f}")
+        lines.append("")
+
+    lines.append(f"=== TOTAL GERAL DO DASHBOARD: ${grand_total:,.2f} ===")
+    return "\n".join(lines)
+
 
 @app.route("/api/ai/chat", methods=["POST"])
 def ai_chat():
@@ -2373,11 +2452,17 @@ def ai_chat():
     if not user_message:
         return jsonify({"error": "Mensagem vazia."}), 400
 
-    portfolio_context = _build_portfolio_context()
+    # Build both contexts in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+        f_portfolio  = ex.submit(_build_portfolio_context)
+        f_dashboard  = ex.submit(_build_dashboard_context)
+        portfolio_ctx = f_portfolio.result()
+        dashboard_ctx = f_dashboard.result()
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "system", "content": f"DADOS DO PORTFÓLIO ATUAL:\n{portfolio_context}"},
+        {"role": "system", "content": f"DADOS DA ABA TRADE (portfólio):\n{portfolio_ctx}"},
+        {"role": "system", "content": f"DADOS DA ABA DASHBOARD (wallets on-chain):\n{dashboard_ctx}"},
     ]
     for h in history[-10:]:
         role    = h.get("role")
@@ -2387,7 +2472,7 @@ def ai_chat():
     messages.append({"role": "user", "content": user_message})
 
     try:
-        result = ask_ai(messages, temperature=0.3, max_tokens=1024)
+        result = ask_ai(messages, temperature=0.5, max_tokens=1024)
         return jsonify({"reply": result["text"], "provider": result["provider"]})
     except RuntimeError as ex:
         return jsonify({"error": str(ex)}), 502
