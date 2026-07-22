@@ -2379,6 +2379,43 @@ def _build_dashboard_context():
     lines = ["=== DASHBOARD — WALLETS ON-CHAIN ===\n"]
     grand_total = 0.0
 
+    def _fmt_position(p, label):
+        """Format a DeFi or Perp position entry."""
+        protocol    = p.get("protocol", "?")
+        ptype       = p.get("type", "?")
+        desc        = p.get("description", "")
+        net_usd     = p.get("net_usd", 0)
+        asset_usd   = p.get("asset_usd", 0)
+        debt_usd    = p.get("debt_usd", 0)
+        supply_toks = p.get("supply_tokens", [])
+        borrow_toks = p.get("borrow_tokens", [])
+        reward_toks = p.get("reward_tokens", [])
+
+        header = f"    [{label}] {protocol} — {ptype}"
+        if desc:
+            header += f" ({desc})"
+        header += f": net=${net_usd:,.2f}"
+        if debt_usd:
+            header += f" | asset=${asset_usd:,.2f} | dívida=${debt_usd:,.2f}"
+        out = [header]
+
+        for t in supply_toks:
+            sym = t.get("symbol", "?")
+            bal = t.get("balance", 0)
+            val = t.get("value_usd", 0)
+            out.append(f"      supply: {bal:.4g} {sym} = ${val:,.2f}")
+        for t in borrow_toks:
+            sym = t.get("symbol", "?")
+            bal = t.get("balance", 0)
+            val = t.get("value_usd", 0)
+            out.append(f"      borrow: {bal:.4g} {sym} = ${val:,.2f}")
+        for t in reward_toks:
+            sym = t.get("symbol", "?")
+            bal = t.get("balance", 0)
+            val = t.get("value_usd", 0)
+            out.append(f"      reward: {bal:.4g} {sym} = ${val:,.2f}")
+        return out
+
     for w in wallets:
         label   = w.get("label") or w.get("address", "")[:10] + "..."
         network = w.get("network_type", "")
@@ -2387,39 +2424,34 @@ def _build_dashboard_context():
         perps   = w.get("perps", [])
         updated = w.get("last_updated", "")
 
-        wallet_total = sum(t.get("value_usd", 0) for t in tokens)
-        defi_total   = sum(p.get("value_usd", 0) for p in defi)
-        perp_total   = sum(p.get("value_usd", 0) for p in perps)
-        wallet_total += defi_total + perp_total
-        grand_total  += wallet_total
+        token_total = sum(t.get("value_usd", 0) for t in tokens)
+        defi_total  = sum(p.get("net_usd", 0)   for p in defi)
+        perp_total  = sum(p.get("net_usd", 0)   for p in perps)
+        wallet_total = token_total + defi_total + perp_total
+        grand_total += wallet_total
 
         lines.append(f"Wallet: {label} ({network})" + (f" — atualizado: {updated}" if updated else ""))
-        lines.append(f"  Valor total: ${wallet_total:,.2f}")
+        lines.append(f"  Total: ${wallet_total:,.2f}  (tokens: ${token_total:,.2f} | DeFi: ${defi_total:,.2f} | Perps/outros: ${perp_total:,.2f})")
 
         if tokens:
             lines.append("  Tokens:")
             for t in sorted(tokens, key=lambda x: x.get("value_usd", 0), reverse=True):
-                sym  = t.get("symbol", "?")
-                bal  = t.get("balance", 0)
-                px   = t.get("price_usd", 0)
-                val  = t.get("value_usd", 0)
-                net  = t.get("network", "")
+                sym = t.get("symbol", "?")
+                bal = t.get("balance", 0)
+                px  = t.get("price_usd", 0)
+                val = t.get("value_usd", 0)
+                net = t.get("network", "")
                 lines.append(f"    {sym} ({net}): {bal:.4g} × ${px:,.4g} = ${val:,.2f}")
 
         if defi:
-            lines.append("  Posições DeFi:")
-            for p in defi:
-                lines.append(f"    {p.get('protocol','?')} — {p.get('type','?')}: ${p.get('value_usd',0):,.2f}")
+            lines.append(f"  Posições DeFi ({len(defi)}):")
+            for p in sorted(defi, key=lambda x: x.get("net_usd", 0), reverse=True):
+                lines.extend(_fmt_position(p, "DeFi"))
 
         if perps:
-            lines.append("  Posições Perp:")
-            for p in perps:
-                sym  = p.get("symbol", "?")
-                side = p.get("side", "?")
-                pnl  = p.get("unrealized_pnl", None)
-                val  = p.get("value_usd", 0)
-                pnl_str = f" | PnL não-real.: ${pnl:+,.2f}" if pnl is not None else ""
-                lines.append(f"    {sym} {side}: ${val:,.2f}{pnl_str}")
+            lines.append(f"  Posições Perp/Depósito ({len(perps)}):")
+            for p in sorted(perps, key=lambda x: x.get("net_usd", 0), reverse=True):
+                lines.extend(_fmt_position(p, "Perp"))
 
         lines.append("")
 
