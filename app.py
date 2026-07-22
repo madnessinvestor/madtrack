@@ -3669,51 +3669,93 @@ def _refresh_other(wallet, wallets, address):
                 errors.append(f"SEI nativo: {ex}")
 
             # ── 1b. SEI staked (cosmos delegations) ──────────────────────────
+            # Primary: seiscan.io (official Sei explorer — server-rendered,
+            # reflects canonical chain state; public REST nodes often serve
+            # stale/incomplete data for this chain).
+            # Fallback: cosmos REST LCD.
             try:
-                _SEI_REST = "https://rest.sei-apis.com"
-                # Convert EVM address → bech32 sei address
-                conv_url = f"{_SEI_REST}/sei-protocol/seichain/evm/sei_address?evm_address={address}"
-                conv_req = urllib.request.Request(conv_url, headers={"Accept": "application/json"})
-                with urllib.request.urlopen(conv_req, timeout=10) as _r:
-                    conv_data = json.loads(_r.read().decode())
-                sei_bech32 = conv_data.get("sei_address", "")
-                if sei_bech32:
-                    # Fetch ALL delegations (paginated — cosmos default is 100/page)
-                    total_staked_usei = 0
-                    next_key = None
-                    for _ in range(20):   # max 20 pages = 2000 validators
-                        pg = f"&pagination.limit=100"
-                        if next_key:
-                            pg += f"&pagination.key={urllib.parse.quote(next_key)}"
-                        del_url = (f"{_SEI_REST}/cosmos/staking/v1beta1/delegations"
-                                   f"/{sei_bech32}?pagination.limit=100"
-                                   + (f"&pagination.key={urllib.parse.quote(next_key)}" if next_key else ""))
-                        del_req = urllib.request.Request(del_url, headers={"Accept": "application/json"})
-                        with urllib.request.urlopen(del_req, timeout=10) as _r:
-                            del_data = json.loads(_r.read().decode())
-                        for d in del_data.get("delegation_responses", []):
-                            if d.get("balance", {}).get("denom") == "usei":
-                                total_staked_usei += int(d["balance"].get("amount", 0) or 0)
-                        next_key = del_data.get("pagination", {}).get("next_key")
-                        if not next_key:
-                            break
-                    staked_sei = total_staked_usei / 1e6
-                    if staked_sei >= 0.0001:
-                        _pr2 = fetch_price("SEI")
-                        sei_usd2 = float((_pr2 or {}).get("price", 0) or 0)
-                        tokens.append({
-                            "symbol":     "SEI",
-                            "name":       "SEI (Staked)",
-                            "network":    "sei",
-                            "chain_type": "OTHER",
-                            "balance":    staked_sei,
-                            "price_usd":  sei_usd2,
-                            "value_usd":  staked_sei * sei_usd2,
-                            "thumbnail":  "https://assets.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png",
-                            "contract":   "",
-                        })
+                import re as _re
+                _SEISCAN_HDR = {
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36"
+                    ),
+                    "Accept":          "text/html,application/xhtml+xml",
+                    "Accept-Language": "en-US,en;q=0.9",
+                }
+                _scan_req = urllib.request.Request(
+                    f"https://seiscan.io/address/{address}#stake",
+                    headers=_SEISCAN_HDR,
+                )
+                with urllib.request.urlopen(_scan_req, timeout=15) as _r:
+                    _html = _r.read().decode("utf-8", errors="ignore")
+                # Rows: <td>seivaloper…</td><td>status</td><td>N SEI</td>
+                _rows = _re.findall(
+                    r"<td>(seivaloper[a-z0-9]+)</td>\s*<td>[^<]+</td>"
+                    r"\s*<td>([\d.]+)\s*SEI</td>",
+                    _html,
+                )
+                staked_sei = sum(float(amt) for _, amt in _rows)
             except Exception:
-                pass   # staking API indisponível — falha silenciosa
+                staked_sei = 0.0
+
+            # Fallback: Cosmos REST LCD if scrape failed or yielded nothing
+            if staked_sei < 0.0001:
+                try:
+                    _SEI_REST = "https://rest.sei-apis.com"
+                    _conv_url = (
+                        f"{_SEI_REST}/sei-protocol/seichain/evm/sei_address"
+                        f"?evm_address={address}"
+                    )
+                    _conv_req = urllib.request.Request(
+                        _conv_url, headers={"Accept": "application/json"}
+                    )
+                    with urllib.request.urlopen(_conv_req, timeout=10) as _r:
+                        sei_bech32 = json.loads(_r.read().decode()).get("sei_address", "")
+                    if sei_bech32:
+                        total_staked_usei = 0
+                        next_key = None
+                        for _ in range(20):
+                            del_url = (
+                                f"{_SEI_REST}/cosmos/staking/v1beta1/delegations"
+                                f"/{sei_bech32}?pagination.limit=100"
+                                + (f"&pagination.key={urllib.parse.quote(next_key)}"
+                                   if next_key else "")
+                            )
+                            del_req = urllib.request.Request(
+                                del_url, headers={"Accept": "application/json"}
+                            )
+                            with urllib.request.urlopen(del_req, timeout=10) as _r:
+                                del_data = json.loads(_r.read().decode())
+                            for d in del_data.get("delegation_responses", []):
+                                if d.get("balance", {}).get("denom") == "usei":
+                                    total_staked_usei += int(
+                                        d["balance"].get("amount", 0) or 0
+                                    )
+                            next_key = del_data.get("pagination", {}).get("next_key")
+                            if not next_key:
+                                break
+                        staked_sei = total_staked_usei / 1e6
+                except Exception:
+                    pass
+
+            if staked_sei >= 0.0001:
+                _pr2     = fetch_price("SEI")
+                sei_usd2 = float((_pr2 or {}).get("price", 0) or 0)
+                tokens.append({
+                    "symbol":     "SEI",
+                    "name":       "SEI (Staked)",
+                    "network":    "sei",
+                    "chain_type": "OTHER",
+                    "balance":    staked_sei,
+                    "price_usd":  sei_usd2,
+                    "value_usd":  staked_sei * sei_usd2,
+                    "thumbnail":  (
+                        "https://assets.coingecko.com/coins/images/28205"
+                        "/large/Sei_Logo_-_Transparent.png"
+                    ),
+                    "contract":   "",
+                })
 
             # ── 2. ERC-20 tokens — try seitrace.com scanner first ────────────
             scanner_ok   = False
