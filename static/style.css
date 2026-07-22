@@ -3556,56 +3556,43 @@ section.hidden { display: none; }
 .wlt-neg { color: #ff4d4d; }
 .wlt-neu { color: #888888; }
 
-/* ── Rows layout mode ─────────────────────────────────────────────────────── */
-.wgt-live-col.wlt-rows-mode {
+/* ── 2-row-per-asset layout ───────────────────────────────────────────────── */
+/* Column switches from CSS grid to flex-column so each asset block stacks   */
+.wgt-live-col.wlt-2row-mode {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  width: 100%;
-  /* override the CSS grid that columns mode uses */
-  grid-template-columns: none !important;
+  gap: 2px;
 }
-.wlt-row {
+/* Each asset block */
+.wlt-asset-2r {
+  width: 100%;
+  padding: 1px 0;
+}
+/* Line 1: icon + ticker + price [+ value if both] */
+.wlt-2r-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 2px 0;
+  gap: 4px;
   width: 100%;
 }
-.wlt-row-left {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
+.wlt-2r-top .wlt-ticker {
   flex: 1;
-  overflow: hidden;
-}
-.wlt-row-left .wlt-ticker {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wlt-row-right {
+.wlt-2r-top .wlt-price,
+.wlt-2r-top .wlt-chg { flex-shrink: 0; }
+/* Line 2: change right-aligned (% when both, single chg otherwise) */
+.wlt-2r-bot {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  justify-content: flex-end;
+  padding-right: 0;
+  min-height: 1em;
 }
-/* "both" mode stacks value on top, % below */
-.wlt-chg-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0;
-}
-.wlt-chg-sub {
-  opacity: 0.75;
-  line-height: 1.3;
-}
-/* light theme rows */
-.wgt-live-box.wgt-live-light .wlt-row-left .wlt-ticker { color: rgba(0,0,0,0.85); }
-.wgt-live-box.wgt-live-light .wlt-row-right .wlt-price  { color: rgba(0,0,0,0.65); }
+/* light theme overrides for 2-row mode */
+.wgt-live-box.wgt-live-light .wlt-2r-top .wlt-ticker { color: rgba(0,0,0,0.85); }
+.wgt-live-box.wgt-live-light .wlt-2r-top .wlt-price  { color: rgba(0,0,0,0.65); }
 
 /* ── Widget Settings Tab (ws-*) ─────────────────────────────────────────── */
 .ws-page {

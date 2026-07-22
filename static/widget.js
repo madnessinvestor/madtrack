@@ -5,8 +5,9 @@
 const WT_DEFAULTS = {
   // Web /widget display settings
   ccy:          "USD",   // USD | BRL | EUR
-  chg:          "pct",   // pct | val
+  chg:          "pct",   // pct | val | both
   cols:         "2",     // 1 | 2
+  rows:         "1",     // 1 | 2  (lines per asset)
   fontSize:     "md",    // sm | md | lg
   bold:         false,
   showCcy:      true,
@@ -96,6 +97,7 @@ function wtApplyUI() {
     ["wt-ccy",      "ccy"],
     ["wt-chg",      "chg"],
     ["wt-cols",     "cols"],
+    ["wt-rows",     "rows"],
     ["wt-fontSize", "fontSize"],
   ].forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -411,31 +413,27 @@ function wltApplyLayout() {
   const valBtn     = document.getElementById("wlt-chg-val-btn");
   if (!topbar) return;
 
-  const isRows = wtCfg.cols === "rows";
+  const is2Row = wtCfg.rows === "2";
 
   topbar.style.display    = (wtCfg.showHeader || wtCfg.showControls) ? "" : "none";
   if (header)     header.style.display     = wtCfg.showHeader   ? "" : "none";
   if (refreshBtn) refreshBtn.style.display = wtCfg.showRefresh  ? "" : "none";
   if (controls)   controls.style.display   = wtCfg.showControls ? "" : "none";
-  if (c2)         c2.style.display         = (wtCfg.cols === "1" || isRows) ? "none" : "";
+  if (c2)         c2.style.display         = wtCfg.cols === "1" ? "none" : "";
 
-  // Rows mode: c1 becomes a flex column; grid mode: restore CSS grid
-  if (c1) {
-    c1.classList.toggle("wlt-rows-mode", isRows);
-    if (!isRows) {
-      // Icon column: toggle grid template based on showIcon
+  // 2-row mode: columns switch to flex so each asset block occupies 2 lines.
+  // 1-row mode: restore CSS grid (icon | ticker | price | chg).
+  document.querySelectorAll(".wgt-live-col").forEach(col => {
+    col.classList.toggle("wlt-2row-mode", is2Row);
+    if (!is2Row) {
       const gridCols = wtCfg.showIcon
         ? "max-content 1fr max-content max-content"
         : "1fr max-content max-content";
-      document.querySelectorAll(".wgt-live-col").forEach(col => {
-        col.style.gridTemplateColumns = gridCols;
-      });
+      col.style.gridTemplateColumns = gridCols;
     } else {
-      // Clear inline gridTemplateColumns so CSS flex takes over
-      c1.style.gridTemplateColumns = "";
-      if (c2) c2.style.gridTemplateColumns = "";
+      col.style.gridTemplateColumns = "";
     }
-  }
+  });
 
   document.querySelectorAll("#wlt-ccy-group .wgt-live-pill").forEach(b =>
     b.classList.toggle("active", b.dataset.ccy === wtCfg.ccy));
@@ -463,40 +461,36 @@ function wltRender() {
   const fs = WLT_FS_MAP[wtCfg.fontSize] || "12px";
   const c1 = document.getElementById("wlt-c1");
   const c2 = document.getElementById("wlt-c2");
+  const cellFn = wtCfg.rows === "2" ? wltAsset2RowHtml : wltCellsHtml;
 
-  if (wtCfg.cols === "rows") {
-    if (c1) c1.innerHTML = data.map(a => wltRowHtml(a, fs)).join("");
-    if (c2) c2.innerHTML = "";
-  } else {
-    const half = wtCfg.cols === "1" ? data.length : Math.ceil(data.length / 2);
-    const col1 = data.slice(0, half);
-    const col2 = wtCfg.cols === "1" ? [] : data.slice(half);
-    if (c1) c1.innerHTML = col1.map(a => wltCellsHtml(a, fs)).join("");
-    if (c2) c2.innerHTML = col2.map(a => wltCellsHtml(a, fs)).join("");
-  }
+  const half = wtCfg.cols === "1" ? data.length : Math.ceil(data.length / 2);
+  const col1 = data.slice(0, half);
+  const col2 = wtCfg.cols === "1" ? [] : data.slice(half);
+  if (c1) c1.innerHTML = col1.map(a => cellFn(a, fs)).join("");
+  if (c2) c2.innerHTML = col2.map(a => cellFn(a, fs)).join("");
 }
 
-// ── Rows-mode renderer ────────────────────────────────────────────────────────
-// Each asset occupies its own full-width row.
-// When chg === "both": value on the asset line, % stacked below it.
-function wltRowHtml(a, fs) {
+// ── 2-row-per-asset renderer ──────────────────────────────────────────────────
+// Each asset gets two lines:
+//   Line 1: [icon] TICKER   $PRICE   [±VALUE if chg=both]
+//   Line 2:  (right-aligned) [+%  if chg=both | ±CHG if pct/val]
+function wltAsset2RowHtml(a, fs) {
   if (!a) return "";
-  const fw    = wtCfg.bold ? "font-weight:700;" : "";
-  const fss   = `font-size:${fs};`;
+  const fw     = wtCfg.bold ? "font-weight:700;" : "";
+  const fss    = `font-size:${fs};`;
   const rawSym = a.symbol || "";
   const symTrunc = rawSym.length > 12 ? rawSym.slice(0, 9) + "…" : rawSym;
-  const sym   = wltEsc(symTrunc);
-  const price = wltEsc(wltFmtPrice(a.price));
+  const sym    = wltEsc(symTrunc);
+  const price  = wltEsc(wltFmtPrice(a.price));
 
   // Bell alerts
-  const tickerAlerts = wltAlertMap[(a.symbol || "").toUpperCase()] || [];
+  const tickerAlerts = wltAlertMap[rawSym.toUpperCase()] || [];
   const activeAlerts = tickerAlerts.filter(al => !al.triggered);
   const bellTitle = activeAlerts.map(al =>
     (al.direction === "above" ? "↑" : "↓") + " $" + Number(al.target).toLocaleString("en-US")
   ).join(" • ");
   const bell = activeAlerts.length
-    ? `<span class="wlt-bell" title="${wltEsc(bellTitle)}">🔔</span>`
-    : "";
+    ? `<span class="wlt-bell" title="${wltEsc(bellTitle)}">🔔</span>` : "";
 
   // Icon
   const _FOREX_FLAG = { USD:'us', EUR:'eu', BRL:'br', GBP:'gb', JPY:'jp', CHF:'ch', AUD:'au', CAD:'ca' };
@@ -509,32 +503,29 @@ function wltRowHtml(a, fs) {
         : `<img class="wlt-icon" src="/static/icons/tokens/${wltEsc(_symUp)}.png" alt="" onerror="this.style.visibility='hidden';this.style.width='0'">`)
     : "";
 
-  // Change display — "both" gets two stacked lines
-  let chgHtml = "";
+  // Change: "both" → value on line 1, % on line 2; pct/val → chg on line 2 only
+  let topChg = "";
+  let botChg  = "";
   if (wtCfg.showChg) {
     if (wtCfg.chg === "both") {
       const v = _wltVal(a.price, a.change24h);
       const p = _wltPct(a.change24h);
-      const subFs = `font-size:calc(${fs} * 0.82);`;
-      chgHtml = `<span class="wlt-chg-stack">
-        <span class="wlt-chg ${v.cls}" style="${fss}${fw}">${wltEsc(v.text)}</span>
-        <span class="wlt-chg wlt-chg-sub ${p.cls}" style="${subFs}${fw}">${wltEsc(p.text)}</span>
-      </span>`;
+      topChg = `<span class="wlt-chg ${v.cls}" style="${fss}${fw}">${wltEsc(v.text)}</span>`;
+      botChg = `<span class="wlt-chg ${p.cls}" style="${fss}${fw}">${wltEsc(p.text)}</span>`;
     } else {
       const { text, cls } = wltFmtChg(a.price, a.change24h);
-      chgHtml = `<span class="wlt-chg ${cls}" style="${fss}${fw}">${wltEsc(text)}</span>`;
+      botChg = `<span class="wlt-chg ${cls}" style="${fss}${fw}">${wltEsc(text)}</span>`;
     }
   }
 
-  return `<div class="wlt-row" style="${fss}">
-    <span class="wlt-row-left">
+  return `<div class="wlt-asset-2r">
+    <div class="wlt-2r-top" style="${fss}">
       ${iconHtml}
       <span class="wlt-ticker" style="${fss}${fw}">${sym}${bell}</span>
-    </span>
-    <span class="wlt-row-right">
-      <span class="wlt-price" style="${fss}${fw}">${price}</span>
-      ${chgHtml}
-    </span>
+      <span class="wlt-price"  style="${fss}${fw}">${price}</span>
+      ${topChg}
+    </div>
+    <div class="wlt-2r-bot">${botChg}</div>
   </div>`;
 }
 
