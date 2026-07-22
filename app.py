@@ -2122,7 +2122,7 @@ def _gw_build_gemini(messages, model, temperature, max_tokens):
     return url, {"Content-Type": "application/json"}, payload, m
 
 def _gw_build_openrouter(messages, model, temperature, max_tokens):
-    m = model or "openrouter/auto"
+    m = model or "openrouter/free"
     payload = json.dumps({"model": m, "messages": messages,
                           "max_tokens": max_tokens, "temperature": temperature}).encode()
     headers = {"Authorization": f"Bearer {_gw_openrouter_key()}",
@@ -2132,10 +2132,18 @@ def _gw_build_openrouter(messages, model, temperature, max_tokens):
     return "https://openrouter.ai/api/v1/chat/completions", headers, payload, m
 
 def _gw_parse_openai(result, provider):
-    ch  = result["choices"][0]
-    use = result.get("usage", {})
+    ch   = result["choices"][0]
+    use  = result.get("usage", {})
+    msg  = ch.get("message", {})
+    # content can be None when model uses tool_calls; fall back to tool text or ""
+    text = msg.get("content") or ""
+    if not text:
+        for tc in (msg.get("tool_calls") or []):
+            text = tc.get("function", {}).get("arguments", "")
+            if text:
+                break
     return {"provider": provider, "model": result.get("model", ""),
-            "text": ch["message"]["content"],
+            "text": text,
             "finish_reason": ch.get("finish_reason", "stop"),
             "usage": {"prompt_tokens":     use.get("prompt_tokens", 0),
                       "completion_tokens": use.get("completion_tokens", 0),
