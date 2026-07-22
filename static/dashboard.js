@@ -753,7 +753,12 @@ function tokenRowHtml(t, subRow = false) {
       ${img}
       <div class="dash-tok-info">
         ${subRow
-          ? `<span class="dash-tok-sym dash-tok-sym-sub">${cm.name}</span>`
+          ? (() => {
+              // Show token name when it carries extra info (e.g. "SEI (Staked)"),
+              // otherwise fall back to chain name so multi-network rows still make sense.
+              const label = (t.name && t.name !== t.symbol) ? t.name : cm.name;
+              return `<span class="dash-tok-sym dash-tok-sym-sub">${escHtml(label)}</span>`;
+            })()
           : `<span class="dash-tok-sym">${escHtml(t.symbol)}</span>${t.name ? `<span class="dash-tok-name">${escHtml(t.name)}</span>` : ""}`
         }
       </div>
