@@ -870,12 +870,14 @@ def get_icon():
     sym = request.args.get("symbol", "").strip().upper()
     if not sym or not _symbol_valid(sym):
         return jsonify({"error": "invalid symbol"}), 400
+    # Resolve icon alias (e.g. UETH → ETH, POL → MATIC)
+    canonical = _ICON_ALIAS.get(sym, sym)
     # Return local cached icon immediately if available
-    path = _local_icon_path(sym)
+    path = _local_icon_path(canonical)
     if os.path.exists(path) and os.path.getsize(path) > 200:
-        return jsonify({"url": _local_icon_url(sym)})
+        return jsonify({"url": _local_icon_url(canonical)})
     # Otherwise try to download, save, and return local URL
-    local_url = _download_icon_to_disk(sym)
+    local_url = _download_icon_to_disk(canonical)
     if local_url:
         return jsonify({"url": local_url})
     return jsonify({"error": "not found"}), 404
@@ -1326,6 +1328,18 @@ def _tx_post(url, payload, timeout=10):
             return json.loads(r.read().decode())
     except Exception:
         return None
+
+# Icon aliases: when these symbols are requested, use the canonical icon instead.
+# e.g. UETH (unwrapped ETH on some bridges) shows the ETH icon.
+_ICON_ALIAS = {
+    "UETH":  "ETH",
+    "UBTC":  "BTC",
+    "WHYPE": "HYPE",
+    "WS":    "S",      # wrapped Sonic → Sonic native
+    "USDT0": "USDT",
+    "USD₮0": "USDT",
+    "POL":   "MATIC",
+}
 
 _STABLECOINS = {"USDT","USDC","DAI","BUSD","FDUSD","TUSD","USDE","FRAX","LUSD",
                 "USDBC","USDC.E","USDV","PYUSD","GUSD","DOLA","CUSD","SUSD","MUSD","USDP",

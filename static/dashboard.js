@@ -76,6 +76,9 @@ function tokenIconUrl(token) {
   if (contract && contract !== "0x0000000000000000000000000000000000000000" && chainId) {
     return `https://token-icons.llamao.fi/icons/tokens/${chainId}/${contract}?h=64&w=64`;
   }
+  // Fallback: local icon API — handles aliases (UETH→ETH, UBTC→BTC, POL→MATIC, etc.)
+  const sym = (token.symbol || "").trim().toUpperCase();
+  if (sym) return `/api/icon?symbol=${encodeURIComponent(sym)}`;
   return null;
 }
 
