@@ -3808,33 +3808,31 @@ section.hidden { display: none; }
 }
 .wlt-trade-ticker {
   flex: 1;
-  font-size: 10.5px;
   color: #e8e8e8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .wlt-trade-qty {
-  font-size: 10px;
+  font-size: 0.88em;
   color: #888;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .wlt-trade-val {
-  font-size: 10.5px;
   color: #e8e8e8;
   text-align: right;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .wlt-trade-pnl-val {
-  font-size: 10px;
+  font-size: 0.88em;
   text-align: right;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .wlt-trade-pnl-pct {
-  font-size: 10px;
+  font-size: 0.88em;
   text-align: right;
   white-space: nowrap;
   flex-shrink: 0;
