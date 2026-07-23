@@ -1868,12 +1868,33 @@ def _parse_evm_result(tx_from, transfers, tx_data, native_sym, chain_name, times
     # The old code only made this exception for wrapped-native buyers, but the
     # same logic applies to ANY token — if you sent it and received a stable,
     # you sold it.
+    #
+    # Exception — chained DEX swap: tx_from sells token A for stable X, and
+    # that same stable X is immediately used (by a router or second address in
+    # the same tx) to buy token B.  The pool counterparty for token A would buy
+    # token A (same token), so a different non-stable in best_buyer means this
+    # is NOT the simple "user sells, pool buys the same token" pattern.
+    # When the two stable amounts also approximately match (≥90 % overlap),
+    # the stable is just routing through a multi-hop swap; prefer the final
+    # output (token B) over the intermediate leg (token A → stable).
     tx_from_direct_seller  = best_seller is not None and best_seller[1] == tx_from
     known_wallet_is_seller = best_seller is not None and best_seller[1] in known_wallets
 
+    chained_swap_buy = False
+    if tx_from_direct_seller and best_buyer is not None:
+        _bought_sym   = best_buyer[2]
+        _sold_sym     = best_seller[2]
+        _buyer_stable = best_buyer[4]
+        _seller_stable = best_seller[4]
+        if (_bought_sym != _sold_sym
+                and _seller_stable > 0 and _buyer_stable > 0):
+            _ratio = min(_buyer_stable, _seller_stable) / max(_buyer_stable, _seller_stable)
+            if _ratio >= 0.90:
+                chained_swap_buy = True
+
     use_buyer = (
         best_buyer is not None
-        and not tx_from_direct_seller   # user is the seller → prefer sell view
+        and (not tx_from_direct_seller or chained_swap_buy)
         and not known_wallet_is_seller  # same for saved wallets
     )
 
