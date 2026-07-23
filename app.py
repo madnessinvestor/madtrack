@@ -865,22 +865,45 @@ def search_symbols():
             pass
     return jsonify(matches[:15])
 
+def _resolve_icon_sym(raw):
+    """Resolve a raw symbol string to a canonical icon symbol.
+    Handles aliases (UETH→ETH, POL→MATIC, USD₮0→USDT …) before any
+    validity checks so special-character tickers don't get rejected."""
+    sym = (raw or "").strip().upper()
+    return _ICON_ALIAS.get(sym, sym)
+
 @app.route("/api/icon")
 def get_icon():
-    sym = request.args.get("symbol", "").strip().upper()
+    raw = request.args.get("symbol", "")
+    sym = _resolve_icon_sym(raw)
     if not sym or not _symbol_valid(sym):
         return jsonify({"error": "invalid symbol"}), 400
-    # Resolve icon alias (e.g. UETH → ETH, POL → MATIC)
-    canonical = _ICON_ALIAS.get(sym, sym)
     # Return local cached icon immediately if available
-    path = _local_icon_path(canonical)
+    path = _local_icon_path(sym)
     if os.path.exists(path) and os.path.getsize(path) > 200:
-        return jsonify({"url": _local_icon_url(canonical)})
+        return jsonify({"url": _local_icon_url(sym)})
     # Otherwise try to download, save, and return local URL
-    local_url = _download_icon_to_disk(canonical)
+    local_url = _download_icon_to_disk(sym)
     if local_url:
         return jsonify({"url": local_url})
     return jsonify({"error": "not found"}), 404
+
+@app.route("/api/icon-img")
+def get_icon_img():
+    """Serve the token icon as a PNG image directly (usable as <img src>).
+    Resolves aliases, downloads on first request, returns 404 on miss."""
+    raw = request.args.get("symbol", "")
+    sym = _resolve_icon_sym(raw)
+    if not sym or not _symbol_valid(sym):
+        return ("", 404)
+    path = _local_icon_path(sym)
+    if not (os.path.exists(path) and os.path.getsize(path) > 200):
+        _download_icon_to_disk(sym)
+    if os.path.exists(path) and os.path.getsize(path) > 200:
+        resp = send_file(path, mimetype="image/png")
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
+    return ("", 404)
 
 @app.route("/api/price")
 def get_price():

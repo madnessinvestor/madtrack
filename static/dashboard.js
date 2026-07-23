@@ -67,6 +67,19 @@ const CHAIN_META = {
   zksync:     { name: "zkSync",     color: "#8c8dfc", id: 324 },
 };
 
+// Two-stage icon error handler: first try /api/icon-img (handles aliases),
+// then fall back to the letter placeholder.
+function dashTokIconErr(el) {
+  const sym = el.dataset.sym;
+  if (sym && !el.dataset.tried) {
+    el.dataset.tried = "1";
+    el.src = "/api/icon-img?symbol=" + encodeURIComponent(sym);
+  } else {
+    el.style.display = "none";
+    if (el.nextElementSibling) el.nextElementSibling.style.display = "flex";
+  }
+}
+
 function tokenIconUrl(token) {
   if (token.thumbnail) return token.thumbnail;
   const contract = (token.contract || "").toLowerCase();
@@ -689,7 +702,7 @@ function tokenGroupHtml(sym, items, walletAddr) {
 
   const icon = tokenIconUrl(items[0]);
   const imgEl = icon
-    ? `<img class="dash-tok-icon" src="${escHtml(icon)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="dash-tok-icon-fb" style="display:none">${(sym||"?")[0]}</span>`
+    ? `<img class="dash-tok-icon" src="${escHtml(icon)}" data-sym="${escHtml(sym)}" onerror="dashTokIconErr(this)" /><span class="dash-tok-icon-fb" style="display:none">${(sym||"?")[0]}</span>`
     : `<span class="dash-tok-icon-fb">${(sym||"?")[0]}</span>`;
 
   const netDots = items.map(t => {
@@ -748,7 +761,7 @@ function tokenRowHtml(t, subRow = false) {
   const cm   = chainMeta(t.network);
   const icon = subRow ? null : tokenIconUrl(t);
   const img  = !subRow ? (icon
-    ? `<img class="dash-tok-icon" src="${escHtml(icon)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="dash-tok-icon-fb" style="display:none">${(t.symbol||"?")[0]}</span>`
+    ? `<img class="dash-tok-icon" src="${escHtml(icon)}" data-sym="${escHtml((t.symbol||"").toUpperCase())}" onerror="dashTokIconErr(this)" /><span class="dash-tok-icon-fb" style="display:none">${(t.symbol||"?")[0]}</span>`
     : `<span class="dash-tok-icon-fb">${(t.symbol||"?")[0]}</span>`)
     : `<span class="dash-chain-dot dash-chain-dot-lg" style="background:${cm.color}" title="${cm.name}"></span>`;
   return `<div class="dash-token-row${subRow ? " dash-tok-sub" : ""}" data-net="${t.network}">
